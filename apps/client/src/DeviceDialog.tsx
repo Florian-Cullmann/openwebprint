@@ -59,7 +59,7 @@ export function DeviceDialog({
   }
   return (
     <Modal
-      title="Ein neuer Teil deines Workflows."
+      title="Gerät hinzufügen"
       subtitle={
         demo
           ? 'Hier verwaltest du ausschließlich simulierte Geräte.'
@@ -92,11 +92,7 @@ export function DeviceDialog({
               <span className={s.radar}>
                 <Radar size={36} strokeWidth={1.4} />
               </span>
-              <h3>
-                {busy
-                  ? 'Wir sehen uns im Netzwerk um …'
-                  : 'Deine Geräte sind näher, als du denkst.'}
-              </h3>
+              <h3>{busy ? 'Geräte werden gesucht …' : 'Geräte im Netzwerk suchen'}</h3>
               <p>
                 {demo
                   ? 'Suche die vorbereiteten Demo-Geräte.'

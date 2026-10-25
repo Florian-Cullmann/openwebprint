@@ -71,7 +71,7 @@ export function ScanDialog({
   const complete = job?.status === 'completed' && job.hasFile;
   return (
     <Modal
-      title={complete ? 'Sieht gut aus.' : 'Vom Papier in deinen Browser.'}
+      title={complete ? 'Scan abgeschlossen' : 'Dokument scannen'}
       subtitle={
         demo
           ? 'Demo-Modus: Die Scanvorlage ist simuliert.'
@@ -86,11 +86,11 @@ export function ScanDialog({
             <img src={`/api/jobs/${job.id}/preview`} alt="Vorschau des gescannten Dokuments" />
           </div>
           <div className={s.scanResultInfo}>
-            <span className={`${s.badge} ${s.green}`}>
+            <span className={`${s.badge} ${s.positive}`}>
               <FileCheck2 size={14} /> Scan abgeschlossen
             </span>
-            <h3>Dein Dokument ist bereit.</h3>
-            <p>Als PDF herunterladen und dort ablegen, wo du es brauchst.</p>
+            <h3>PDF bereit zum Download.</h3>
+            <p>Lade den Scan als PDF herunter.</p>
             <a className={s.primary} href={`/api/jobs/${job.id}/pdf`} download>
               <Download size={17} /> PDF herunterladen
             </a>
@@ -113,11 +113,7 @@ export function ScanDialog({
         <form onSubmit={start} className={s.modalBody}>
           <div className={s.scanIntro}>
             {running ? <Spinner /> : <ScanLine size={48} strokeWidth={1} />}
-            <h3>
-              {running
-                ? 'Dein Dokument wird gescannt …'
-                : 'Dokument einlegen. Den Rest übernehmen wir.'}
-            </h3>
+            <h3>{running ? 'Dein Dokument wird gescannt …' : 'Eine Seite einlegen'}</h3>
             <p>
               {running
                 ? 'Du kannst dieses Fenster schließen. Der Scan läuft weiter.'

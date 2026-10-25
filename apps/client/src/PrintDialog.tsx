@@ -84,7 +84,7 @@ export function PrintDialog({
           ? sent.status === 'unknown'
             ? 'Übertragung ungeklärt'
             : 'Auftrag übertragen'
-          : 'Was möchtest du drucken?'
+          : 'Dokument drucken'
       }
       subtitle={
         demo
@@ -126,7 +126,7 @@ export function PrintDialog({
             }}
           >
             {file ? <FileText size={32} /> : <UploadCloud size={34} />}
-            <h3>{file ? file.name : 'Dein Dokument kommt hierhin'}</h3>
+            <h3>{file ? file.name : 'Datei zum Drucken auswählen'}</h3>
             <p>
               {file
                 ? `${(file.size / 1024 / 1024).toFixed(2)} MB · bereit für den nächsten Schritt`

@@ -45,7 +45,7 @@ test('setup/login → print → status → scan → PDF → devices → dark mod
   await page.getByLabel('Benutzername', { exact: true }).fill('browser-admin');
   await page.getByLabel('Passwort', { exact: true }).fill('browser-password-12345');
   await page.getByRole('button', { name: /^(Zugang erstellen|Anmelden)$/ }).click();
-  await expect(page.getByRole('heading', { name: 'Weniger Umwege. Mehr erledigt.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Übersicht' })).toBeVisible();
   await expect(
     page.getByRole('heading', { name: 'Brother MFC-L2750DW', exact: true }),
   ).toBeVisible();
@@ -82,7 +82,7 @@ test('setup/login → print → status → scan → PDF → devices → dark mod
   await navigate(page, 'Meine Scans');
   await page.getByRole('button', { name: 'Neuer Scan', exact: true }).click();
   await page.getByRole('button', { name: 'Demo-Scan starten', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Sieht gut aus.' })).toBeVisible({
+  await expect(page.getByRole('heading', { name: 'Scan abgeschlossen' })).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.getByAltText('Vorschau des gescannten Dokuments')).toBeVisible();

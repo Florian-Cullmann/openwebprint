@@ -8,8 +8,8 @@ Print and scan from your browser, without another manufacturer app.
 Open source, self-hosted, and built around open standards.
 
 [![CI](https://github.com/Florian-Cullmann/openwebprint/actions/workflows/ci.yml/badge.svg)](https://github.com/Florian-Cullmann/openwebprint/actions/workflows/ci.yml)
-[![MIT](https://img.shields.io/badge/license-MIT-087f6e.svg)](LICENSE)
-[![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-087f6e.svg)](https://nodejs.org/)
+[![MIT](https://img.shields.io/badge/license-MIT-24252a.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-24252a.svg)](https://nodejs.org/)
 
 [Get started](#quick-start) · [Self-hosting](#self-hosting) · [Brother support](docs/hardware.md#brother-from-day-one) · [Contribute](CONTRIBUTING.md)
 

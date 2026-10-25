@@ -75,7 +75,7 @@ export const jobLabels: Record<JobStatus, string> = {
 export function JobBadge({ status }: { status: JobStatus }) {
   return (
     <span
-      className={`${s.badge} ${status === 'completed' ? s.green : status === 'failed' || status === 'unknown' ? s.red : status === 'processing' || status === 'queued' ? s.amber : ''}`}
+      className={`${s.badge} ${status === 'completed' ? s.positive : status === 'failed' || status === 'unknown' ? s.red : status === 'processing' || status === 'queued' ? s.amber : ''}`}
     >
       <span className={s.dot} />
       {jobLabels[status]}
@@ -85,7 +85,7 @@ export function JobBadge({ status }: { status: JobStatus }) {
 export function DeviceBadge({ device }: { device: Device }) {
   return (
     <span
-      className={`${s.badge} ${device.status === 'ready' ? s.green : device.status === 'offline' ? s.red : device.status === 'busy' ? s.amber : ''}`}
+      className={`${s.badge} ${device.status === 'ready' ? s.positive : device.status === 'offline' ? s.red : device.status === 'busy' ? s.amber : ''}`}
       title={device.detail}
     >
       <span className={s.dot} />
