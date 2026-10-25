@@ -1,0 +1,42 @@
+name: openwebprint
+x-app: &app
+  build: .
+  image: openwebprint:local
+  init: false # tini is the image entrypoint
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  environment: &environment
+    APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
+    COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    # Empty means generate a first-run token; do not set an empty SETUP_TOKEN.
+  stop_grace_period: 150s
+services:
+  demo:
+    <<: *app
+    profiles: [demo]
+    environment:
+      <<: *environment
+      MODE: demo
+    ports:
+      - '127.0.0.1:3001:3001'
+    volumes:
+      - demo-data:/data
+  hardware:
+    <<: *app
+    profiles: [hardware]
+    # Linux host networking is required for reliable mDNS / eSCL / WSD discovery.
+    network_mode: host
+    environment:
+      <<: *environment
+      MODE: hardware
+      HOST: 127.0.0.1
+    volumes:
+      - hardware-data:/data
+      - cups-config:/etc/cups
+      - cups-spool:/var/spool/cups
+volumes:
+  demo-data:
+  hardware-data:
+  cups-config:
+  cups-spool:

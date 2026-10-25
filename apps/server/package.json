@@ -1,0 +1,24 @@
+{
+  "name": "@openwebprint/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
+    "build": "tsup src/index.ts --format esm --platform node --target node24 --out-dir dist --no-splitting"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/helmet": "^13.0.2",
+    "@fastify/multipart": "^10.1.6",
+    "@fastify/rate-limit": "^10.3.0",
+    "@fastify/static": "^10.1.7",
+    "@openwebprint/shared": "*",
+    "bonjour-service": "^1.4.4",
+    "fastify": "^5.12.7",
+    "pdf-lib": "^1.17.1",
+    "sharp": "^0.35.5",
+    "zod": "^4.1.0",
+    "@sealsystems/ipp": "^2.11.0"
+  }
+}

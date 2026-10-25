@@ -1,0 +1,61 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [24, 26]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '${{ matrix.node }}'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm audit --omit=dev --audit-level=moderate
+      - if: matrix.node == 24
+        run: npx playwright install --with-deps chromium
+      - if: matrix.node == 24
+        run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-node-${{ matrix.node }}
+          path: test-results/
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --profile demo config --quiet
+      - run: docker compose --profile hardware config --quiet
+      - run: docker build -t openwebprint:test .
+      - name: Demo smoke test
+        run: |
+          docker run -d --name owp-demo -p 127.0.0.1:3001:3001 openwebprint:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3001/api/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3001/ > /dev/null
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/snapshot)" = 401
+          docker exec owp-demo sh -c 'test "$(ps -o user= -p $(pgrep -f "node apps/server/dist/index.js" | head -1) | tr -d " ")" = node'
+      - name: Hardware daemon smoke test (no physical devices)
+        run: |
+          docker rm -f owp-demo
+          docker run -d --name owp-hardware -e MODE=hardware -p 127.0.0.1:3001:3001 openwebprint:test
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3001/api/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3001/api/health
+          docker exec owp-hardware lpstat -h localhost:631 -r
+          docker exec owp-hardware /usr/sbin/cupsd -t
+      - if: failure()
+        run: docker logs owp-demo 2>/dev/null || docker logs owp-hardware

@@ -1,0 +1,34 @@
+name: Device compatibility
+description: Report a real printer or scanner result
+title: '[Device] Manufacturer and model'
+labels: [hardware]
+body:
+  - type: input
+    id: model
+    attributes:
+      label: Manufacturer, exact model, firmware
+    validations:
+      required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Verification mode
+      options:
+        - Physical hardware
+        - Demo only (not a hardware verification)
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node or Docker, CUPS/SANE versions, openwebprint revision, protocols and drivers.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Result and reproduction
+      description: Printing, scanning, tested options, errors. Remove addresses, cookies, credentials and document content.
+    validations:
+      required: true

@@ -1,0 +1,156 @@
+:root {
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  color: #213c38;
+  background: #f6f8f7;
+  font-synthesis: none;
+  font-weight: 400;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  --bg: #f6f8f7;
+  --panel: #fff;
+  --text: #213c38;
+  --muted: #5d7168;
+  --line: #e5ebe8;
+  --accent: #077565;
+  --soft: #edf7f3;
+  --hover: #f0f4f2;
+  --shadow: 0 12px 44px #183e3110;
+  --danger: #bb4141;
+  --danger-bg: #fff0ed;
+  --input: #fff;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #111b19;
+  --panel: #192622;
+  --text: #e5efe9;
+  --muted: #9bafa6;
+  --line: #2d4038;
+  --accent: #71d4b7;
+  --soft: #203d32;
+  --hover: #24352e;
+  --shadow: 0 12px 44px #0003;
+  --danger: #ffaaa4;
+  --danger-bg: #3c2423;
+  --input: #14201c;
+  color: var(--text);
+  background: var(--bg);
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+a {
+  color: inherit;
+}
+button {
+  color: inherit;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+button svg {
+  flex-shrink: 0;
+}
+input,
+select {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--input);
+  color: var(--text);
+  padding: 11px 13px;
+  min-height: 44px;
+}
+input[type='file'] {
+  padding: 10px;
+}
+input::placeholder {
+  color: var(--muted);
+}
+label {
+  font-size: 13px;
+  font-weight: 600;
+  display: grid;
+  gap: 8px;
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 32px;
+  letter-spacing: -1.2px;
+  font-weight: 650;
+}
+h2 {
+  font-size: 20px;
+  letter-spacing: -0.5px;
+  font-weight: 650;
+}
+h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+p {
+  line-height: 1.65;
+}
+::selection {
+  background: #c2e8d8;
+  color: #12372a;
+}
+button {
+  border: 0;
+}
+dialog {
+  color: var(--text);
+}
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  a {
+    transition:
+      background 0.15s,
+      transform 0.15s;
+  }
+  button:active {
+    transform: translateY(1px);
+  }
+}
+
+@media (max-width: 700px) {
+  input,
+  select {
+    font-size: 16px !important;
+  }
+}
