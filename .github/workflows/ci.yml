@@ -58,4 +58,4 @@ jobs:
           docker exec owp-hardware lpstat -h localhost:631 -r
           docker exec owp-hardware /usr/sbin/cupsd -t
       - if: failure()
-        run: docker logs owp-demo 2>/dev/null || docker logs owp-hardware
+        run: docker logs owp-demo || docker logs owp-hardware

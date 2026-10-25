@@ -64,13 +64,11 @@ test('setup/login → print → status → scan → PDF → devices → dark mod
   })
     .png()
     .toBuffer();
-  await page
-    .getByLabel('Dokument auswählen', { exact: true })
-    .setInputFiles({
-      name: `${info.project.name}-document.png`,
-      mimeType: 'image/png',
-      buffer: png,
-    });
+  await page.getByLabel('Dokument auswählen', { exact: true }).setInputFiles({
+    name: `${info.project.name}-document.png`,
+    mimeType: 'image/png',
+    buffer: png,
+  });
   await page.getByLabel('Kopien', { exact: true }).fill('2');
   await accessible(page);
   await page.getByRole('button', { name: 'Demo-Druck starten' }).click();

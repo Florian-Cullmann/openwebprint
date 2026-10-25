@@ -170,7 +170,7 @@ export class HardwareProvider implements Provider {
         browsers.forEach((b) => b.stop());
         bonjour.destroy();
       }
-      for (const type of ['@sealsystems/ipp', 'ipps']) {
+      for (const type of ['ipp', 'ipps']) {
         browsers.push(
           bonjour.find({ type }, (service) => {
             const host =
@@ -294,6 +294,8 @@ export class HardwareProvider implements Provider {
       `sides=${options.sides}`,
       '-o',
       `media=${options.media}`,
+      '-o',
+      'fit-to-page',
       '--',
       filePath,
     ]);

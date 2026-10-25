@@ -64,24 +64,20 @@ export async function createApp(
   });
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof z.ZodError)
-      return reply
-        .code(400)
-        .send({
-          error: 'Eingaben prüfen.',
-          details: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
-        });
+      return reply.code(400).send({
+        error: 'Eingaben prüfen.',
+        details: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
+      });
     if (error instanceof AppError)
       return reply.code(error.statusCode).send({ error: error.message });
     const e = error as { statusCode?: number; code?: string };
     if (e.statusCode && e.statusCode < 500)
-      return reply
-        .code(e.statusCode)
-        .send({
-          error:
-            e.statusCode === 413
-              ? 'Datei zu groß. Maximal 25 MB.'
-              : 'Anfrage ungültig oder zu viele Anfragen. Bitte erneut versuchen.',
-        });
+      return reply.code(e.statusCode).send({
+        error:
+          e.statusCode === 413
+            ? 'Datei zu groß. Maximal 25 MB.'
+            : 'Anfrage ungültig oder zu viele Anfragen. Bitte erneut versuchen.',
+      });
     app.log.error({ code: e.code }, 'Request failed');
     return reply
       .code(500)

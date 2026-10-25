@@ -12,6 +12,24 @@ import type { StoredJob } from '../src/store.js';
 import { fixture } from './helpers.js';
 import { command } from '../src/providers/command.js';
 import { randomUUID } from 'node:crypto';
+const discoveryTypes = vi.hoisted(() => [] as string[]);
+vi.mock('bonjour-service', () => ({
+  Bonjour: class {
+    find({ type }: { type: string }, callback: (service: unknown) => void) {
+      discoveryTypes.push(type);
+      if (['ipp', 'ipps'].includes(type))
+        callback({
+          name: `Brother ${type}`,
+          host: 'brother.local',
+          port: 631,
+          addresses: ['192.168.1.50'],
+          txt: { rp: 'ipp/print' },
+        });
+      return { stop() {} };
+    }
+    destroy() {}
+  },
+}));
 const device: Device = {
   id: randomUUID(),
   name: 'Brother',
@@ -44,16 +62,40 @@ const job: StoredJob = {
   hasFile: false,
 };
 describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', () => {
+  it('discovers standard IPP/IPPS advertisements, local queues and SANE identifiers', async () => {
+    vi.useFakeTimers();
+    discoveryTypes.length = 0;
+    try {
+      const run = vi.fn(async (tool: string) =>
+        tool === 'lpstat'
+          ? 'device for Brother_Office: ipp://192.168.1.50/ipp/print\n'
+          : 'airscan:e0:Brother\tBrother scanner\n',
+      );
+      const pending = new HardwareProvider('localhost:631', run).discover();
+      await vi.advanceTimersByTimeAsync(4001);
+      const found = await pending;
+      expect(discoveryTypes).toEqual(['ipp', 'ipps']);
+      expect(found.devices.map((d) => d.address)).toEqual(
+        expect.arrayContaining([
+          'cups://Brother_Office',
+          'airscan:e0:Brother',
+          'ipp://192.168.1.50:631/ipp/print',
+          'ipps://192.168.1.50:631/ipp/print',
+        ]),
+      );
+      expect(found.warnings).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('maps the actual IPP library enum strings and unknown states honestly', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValue({
-        'printer-state': 'idle',
-        'printer-state-reasons': 'none',
-        'sides-supported': ['one-sided', 'two-sided-long-edge'],
-        'print-color-mode-supported': ['monochrome'],
-        'media-supported': ['iso_a4_210x297mm'],
-      });
+    const request = vi.fn().mockResolvedValue({
+      'printer-state': 'idle',
+      'printer-state-reasons': 'none',
+      'sides-supported': ['one-sided', 'two-sided-long-edge'],
+      'print-color-mode-supported': ['monochrome'],
+      'media-supported': ['iso_a4_210x297mm'],
+    });
     const provider = new HardwareProvider('localhost:631', vi.fn(), request);
     const inspected = await provider.inspect(device);
     expect(inspected.status).toBe('ready');
@@ -93,6 +135,8 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
       'sides=two-sided-long-edge',
       '-o',
       'media=iso_a4_210x297mm',
+      '-o',
+      'fit-to-page',
       '--',
       '/safe/id.pdf',
     ]);

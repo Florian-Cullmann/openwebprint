@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { access, readdir } from 'node:fs/promises';
-import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, PDFDict } from 'pdf-lib';
 import sharp from 'sharp';
 import { fixture, multipart, pdf, credentials, secret } from './helpers.js';
 import { normalizeDocument, MAX_UPLOAD } from '../src/documents.js';
@@ -218,6 +218,22 @@ describe('devices and print pipeline', () => {
     );
     expect(clean.catalog.has(PDFName.of('OpenAction'))).toBe(false);
     expect(clean.getPage(0).node.has(PDFName.of('Annots'))).toBe(false);
+  });
+  it('keeps filled form appearances visible when stripping interactive annotations', async () => {
+    const source = await PDFDocument.create();
+    const page = source.addPage();
+    const field = source.getForm().createTextField('name');
+    field.setText('Print this value');
+    field.addToPage(page);
+    const normalized = await PDFDocument.load(
+      await normalizeDocument(Buffer.from(await source.save()), 'application/pdf'),
+    );
+    expect(normalized.getForm().getFields()).toHaveLength(0);
+    const appearances = normalized
+      .getPage(0)
+      .node.Resources()!
+      .lookup(PDFName.of('XObject'), PDFDict);
+    expect(appearances.keys().length).toBeGreaterThan(0);
   });
   it('preserves uncertain submissions and prevents accidental device removal or retry', async () => {
     class Uncertain extends DemoProvider {

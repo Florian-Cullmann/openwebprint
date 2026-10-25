@@ -15,6 +15,7 @@ export async function normalizeDocument(buffer: Buffer, claimedType: string): Pr
       if (source.isEncrypted || source.getPageCount() === 0 || source.getPageCount() > 500)
         throw new Error('Unsupported PDF');
       // Copy only pages: do not carry document-level scripts, attachments or open actions.
+      source.getForm().flatten({ updateFieldAppearances: false });
       const clean = await PDFDocument.create();
       const pages = await clean.copyPages(source, source.getPageIndices());
       pages.forEach((page) => {

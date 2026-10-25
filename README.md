@@ -130,6 +130,7 @@ See the [model compatibility and troubleshooting guide](docs/hardware.md). There
 Current scope:
 
 - Single-page scans; no ADF batch selection, multi-page scan assembly, OCR, or scan cancellation. Closing the dialog leaves a scan running (up to 120 seconds).
+- PDF uploads are rebuilt and form fields flattened before printing; annotations and document-level active content are omitted. Digital signatures are not validated.
 - Standard A4, A5, and Letter print media, only when the CUPS queue reports support. Color/duplex capabilities come from IPP; scan options are backend-dependent and unsupported options fail explicitly.
 - No printer firmware management, ink-level estimates, cloud relay, multi-user roles, or remote CUPS authentication.
 - Jobs submitted outside openwebprint are not imported. Removing a device leaves its CUPS queue intact. CUPS history purging can make old job states unavailable.

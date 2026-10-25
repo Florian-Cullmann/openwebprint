@@ -12,7 +12,7 @@
     "node": "^24.0.0 || ^26.0.0"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web 'npm run dev -w @openwebprint/server' 'npm run dev -w @openwebprint/client'",
+    "dev": "concurrently -k -n api,web \"npm run dev -w @openwebprint/server\" \"npm run dev -w @openwebprint/client\"",
     "build": "npm run typecheck && npm run build -w @openwebprint/client && npm run build -w @openwebprint/server",
     "typecheck": "tsc --noEmit -p apps/server && tsc --noEmit -p apps/client",
     "test": "vitest run",
