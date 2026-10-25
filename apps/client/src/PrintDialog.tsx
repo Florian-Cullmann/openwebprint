@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { FileText, Printer, UploadCloud, CheckCircle2 } from 'lucide-react';
+import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
 import { api } from './api';
 import { Modal, Spinner } from './ui';
@@ -79,7 +79,13 @@ export function PrintDialog({
   }
   return (
     <Modal
-      title={sent ? 'Auftrag übertragen' : 'Was möchtest du drucken?'}
+      title={
+        sent
+          ? sent.status === 'unknown'
+            ? 'Übertragung ungeklärt'
+            : 'Auftrag übertragen'
+          : 'Was möchtest du drucken?'
+      }
       subtitle={
         demo
           ? 'Demo-Modus: Es wird kein echtes Papier bedruckt.'
@@ -90,8 +96,8 @@ export function PrintDialog({
       }}
     >
       {sent ? (
-        <div className={s.successState}>
-          <CheckCircle2 size={44} />
+        <div className={`${s.successState} ${sent.status === 'unknown' ? s.uncertainState : ''}`}>
+          {sent.status === 'unknown' ? <AlertTriangle size={44} /> : <CheckCircle2 size={44} />}
           <h3>
             {sent.status === 'unknown'
               ? 'Übertragung bitte prüfen'
