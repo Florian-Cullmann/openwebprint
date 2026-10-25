@@ -47,6 +47,7 @@ jobs:
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/snapshot)" = 401
           docker exec owp-demo sh -c 'test "$(ps -o user= -p $(pgrep -f "node apps/server/dist/index.js" | head -1) | tr -d " ")" = node'
       - name: Hardware daemon smoke test (no physical devices)
+        shell: bash
         run: |
           docker rm -f owp-demo
           docker run -d --name owp-hardware -e MODE=hardware -p 127.0.0.1:3001:3001 openwebprint:test
@@ -56,6 +57,8 @@ jobs:
           done
           curl -fsS http://127.0.0.1:3001/api/health
           docker exec owp-hardware lpstat -h localhost:631 -r
-          docker exec owp-hardware /usr/sbin/cupsd -t
+          docker exec owp-hardware /usr/sbin/cupsd -t 2>&1 | tee /tmp/openwebprint-cups-check.log
+          ! grep -q 'Filter .*not found' /tmp/openwebprint-cups-check.log
+          docker exec --user node owp-hardware node scripts/check-cups.mjs
       - if: failure()
         run: docker logs owp-demo || docker logs owp-hardware

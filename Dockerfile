@@ -12,7 +12,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cups-daemon cups-client cups-filters printer-driver-brlaser sane-utils sane-airscan \
+    cups cups-filters printer-driver-brlaser sane-utils sane-airscan \
     avahi-daemon avahi-utils dbus util-linux tini ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
