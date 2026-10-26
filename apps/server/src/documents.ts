@@ -1,7 +1,7 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import sharp from 'sharp';
 import { writeFile } from 'node:fs/promises';
-import type { ScanPage } from '@openwebprint/shared';
+import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -58,17 +58,23 @@ export async function imageToPdf(image: Buffer): Promise<Buffer> {
   return Buffer.from(await pdf.save());
 }
 export async function exportScanPages(
-  pages: (ScanPage & { path: string })[],
+  pages: StoredScanPage[],
   pdfPath: string,
   previewPath: string,
 ) {
   try {
     const pdf = await PDFDocument.create();
     for (const [index, source] of pages.entries()) {
-      const { image, originalWidth, originalHeight } = await renderScanPage(source, false);
+      const { image, originalWidth, originalHeight, resolution } = await renderScanPage(
+        source,
+        false,
+      );
       const png = await pdf.embedPng(image);
-      // Keep the original scale when cropping; do not add A4 borders back around the crop.
-      const scale = Math.min(595.28 / originalWidth, 841.89 / originalHeight);
+      // PDF points are 1/72 inch. Unknown legacy DPI retains the old A4 fit;
+      // never infer it from job options, which may describe a later append.
+      const scale = resolution
+        ? 72 / resolution
+        : Math.min(595.28 / originalWidth, 841.89 / originalHeight);
       const width = png.width * scale;
       const height = png.height * scale;
       const page = pdf.addPage([width, height]);
@@ -86,10 +92,16 @@ export async function exportScanPages(
   }
 }
 
-export async function renderScanPage(source: ScanPage & { path: string }, rotate = true) {
+function validResolution(value: number | undefined) {
+  return value !== undefined && Number.isFinite(value) && value >= 1 && value <= 9600
+    ? value
+    : undefined;
+}
+
+export async function renderScanPage(source: StoredScanPage, rotate = true) {
   try {
     const pipeline = sharp(source.path, { limitInputPixels: 80_000_000 });
-    const { width, height } = await pipeline.metadata();
+    const { width, height, density } = await pipeline.metadata();
     if (!width || !height) throw new Error('Missing image dimensions');
     if (source.crop) {
       const crop = source.crop;
@@ -109,7 +121,12 @@ export async function renderScanPage(source: ScanPage & { path: string }, rotate
       .rotate(rotate ? source.rotation : 0)
       .png()
       .toBuffer();
-    return { image, originalWidth: width, originalHeight: height };
+    return {
+      image,
+      originalWidth: width,
+      originalHeight: height,
+      resolution: validResolution(source.resolution) ?? validResolution(density),
+    };
   } catch (error) {
     if (error instanceof AppError) throw error;
     throw new AppError(
