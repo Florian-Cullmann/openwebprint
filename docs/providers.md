@@ -33,6 +33,10 @@ The current combined hardware provider delegates printing to CUPS and scanning t
 
 ## Persistence and failures
 
+Device-status reads are owned by the server: concurrent snapshot requests share one in-flight inspection of the configured devices, and completed results are reused for five seconds. The next request at or after expiry waits for a new check; there is no background refresh timer. `devicesCheckedAt` in the snapshot records when that set of checks completed, not when the browser fetched it. Jobs are read afresh on every snapshot. Adding or removing a device invalidates the cached device state, including pending results; obsolete checks cannot repopulate the cache. Caches are isolated by mode. Mode transitions drain pending snapshots before switching; demo removal and shutdown drain inspections and discard cached results. This cache is only for snapshots; print submission still checks current capabilities directly.
+
+Inspection failures replace healthy cached state with `unknown`, without stale capabilities, and a curated warning. Providers may also return an explicit unknown state and their own safe explanation. These results have the same five-second lifetime, allowing the next refresh to recover without exposing backend diagnostics.
+
 The SQLite schema is managed in `store.ts` with `user_version=2`, WAL mode, parameterized statements, and a busy timeout. The version-2 migration preserves legacy credentials in the users table and revokes legacy sessions; new databases start without accounts. A future incompatible schema change must ship an explicit versioned migration; do not silently reinterpret existing JSON fields. Public job serialization strips internal file paths and external job IDs.
 
 A print transport error can happen after the scheduler accepted a job. Store `unknown`, keep a clear error, and never retry automatically. Queued/processing scan jobs are marked failed after restart when no committed document exists; interrupted appends/edits keep the prior document and report the interruption; interrupted unconfirmed print submissions remain unknown. Already submitted CUPS print jobs continue to be polled after restart.

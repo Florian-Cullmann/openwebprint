@@ -168,7 +168,7 @@ export async function createApp(
     const { path } = z.object({ path: z.string().trim().min(1).max(1024) }).parse(req.body);
     return workspace.saveStorage(path);
   });
-  app.get('/api/snapshot', async () => workspace.service.snapshot());
+  app.get('/api/snapshot', async () => workspace.snapshot());
   let discovery: Promise<Awaited<ReturnType<Provider['discover']>>> | undefined;
   app.post(
     '/api/devices/discover',
