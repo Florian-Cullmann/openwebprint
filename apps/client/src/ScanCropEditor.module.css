@@ -1,0 +1,42 @@
+.editor {
+  display: grid;
+  gap: 16px;
+}
+.loader {
+  display: none;
+}
+.stage {
+  display: flex;
+  justify-content: center;
+  background: var(--bg);
+  padding: 16px;
+  overflow: hidden;
+}
+.canvas {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+  overflow: visible;
+}
+.canvas rect {
+  cursor: move;
+}
+.canvas circle {
+  cursor: grab;
+}
+.fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

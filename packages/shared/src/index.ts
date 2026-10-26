@@ -57,9 +57,18 @@ export interface Device {
   capabilities?: Capabilities;
   detail?: string;
 }
+// Integer pixels in the original, unrotated image, measured from its top-left corner.
+// Crop before rotating; omitting crop restores the complete original image.
+export interface ScanCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
 export interface ScanPage {
   id: string;
   rotation: 0 | 90 | 180 | 270;
+  crop?: ScanCrop;
 }
 export interface ScanSources {
   sources: { name: string; feeder: boolean }[];
@@ -72,6 +81,14 @@ export const scanPagesSchema = z.object({
       z.object({
         id: z.uuid(),
         rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+        crop: z
+          .object({
+            x: z.int().nonnegative(),
+            y: z.int().nonnegative(),
+            width: z.int().positive(),
+            height: z.int().positive(),
+          })
+          .optional(),
       }),
     )
     .min(1)

@@ -20,7 +20,7 @@ import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
 import { AppError } from './errors.js';
-import { MAX_UPLOAD, normalizeDocument } from './documents.js';
+import { MAX_UPLOAD, normalizeDocument, renderScanPage } from './documents.js';
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(80),
@@ -242,11 +242,14 @@ export async function createApp(
   });
   app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
     const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
+    const { rendered } = z.object({ rendered: z.literal('1').optional() }).parse(req.query);
     const job = workspace.service.job(id);
     if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
     const page = storedScanPages(job).find((page) => page.id === pageId);
     if (!page) throw new AppError(404, 'Page unavailable.');
-    return reply.type('image/png').send(await readFile(page.path));
+    return reply
+      .type('image/png')
+      .send(rendered ? (await renderScanPage(page)).image : await readFile(page.path));
   });
   app.post('/api/jobs/:id/cancel', async (req) =>
     workspace.run((service) => service.cancel(idParam.parse(req.params).id)),

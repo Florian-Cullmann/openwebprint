@@ -116,7 +116,7 @@ export function publicJob({
 }: StoredJob): Job {
   if (job.kind === 'scan' && job.hasFile) {
     job.pages = storedScanPages({ ...job, scanPages: _scanPages, previewPath: _previewPath }).map(
-      ({ id, rotation }) => ({ id, rotation }),
+      ({ id, rotation, crop }) => ({ id, rotation, ...(crop ? { crop } : {}) }),
     );
     job.scanRevision ??= job.updatedAt;
   }

@@ -1,6 +1,6 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import sharp from 'sharp';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import type { ScanPage } from '@openwebprint/shared';
 import { AppError } from './errors.js';
 
@@ -65,15 +65,53 @@ export async function exportScanPages(
   try {
     const pdf = await PDFDocument.create();
     for (const [index, source] of pages.entries()) {
-      const image = await sharp(source.path, { limitInputPixels: 80_000_000 }).png().toBuffer();
-      const document = await PDFDocument.load(await imageToPdf(image));
-      const [page] = await pdf.copyPages(document, [0]);
+      const { image, originalWidth, originalHeight } = await renderScanPage(source, false);
+      const png = await pdf.embedPng(image);
+      // Keep the original scale when cropping; do not add A4 borders back around the crop.
+      const scale = Math.min(595.28 / originalWidth, 841.89 / originalHeight);
+      const width = png.width * scale;
+      const height = png.height * scale;
+      const page = pdf.addPage([width, height]);
+      page.drawImage(png, { x: 0, y: 0, width, height });
       page.setRotation(degrees(source.rotation));
-      pdf.addPage(page);
       if (index === 0) await sharp(image).rotate(source.rotation).png().toFile(previewPath);
     }
     await writeFile(pdfPath, await pdf.save(), { mode: 0o600 });
-  } catch {
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      422,
+      'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+    );
+  }
+}
+
+export async function renderScanPage(source: ScanPage & { path: string }, rotate = true) {
+  try {
+    const pipeline = sharp(source.path, { limitInputPixels: 80_000_000 });
+    const { width, height } = await pipeline.metadata();
+    if (!width || !height) throw new Error('Missing image dimensions');
+    if (source.crop) {
+      const crop = source.crop;
+      if (
+        !Object.values(crop).every(Number.isSafeInteger) ||
+        crop.x < 0 ||
+        crop.y < 0 ||
+        crop.width <= 0 ||
+        crop.height <= 0 ||
+        crop.x + crop.width > width ||
+        crop.y + crop.height > height
+      )
+        throw new AppError(400, 'The crop must be a non-empty rectangle within the original page.');
+      pipeline.extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height });
+    }
+    const image = await pipeline
+      .rotate(rotate ? source.rotation : 0)
+      .png()
+      .toBuffer();
+    return { image, originalWidth: width, originalHeight: height };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
     throw new AppError(
       422,
       'The scanned pages could not be converted to PDF. Check scan storage and try again.',
