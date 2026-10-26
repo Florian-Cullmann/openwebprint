@@ -160,6 +160,8 @@ For **automatic printer and eSCL scanner discovery on macOS with Docker Desktop*
 
 For LAN or internet access, put a reverse proxy on the same host in front of loopback port 3001, terminate TLS, set `APP_ORIGIN=https://print.example.org` and `COOKIE_SECURE=true`. The proxy must preserve the `Origin` header and allow uploads of at least 25 MiB plus multipart overhead. No CORS wildcard is used. Request limits use the direct peer IP; the app intentionally does not trust arbitrary forwarding headers. A shared proxy therefore shares rate limits.
 
+If a proxy returns an HTML, empty, or malformed error response, the interface shows the HTTP status (for example, `The request failed (HTTP 502).`) without displaying the proxy response body. Failed print and scan submissions are never automatically retried.
+
 For Docker, export those two variables or put them in the root `.env`; Compose forwards them. Other settings require updating the service environment explicitly. Do not expose CUPS or SANE to an untrusted network. With no users, everyone who can reach the web app has full access; add a user before making the app accessible beyond a trusted environment.
 
 ### Storage, backups, and access recovery

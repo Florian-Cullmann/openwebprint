@@ -21,10 +21,18 @@ async function request(path: string, init: RequestInit): Promise<Response> {
     headers.set('Content-Type', 'application/json');
   const response = await fetch(`/api${path}`, { ...init, headers, credentials: 'same-origin' });
   if (!response.ok) {
-    const data = await response.json();
     if (response.status === 401 && path !== '/login')
       window.dispatchEvent(new Event('owp:unauthorized'));
-    throw new ApiError(response.status, data.error ?? 'The operation failed.');
+    const data: unknown = await response.json().catch(() => undefined);
+    const message =
+      data !== null &&
+      typeof data === 'object' &&
+      'error' in data &&
+      typeof data.error === 'string' &&
+      data.error.trim()
+        ? data.error
+        : `The request failed (HTTP ${response.status}).`;
+    throw new ApiError(response.status, message);
   }
   return response;
 }
