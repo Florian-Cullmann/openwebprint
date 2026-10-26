@@ -5,6 +5,7 @@ dist/
 !.env.example
 data/
 .local/
+apps/client/public/pdfjs/
 coverage/
 playwright-report/
 test-results/

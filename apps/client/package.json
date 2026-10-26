@@ -10,6 +10,7 @@
   "dependencies": {
     "@openwebprint/shared": "*",
     "lucide-react": "^0.468.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.18.4"

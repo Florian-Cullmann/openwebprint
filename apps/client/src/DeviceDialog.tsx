@@ -9,18 +9,20 @@ export function DeviceDialog({
   demo,
   close,
   changed,
+  onlyKind,
 }: {
   devices: Device[];
   demo: boolean;
   close: () => void;
   changed: () => void;
+  onlyKind?: DeviceInput['kind'];
 }) {
   const [tab, setTab] = useState<'discover' | 'manual'>('discover');
   const [result, setResult] = useState<DiscoveryResult>();
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState('');
   const [error, setError] = useState('');
-  const [kind, setKind] = useState<DeviceInput['kind']>('printer');
+  const [kind, setKind] = useState<DeviceInput['kind']>(onlyKind ?? 'printer');
   const [added, setAdded] = useState<string[]>([]);
   async function discover() {
     setBusy(true);
@@ -109,40 +111,45 @@ export function DeviceDialog({
             </div>
             {result && (
               <div className={s.discoveryResults}>
-                <span className={s.eyebrow}>{result.devices.length} DEVICES FOUND</span>
+                <span className={s.eyebrow}>
+                  {result.devices.filter((d) => !onlyKind || d.kind === onlyKind).length} DEVICES
+                  FOUND
+                </span>
                 {result.hostDiscovery && (
                   <p className={s.small}>Network discovery via macOS Bonjour.</p>
                 )}
-                {result.devices.map((d) => {
-                  const exists =
-                    devices.some((existing) => existing.address === d.address) ||
-                    added.includes(d.address);
-                  const Icon = d.kind === 'printer' ? Printer : ScanLine;
-                  return (
-                    <div className={s.discoveryRow} key={`${d.kind}-${d.address}`}>
-                      <Icon size={23} />
-                      <div>
-                        <h3>{d.name}</h3>
-                        <p>{d.address}</p>
+                {result.devices
+                  .filter((d) => !onlyKind || d.kind === onlyKind)
+                  .map((d) => {
+                    const exists =
+                      devices.some((existing) => existing.address === d.address) ||
+                      added.includes(d.address);
+                    const Icon = d.kind === 'printer' ? Printer : ScanLine;
+                    return (
+                      <div className={s.discoveryRow} key={`${d.kind}-${d.address}`}>
+                        <Icon size={23} />
+                        <div>
+                          <h3>{d.name}</h3>
+                          <p>{d.address}</p>
+                        </div>
+                        <button
+                          className={s.secondary}
+                          disabled={exists || !!adding}
+                          onClick={() => void add(d)}
+                        >
+                          {adding === d.address ? (
+                            <Spinner />
+                          ) : exists ? (
+                            <Check size={16} />
+                          ) : (
+                            <Plus size={16} />
+                          )}{' '}
+                          {exists ? 'Connected' : 'Add'}
+                        </button>
                       </div>
-                      <button
-                        className={s.secondary}
-                        disabled={exists || !!adding}
-                        onClick={() => void add(d)}
-                      >
-                        {adding === d.address ? (
-                          <Spinner />
-                        ) : exists ? (
-                          <Check size={16} />
-                        ) : (
-                          <Plus size={16} />
-                        )}{' '}
-                        {exists ? 'Connected' : 'Add'}
-                      </button>
-                    </div>
-                  );
-                })}
-                {!result.devices.length && (
+                    );
+                  })}
+                {!result.devices.some((d) => !onlyKind || d.kind === onlyKind) && (
                   <p>No devices found. Check the network or add an address manually.</p>
                 )}
                 {result.warnings.map((w) => (
@@ -161,6 +168,7 @@ export function DeviceDialog({
                 Device type
                 <select
                   value={kind}
+                  disabled={!!onlyKind}
                   onChange={(e) => setKind(e.target.value as DeviceInput['kind'])}
                 >
                   <option value="printer">Printer</option>

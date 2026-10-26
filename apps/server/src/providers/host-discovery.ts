@@ -6,12 +6,12 @@ const snapshotSchema = z.object({
   version: z.literal(1),
   source: z.literal('macos-bonjour'),
   generatedAt: z.iso.datetime(),
-  devices: z.array(deviceInputSchema.extend({ kind: z.literal('printer') })).max(100),
+  devices: z.array(deviceInputSchema).max(100),
   warnings: z.array(z.string().max(300)).max(10),
 });
 export async function hostDiscovery(
   path: string,
-  validateAddress: (value: string) => string,
+  validateAddress: (value: string, kind: 'printer' | 'scanner') => string,
   now = Date.now(),
 ): Promise<DiscoveryResult> {
   try {
@@ -36,7 +36,7 @@ export async function hostDiscovery(
     return {
       devices: snapshot.devices.map((device) => ({
         ...device,
-        address: validateAddress(device.address),
+        address: validateAddress(device.address, device.kind),
       })),
       warnings: snapshot.warnings,
       hostDiscovery: { source: snapshot.source, updatedAt: snapshot.generatedAt },

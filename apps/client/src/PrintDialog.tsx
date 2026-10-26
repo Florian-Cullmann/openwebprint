@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
-import { api } from './api';
+import { api, documentData } from './api';
+import { DocumentPreview } from './DocumentPreview';
 import { Modal, Spinner } from './ui';
 import s from './App.module.css';
 export const mediaLabels: Record<PrintOptions['media'], string> = {
@@ -25,6 +26,8 @@ export function PrintDialog({
   const printers = devices.filter((d) => d.kind === 'printer');
   const [deviceId, setDeviceId] = useState(initial ?? printers[0]?.id ?? '');
   const [file, setFile] = useState<File>();
+  const [preview, setPreview] = useState<Uint8Array>();
+  const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState<Job>();
@@ -37,6 +40,27 @@ export function PrintDialog({
     sides: 'one-sided',
     media: 'iso_a4_210x297mm',
   });
+  useEffect(() => {
+    if (!file) return;
+    const controller = new AbortController();
+    setPreview(undefined);
+    setPreviewing(true);
+    const form = new FormData();
+    form.set('file', file);
+    void documentData('/documents/preview', {
+      method: 'POST',
+      body: form,
+      signal: controller.signal,
+    })
+      .then(setPreview)
+      .catch((e) => {
+        if (!controller.signal.aborted) setError(e.message);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setPreviewing(false);
+      });
+    return () => controller.abort();
+  }, [file]);
   useEffect(() => {
     setOptions((o) => ({
       ...o,
@@ -60,7 +84,7 @@ export function PrintDialog({
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !device) return;
+    if (!file || !device || !preview || previewing) return;
     setBusy(true);
     setError('');
     const data = new FormData();
@@ -92,6 +116,7 @@ export function PrintDialog({
       close={() => {
         if (!busy) close();
       }}
+      wide={!!file && !sent}
     >
       {sent ? (
         <div className={`${s.successState} ${sent.status === 'unknown' ? s.uncertainState : ''}`}>
@@ -110,126 +135,150 @@ export function PrintDialog({
         </div>
       ) : (
         <form className={s.modalBody} onSubmit={submit}>
-          <div
-            className={`${s.dropzone} ${dragging ? s.dragging : ''}`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragging(true);
-            }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragging(false);
-              choose(e.dataTransfer.files[0]);
-            }}
-          >
-            {file ? <FileText size={32} /> : <UploadCloud size={34} />}
-            <h3>{file ? file.name : 'Choose a file to print'}</h3>
-            <p>
-              {file
-                ? `${(file.size / 1024 / 1024).toFixed(2)} MB · ready to print`
-                : 'Drop a file here or select one from your device.'}
-            </p>
-            <button
-              type="button"
-              className={s.secondary}
-              disabled={busy}
-              onClick={() => input.current?.click()}
-            >
-              {file ? 'Choose another file' : 'Choose file'}
-            </button>
-            <input
-              ref={input}
-              type="file"
-              aria-label="Select document"
-              accept="application/pdf,image/png,image/jpeg"
-              className={s.srOnly}
-              onChange={(e) => choose(e.target.files?.[0])}
-            />
-          </div>
-          <label>
-            Printer
-            <select
-              value={deviceId}
-              onChange={(e) => setDeviceId(e.target.value)}
-              required
-              disabled={busy}
-            >
-              <option value="" disabled>
-                Select printer
-              </option>
-              {printers.map((d) => (
-                <option value={d.id} key={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={s.formGrid}>
-            <label>
-              Color mode
-              <select
-                value={options.color}
-                disabled={busy}
-                onChange={(e) =>
-                  setOptions({ ...options, color: e.target.value as PrintOptions['color'] })
-                }
-              >
-                <option value="monochrome">Black and white</option>
-                {device?.capabilities?.color && <option value="color">Color</option>}
-              </select>
-            </label>
-            <label>
-              Sides
-              <select
-                value={options.sides}
-                disabled={busy}
-                onChange={(e) =>
-                  setOptions({ ...options, sides: e.target.value as PrintOptions['sides'] })
-                }
-              >
-                <option value="one-sided">Single-sided</option>
-                {device?.capabilities?.duplex && (
-                  <>
-                    <option value="two-sided-long-edge">Duplex · long edge</option>
-                    <option value="two-sided-short-edge">Duplex · short edge</option>
-                  </>
+          <div className={file ? s.printLayout : undefined}>
+            {file && (
+              <div>
+                {preview ? (
+                  <DocumentPreview data={preview} monochrome={options.color === 'monochrome'} />
+                ) : (
+                  <div className={s.previewPlaceholder}>
+                    {previewing ? (
+                      <>
+                        <Spinner />
+                        <p>Preparing preview…</p>
+                      </>
+                    ) : (
+                      <p>Preview unavailable. Choose a valid document.</p>
+                    )}
+                  </div>
                 )}
-              </select>
-            </label>
-            <label>
-              Paper size
-              <select
-                value={options.media}
-                disabled={busy}
-                onChange={(e) =>
-                  setOptions({ ...options, media: e.target.value as PrintOptions['media'] })
-                }
+              </div>
+            )}
+            <div className={s.printOptions}>
+              <div
+                className={`${s.dropzone} ${file ? s.compactDropzone : ''} ${dragging ? s.dragging : ''}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragging(false);
+                  choose(e.dataTransfer.files[0]);
+                }}
               >
-                {(device?.capabilities?.media ?? []).map((m) => (
-                  <option key={m} value={m}>
-                    {mediaLabels[m]}
+                {file ? <FileText size={32} /> : <UploadCloud size={34} />}
+                <h3>{file ? file.name : 'Choose a file to print'}</h3>
+                <p>
+                  {file
+                    ? `${file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 / 1024).toFixed(2)} MB`} · ${previewing ? 'preparing preview' : preview ? 'ready to print' : 'preview unavailable'}`
+                    : 'Drop a file here or select one from your device.'}
+                </p>
+                <button
+                  type="button"
+                  className={s.secondary}
+                  disabled={busy}
+                  onClick={() => input.current?.click()}
+                >
+                  {file ? 'Choose another file' : 'Choose file'}
+                </button>
+                <input
+                  ref={input}
+                  type="file"
+                  aria-label="Select document"
+                  accept="application/pdf,image/png,image/jpeg"
+                  className={s.srOnly}
+                  onChange={(e) => choose(e.target.files?.[0])}
+                />
+              </div>
+              <label>
+                Printer
+                <select
+                  value={deviceId}
+                  onChange={(e) => setDeviceId(e.target.value)}
+                  required
+                  disabled={busy}
+                >
+                  <option value="" disabled>
+                    Select printer
                   </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Copies
-              <input
-                type="number"
-                min={1}
-                max={99}
-                required
-                value={options.copies}
-                disabled={busy}
-                onChange={(e) => setOptions({ ...options, copies: Number(e.target.value) })}
-              />
-            </label>
+                  {printers.map((d) => (
+                    <option value={d.id} key={d.id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className={s.formGrid}>
+                <label>
+                  Color mode
+                  <select
+                    value={options.color}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setOptions({ ...options, color: e.target.value as PrintOptions['color'] })
+                    }
+                  >
+                    <option value="monochrome">Black and white</option>
+                    {device?.capabilities?.color && <option value="color">Color</option>}
+                  </select>
+                </label>
+                <label>
+                  Sides
+                  <select
+                    value={options.sides}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setOptions({ ...options, sides: e.target.value as PrintOptions['sides'] })
+                    }
+                  >
+                    <option value="one-sided">Single-sided</option>
+                    {device?.capabilities?.duplex && (
+                      <>
+                        <option value="two-sided-long-edge">Duplex · long edge</option>
+                        <option value="two-sided-short-edge">Duplex · short edge</option>
+                      </>
+                    )}
+                  </select>
+                </label>
+                <label>
+                  Paper size
+                  <select
+                    value={options.media}
+                    disabled={busy}
+                    onChange={(e) =>
+                      setOptions({ ...options, media: e.target.value as PrintOptions['media'] })
+                    }
+                  >
+                    {(device?.capabilities?.media ?? []).map((m) => (
+                      <option key={m} value={m}>
+                        {mediaLabels[m]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Copies
+                  <input
+                    type="number"
+                    min={1}
+                    max={99}
+                    required
+                    value={options.copies}
+                    disabled={busy}
+                    onChange={(e) => setOptions({ ...options, copies: Number(e.target.value) })}
+                  />
+                </label>
+              </div>
+              {!printers.length && (
+                <p className={s.error}>Add a printer on the Devices page first.</p>
+              )}
+              {device && !device.capabilities && (
+                <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
+              )}
+            </div>
           </div>
-          {!printers.length && <p className={s.error}>Add a printer on the Devices page first.</p>}
-          {device && !device.capabilities && (
-            <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
-          )}
           {error && (
             <p role="alert" className={s.error}>
               {error}
@@ -241,7 +290,9 @@ export function PrintDialog({
             </button>
             <button
               className={s.primary}
-              disabled={busy || !file || !device?.capabilities?.media.length}
+              disabled={
+                busy || !file || !preview || previewing || !device?.capabilities?.media.length
+              }
             >
               {busy ? <Spinner /> : <Printer size={17} />}{' '}
               {busy ? 'Submitting…' : demo ? 'Start demo print' : 'Print now'}

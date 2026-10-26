@@ -3,6 +3,7 @@ import { Download, ScanLine, FileCheck2 } from 'lucide-react';
 import type { Device, Job, ScanOptions } from '@openwebprint/shared';
 import { api, post } from './api';
 import { Modal, Spinner } from './ui';
+import { DeviceDialog } from './DeviceDialog';
 import s from './App.module.css';
 export function ScanDialog({
   devices,
@@ -26,6 +27,10 @@ export function ScanDialog({
   const [job, setJob] = useState(existing);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [addingScanner, setAddingScanner] = useState(false);
+  useEffect(() => {
+    if (!deviceId && scanners.length) setDeviceId(scanners[0].id);
+  }, [deviceId, scanners[0]?.id]);
   const changedRef = useRef(changed);
   changedRef.current = changed;
   const running = job && ['queued', 'processing'].includes(job.status);
@@ -69,6 +74,16 @@ export function ScanDialog({
     }
   }
   const complete = job?.status === 'completed' && job.hasFile;
+  if (addingScanner)
+    return (
+      <DeviceDialog
+        devices={devices}
+        demo={demo}
+        onlyKind="scanner"
+        close={() => setAddingScanner(false)}
+        changed={changed}
+      />
+    );
   return (
     <Modal
       title={complete ? 'Scan complete' : 'Scan document'}
@@ -120,6 +135,11 @@ export function ScanDialog({
                 : 'Place one page on the flatbed or in the source selected by the device.'}
             </p>
           </div>
+          {!running && !scanners.length && (
+            <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>
+              Find and add a scanner
+            </button>
+          )}
           {!running && (
             <>
               <label>

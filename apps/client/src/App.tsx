@@ -25,8 +25,10 @@ import {
 } from 'lucide-react';
 import type { Device, Job, SessionInfo, Snapshot } from '@openwebprint/shared';
 import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Brand } from './Brand';
 import { SetupScreen } from './SetupScreen';
 import { StorageSettings } from './StorageSettings';
+import { JobPreviewDialog } from './JobPreviewDialog';
 import { UsersSettings } from './UsersSettings';
 import { api, post } from './api';
 import { AuthScreen } from './AuthScreen';
@@ -37,7 +39,10 @@ import { DeviceBadge, DeviceIcon, Empty, JobBadge, Modal, Spinner } from './ui';
 import s from './App.module.css';
 
 type View = 'overview' | 'devices' | 'jobs' | 'scans' | 'settings';
-type Dialog = { type: 'print' | 'scan'; deviceId?: string; job?: Job } | { type: 'device' };
+type Dialog =
+  | { type: 'print' | 'scan'; deviceId?: string; job?: Job }
+  | { type: 'device' }
+  | { type: 'document'; job: Job };
 const navigation: { id: View; label: string; icon: typeof Printer }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutDashboard },
   { id: 'devices', label: 'Devices', icon: Printer },
@@ -158,7 +163,7 @@ export function App() {
   if (!session)
     return (
       <div className={s.loading}>
-        <Printer size={36} />
+        <Brand />
         {error ? (
           <>
             <p role="alert">{error}</p>
@@ -222,15 +227,16 @@ export function App() {
   };
   const openPrint = (deviceId?: string) => setDialog({ type: 'print', deviceId });
   const openScan = (deviceId?: string, job?: Job) => setDialog({ type: 'scan', deviceId, job });
+  const openPreview = (job: Job) =>
+    job.kind === 'scan' && job.hasFile
+      ? openScan(job.deviceId, job)
+      : setDialog({ type: 'document', job });
   return (
     <div className={s.app}>
       <header className={s.appHeader}>
         <div className={s.headerInner}>
           <Link className={s.brand} to="/overview" aria-label="openwebprint overview">
-            <span className={s.brandMark}>
-              <Printer size={21} />
-            </span>
-            openwebprint
+            <Brand />
           </Link>
           <nav className={s.navigation} aria-label="Main navigation">
             {navigation.map(({ id, label, icon: Icon }) => (
@@ -418,7 +424,7 @@ export function App() {
                     jobs={jobs.slice(0, 5)}
                     busy={busy}
                     cancel={(id) => void action(() => post(`/jobs/${id}/cancel`), 'Job canceled.')}
-                    preview={(job) => openScan(job.deviceId, job)}
+                    preview={openPreview}
                   />
                 </section>
               </>
@@ -508,7 +514,7 @@ export function App() {
                   )}
                   busy={busy}
                   cancel={(id) => void action(() => post(`/jobs/${id}/cancel`), 'Job canceled.')}
-                  preview={(job) => openScan(job.deviceId, job)}
+                  preview={openPreview}
                   remove={(job) => setDeleting({ job })}
                 />
                 <p className={s.footnote}>
@@ -619,8 +625,8 @@ export function App() {
                       <StorageSettings demo={demo} />
                       <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
                         <p>
-                          Sessions last 7 days. Scan files are removed after 7 days, or earlier when
-                          you delete them in Scans. Print uploads are removed after submission.
+                          Sessions last 7 days. Print previews and scan files are removed after 7
+                          days, or earlier when you delete their jobs.
                         </p>
                         <p>
                           CUPS has its own spool and retention rules. Use HTTPS and secure cookies
@@ -735,6 +741,9 @@ export function App() {
           close={() => setDialog(undefined)}
           changed={() => void refresh()}
         />
+      )}
+      {dialog?.type === 'document' && (
+        <JobPreviewDialog job={dialog.job} close={() => setDialog(undefined)} />
       )}
       {dialog?.type === 'scan' && (
         <ScanDialog
@@ -895,7 +904,9 @@ function JobList({
                     {job.kind === 'print' ? <FileText size={19} /> : <ScanLine size={19} />}
                   </span>
                   <div>
-                    <strong>{job.title}</strong>
+                    <button className={s.documentTitle} onClick={() => preview(job)}>
+                      {job.title}
+                    </button>
                     <span>
                       {job.mode === 'demo' ? 'Demo · ' : ''}
                       {job.kind === 'print' ? 'Print job' : 'Scan'}

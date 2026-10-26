@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PDFDocument } from 'pdf-lib';
 
 const listener = createServer();
 listener.listen(0, '127.0.0.1');
@@ -71,6 +72,26 @@ try {
     .getByRole('button', { name: 'Print', exact: true })
     .click();
   await expect(page.getByRole('dialog', { name: 'Print document' })).toBeVisible();
+  const document = await PDFDocument.create();
+  const first = document.addPage([595, 842]);
+  first.drawText('openwebprint', { x: 48, y: 778, size: 13 });
+  first.drawText('Your next print, ready.', { x: 48, y: 700, size: 26 });
+  first.drawText('Choose your printer. Review every page. Print.', { x: 48, y: 666, size: 12 });
+  first.drawText('This is a sample document in demo mode.', { x: 48, y: 570, size: 11 });
+  first.drawText('Your files stay on your server.', { x: 48, y: 100, size: 11 });
+  document
+    .addPage([595, 842])
+    .drawText('A second page, just one click away.', { x: 48, y: 700, size: 22 });
+  await page.getByLabel('Select document', { exact: true }).setInputFiles({
+    name: 'sample-document.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from(await document.save()),
+  });
+  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 20000 },
+  );
   await capture('printing');
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
