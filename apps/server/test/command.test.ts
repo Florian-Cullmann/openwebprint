@@ -8,6 +8,13 @@ vi.mock('node:child_process', async () => {
 });
 
 describe('command failure classification (stubbed process boundary)', () => {
+  it('classifies SANE no-documents separately from transport failures (stubbed process)', async () => {
+    execute.mockRejectedValue({ code: 7, stderr: 'private scanner address' });
+    await expect(command('scanimage', [])).rejects.toMatchObject({ reason: 'no-documents' });
+    await expect(command('another-tool', [])).rejects.toMatchObject({ reason: 'failed' });
+    execute.mockRejectedValue({ code: 9, stderr: 'private scanner address' });
+    await expect(command('scanimage', [])).rejects.toMatchObject({ reason: 'failed' });
+  });
   it('recognizes only the exact empty CUPS destination result without exposing stderr', async () => {
     execute.mockRejectedValue({ code: 1, stderr: 'lpstat: No destinations added.\n' });
     await expect(command('lpstat', ['-h', 'localhost:631', '-v'])).rejects.toMatchObject({

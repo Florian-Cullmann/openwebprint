@@ -117,18 +117,7 @@ export class Workspace {
       if (this.mode !== 'demo') throw new AppError(409, 'Demo mode is not active.');
       // Drain pending scans and polls before deleting records, so workers cannot recreate them.
       await this.demo.close();
-      for (const job of this.store.jobs('demo')) {
-        for (const path of [job.filePath, job.previewPath]) {
-          if (path)
-            await unlink(path).catch((error) => {
-              if (error.code !== 'ENOENT')
-                throw new AppError(
-                  500,
-                  'Could not remove a demo file. Check file permissions and try again.',
-                );
-            });
-        }
-      }
+      for (const job of this.store.jobs('demo')) await this.demo.removeFiles(job);
       this.store.db.exec('BEGIN IMMEDIATE');
       try {
         this.store.db.prepare('DELETE FROM jobs WHERE mode=?').run('demo');

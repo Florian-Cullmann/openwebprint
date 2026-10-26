@@ -215,6 +215,97 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     ).rejects.toThrow();
     expect(run).not.toHaveBeenCalled();
   });
+  it('uses advertised SANE feeder and duplex options for bounded batches (stubbed command)', async () => {
+    const scanner: Device = {
+      ...device,
+      kind: 'scanner',
+      provider: 'sane',
+      target: 'airscan:e0:Brother',
+    };
+    const run = vi.fn(async (_tool: string, args: string[]) => {
+      if (args.includes('--all-options'))
+        return '  --source Flatbed|ADF|ADF Duplex [Flatbed]\n    Selects the scan source.\n  --duplex[=(yes|no)] [no]\n';
+      throw new CommandError('The document feeder is empty.', 'no-documents');
+    });
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'ADF', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: true,
+    });
+    await provider.scan(
+      scanner,
+      '/private/100%/page-%d.png',
+      { resolution: 300, color: 'Gray', source: 'ADF', batch: true, duplex: true },
+      12,
+    );
+    expect(run).toHaveBeenLastCalledWith(
+      'scanimage',
+      [
+        '--device-name',
+        scanner.target,
+        '--format=png',
+        '--batch=/private/100%%/page-%d.png',
+        '--batch-count=12',
+        '--source',
+        'ADF',
+        '--duplex=yes',
+        '--resolution',
+        '300',
+        '--mode',
+        'Gray',
+      ],
+      600_000,
+    );
+    await expect(
+      provider.scan(scanner, '/private/page.png', { resolution: 300, color: 'Gray' }),
+    ).rejects.toThrow('empty');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Flatbed',
+      }),
+    ).rejects.toThrow('document feeder');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Unadvertised ADF',
+      }),
+    ).rejects.toThrow('selected source');
+    run.mockRejectedValue(new CommandError('Disconnected'));
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'ADF',
+      }),
+    ).rejects.toThrow('Disconnected');
+  });
+  it('reads wrapped source lists without inventing duplex support (stubbed command)', async () => {
+    const scanner = { ...device, kind: 'scanner' as const, target: 'airscan:e0:Brother' };
+    const run = vi
+      .fn()
+      .mockResolvedValue(
+        '  --source Flatbed|Automatic Document Feeder|\n    ADF Duplex [Flatbed]\n    Selects the scan source.\n',
+      );
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'Automatic Document Feeder', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: false,
+    });
+  });
   it('calls SANE with explicit bounded options and surfaces failures', async () => {
     const run = vi.fn().mockResolvedValue('');
     const provider = new HardwareProvider('localhost:631', run);

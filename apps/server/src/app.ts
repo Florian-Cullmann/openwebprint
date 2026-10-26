@@ -8,9 +8,14 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { z } from 'zod';
-import { deviceInputSchema, printOptionsSchema, scanOptionsSchema } from '@openwebprint/shared';
+import {
+  deviceInputSchema,
+  printOptionsSchema,
+  scanOptionsSchema,
+  scanPagesSchema,
+} from '@openwebprint/shared';
 import type { Config } from './config.js';
-import { Store } from './store.js';
+import { Store, storedScanPages } from './store.js';
 import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
@@ -217,10 +222,31 @@ export async function createApp(
     return reply.type('application/pdf').send(document);
   });
   app.post('/api/scans', async (req, reply) => {
-    const input = z.object({ deviceId: z.uuid(), options: scanOptionsSchema }).parse(req.body);
+    const input = z
+      .object({ deviceId: z.uuid(), options: scanOptionsSchema, jobId: z.uuid().optional() })
+      .parse(req.body);
     return reply
       .code(202)
-      .send(await workspace.run((service) => service.scan(input.deviceId, input.options)));
+      .send(
+        await workspace.run((service) => service.scan(input.deviceId, input.options, input.jobId)),
+      );
+  });
+  app.get('/api/devices/:id/scan-sources', async (req) =>
+    workspace.run((service) => service.scanSources(idParam.parse(req.params).id)),
+  );
+  app.post('/api/scans/:id/pages', async (req) => {
+    const input = scanPagesSchema.parse(req.body);
+    return workspace.run((service) =>
+      service.editScan(idParam.parse(req.params).id, input.revision, input.pages),
+    );
+  });
+  app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
+    const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
+    const job = workspace.service.job(id);
+    if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
+    const page = storedScanPages(job).find((page) => page.id === pageId);
+    if (!page) throw new AppError(404, 'Page unavailable.');
+    return reply.type('image/png').send(await readFile(page.path));
   });
   app.post('/api/jobs/:id/cancel', async (req) =>
     workspace.run((service) => service.cancel(idParam.parse(req.params).id)),

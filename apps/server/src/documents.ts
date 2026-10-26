@@ -1,6 +1,7 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees } from 'pdf-lib';
 import sharp from 'sharp';
 import { readFile, writeFile } from 'node:fs/promises';
+import type { ScanPage } from '@openwebprint/shared';
 import { AppError } from './errors.js';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
@@ -56,9 +57,26 @@ export async function imageToPdf(image: Buffer): Promise<Buffer> {
   page.drawImage(png, { x: (595.28 - width) / 2, y: (841.89 - height) / 2, width, height });
   return Buffer.from(await pdf.save());
 }
-export async function exportScan(pngPath: string, pdfPath: string) {
-  const png = await sharp(await readFile(pngPath), { limitInputPixels: 80_000_000 })
-    .png()
-    .toBuffer();
-  await writeFile(pdfPath, await imageToPdf(png), { mode: 0o600 });
+export async function exportScanPages(
+  pages: (ScanPage & { path: string })[],
+  pdfPath: string,
+  previewPath: string,
+) {
+  try {
+    const pdf = await PDFDocument.create();
+    for (const [index, source] of pages.entries()) {
+      const image = await sharp(source.path, { limitInputPixels: 80_000_000 }).png().toBuffer();
+      const document = await PDFDocument.load(await imageToPdf(image));
+      const [page] = await pdf.copyPages(document, [0]);
+      page.setRotation(degrees(source.rotation));
+      pdf.addPage(page);
+      if (index === 0) await sharp(image).rotate(source.rotation).png().toFile(previewPath);
+    }
+    await writeFile(pdfPath, await pdf.save(), { mode: 0o600 });
+  } catch {
+    throw new AppError(
+      422,
+      'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+    );
+  }
 }

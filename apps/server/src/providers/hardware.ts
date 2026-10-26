@@ -8,7 +8,9 @@ import type {
   ScanOptions,
   JobStatus,
 } from '@openwebprint/shared';
+import { MAX_SCAN_PAGES } from '@openwebprint/shared';
 import { randomUUID } from 'node:crypto';
+import { dirname, basename, join } from 'node:path';
 import { AppError } from '../errors.js';
 import type { StoredJob } from '../store.js';
 import { command, CommandError, type Command } from './command.js';
@@ -367,21 +369,71 @@ export class HardwareProvider implements Provider {
     if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Invalid job ID.');
     await this.cups('cancel', [`${validateQueue(device.target!)}-${job.externalId}`]);
   }
-  async scan(device: Device, outputPath: string, options: ScanOptions) {
-    await this.run(
+  async scanSources(device: Device) {
+    const output = await this.run(
       'scanimage',
-      [
-        '--device-name',
-        validateScanner(device.target!),
-        '--format=png',
-        '--output-file',
-        outputPath,
-        '--resolution',
-        String(options.resolution),
-        '--mode',
-        options.color,
-      ],
-      120_000,
+      ['--device-name', validateScanner(device.target!), '--all-options'],
+      20_000,
     );
+    const lines = output.split(/\r?\n/);
+    const index = lines.findIndex((line) => /--source[ \t]+/.test(line));
+    let source = index < 0 ? '' : lines[index].replace(/^.*?--source[ \t]+/, '');
+    for (
+      let next = index + 1;
+      index >= 0 && next < lines.length && !source.includes('[') && source.trimEnd().endsWith('|');
+      next++
+    ) {
+      if (lines[next].trimStart().startsWith('--')) break;
+      source += lines[next].trim();
+    }
+    const choices = source.replace(/\s+\[[^\]]*\].*$/, '').split('|');
+    return {
+      sources: choices
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => ({ name, feeder: /adf|document feeder/i.test(name) })),
+      duplex: /--duplex(?:[\[= \t]|$)/m.test(output),
+    };
+  }
+  async scan(device: Device, outputPath: string, options: ScanOptions, pageLimit = MAX_SCAN_PAGES) {
+    if (options.batch && !options.source)
+      throw new AppError(400, 'Choose a document feeder source for batch scanning.');
+    if (options.source || options.duplex) {
+      const capabilities = await this.scanSources(device);
+      const source = capabilities.sources.find((s) => s.name === options.source);
+      if (options.source && !source)
+        throw new AppError(400, 'The scanner does not support the selected source.');
+      if (options.batch && !source?.feeder)
+        throw new AppError(400, 'Batch scanning requires a document feeder.');
+      if (options.duplex && !capabilities.duplex)
+        throw new AppError(400, 'The scanner does not support the duplex option.');
+    }
+    try {
+      await this.run(
+        'scanimage',
+        [
+          '--device-name',
+          validateScanner(device.target!),
+          '--format=png',
+          ...(options.batch
+            ? [
+                `--batch=${join(dirname(outputPath).replaceAll('%', '%%'), basename(outputPath))}`,
+                `--batch-count=${pageLimit}`,
+              ]
+            : ['--output-file', outputPath]),
+          ...(options.source ? ['--source', options.source] : []),
+          ...(options.duplex ? ['--duplex=yes'] : []),
+          '--resolution',
+          String(options.resolution),
+          '--mode',
+          options.color,
+        ],
+        options.batch ? 600_000 : 120_000,
+      );
+    } catch (error) {
+      if (!(options.batch && error instanceof CommandError && error.reason === 'no-documents'))
+        throw error;
+      // The service requires at least one complete image before publishing the batch.
+    }
   }
 }

@@ -177,7 +177,7 @@ test('open access → routes → print → scans → users → login → setting
     await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByAltText('Scanned document preview')).toBeVisible();
+    await expect(page.getByAltText('Scanned page 1')).toBeVisible();
     if (index === 0) {
       await accessible(page);
       const downloadEvent = page.waitForEvent('download');
@@ -186,6 +186,52 @@ test('open access → routes → print → scans → users → login → setting
       expect(
         (await PDFDocument.load(await readFile((await download.path())!))).getPageCount(),
       ).toBe(1);
+      await page.getByRole('button', { name: 'Scan another page', exact: true }).click();
+      await expect(page.getByAltText('Scanned page 2')).toBeVisible();
+      await page
+        .getByRole('combobox', { name: 'Paper source', exact: true })
+        .selectOption('ADF Duplex');
+      await page.getByRole('button', { name: 'Scan many more pages', exact: true }).click();
+      await expect(page.getByAltText('Scanned page 6')).toBeVisible();
+      const state = await (await page.request.get('/api/snapshot')).json();
+      const scan = state.jobs.find((job: { kind: string }) => job.kind === 'scan');
+      expect(scan.pages).toHaveLength(6);
+      expect(state.jobs.filter((job: { kind: string }) => job.kind === 'scan')).toHaveLength(
+        existingScans + 1,
+      );
+      await page.getByRole('button', { name: 'Rotate page 1 clockwise', exact: true }).click();
+      await expect(page.getByAltText('Scanned page 1')).toHaveCSS(
+        'transform',
+        'matrix(0, 1, -1, 0, 0, 0)',
+      );
+      await page.getByRole('button', { name: 'Move page 1 later', exact: true }).click();
+      await expect(page.getByAltText('Scanned page 2')).toHaveCSS(
+        'transform',
+        'matrix(0, 1, -1, 0, 0, 0)',
+      );
+      if (info.project.name === 'desktop') {
+        const list = page.getByRole('list', { name: 'Scanned pages' });
+        await list.locator('li').nth(1).dragTo(list.locator('li').nth(0));
+        await expect(page.getByAltText('Scanned page 1')).toHaveCSS(
+          'transform',
+          'matrix(0, 1, -1, 0, 0, 0)',
+        );
+      }
+      await expect(page.getByRole('list', { name: 'Scanned pages' })).toHaveAttribute(
+        'aria-busy',
+        'false',
+      );
+      const editedDownload = page.waitForEvent('download');
+      await page.getByRole('link', { name: 'Download PDF' }).click();
+      const edited = await PDFDocument.load(await readFile((await (await editedDownload).path())!));
+      expect(edited.getPageCount()).toBe(6);
+      expect(edited.getPage(info.project.name === 'desktop' ? 0 : 1).getRotation().angle).toBe(90);
+      await accessible(page);
+      await noOverflow(page);
+      await page.screenshot({
+        path: `test-results/${info.project.name}-multipage-scan.png`,
+        fullPage: true,
+      });
     }
     await page.getByRole('button', { name: 'Close', exact: true }).click();
   }

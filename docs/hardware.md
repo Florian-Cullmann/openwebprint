@@ -69,9 +69,12 @@ Copy the exact identifier from your own system into the manual scanner form. Do 
 - Manually configured airscan devices belong in `/etc/sane.d/airscan.conf`; consult the [upstream documentation](https://github.com/alexpevzner/sane-airscan).
 - Native backend packages may use different names such as `brother4:…`.
 - Scanner status is **Not checked** until a scan actually accesses the backend. Discovery does not prove the scanner is currently reachable.
-- The MVP requests one PNG via `scanimage`, then embeds it into an A4 PDF, preserving aspect ratio. It does not batch pages or choose an ADF source; the backend's default source applies.
+- Paper sources are read from `scanimage --all-options`. Choose an advertised flatbed, ADF, or duplex ADF source. If the driver exposes a separate `--duplex` switch, **Scan both sides** is available for feeder sources. Drivers that use other option names may need configuration outside the app. Unsupported settings fail explicitly.
+- **Scan another page** appends one page to the current PDF. **Scan many pages** (or **Scan many more pages**) uses SANE batch mode with the selected feeder until it is empty or the document reaches 100 pages. Page order follows the backend's front/back output order. The app never substitutes a flatbed scan when a feeder is unavailable.
+- Each page is embedded into an A4 PDF, preserving aspect ratio. The scan dialog shows all saved pages, with clockwise 90° rotation, drag and drop, touch drag handles, and arrow buttons for keyboard/touch reordering. Changes update the PDF and first-page preview automatically. A failed batch or append preserves previously saved pages; new pages from a failed batch are discarded. Empty feeders produce an explicit error.
+- These batch and duplex paths are covered with stubbed command/provider tests and demo browser tests; they have not been verified with physical ADF/DADF hardware.
 - 150, 300, and 600 dpi and `Color` / `Gray` are available choices. The SANE backend is authoritative: unsupported combinations fail explicitly. Mono-only/lineart-only devices may require a future capabilities adapter.
-- Only one scan per configured scanner ID runs at once. A scan times out after 120 seconds. Closing the UI does not cancel it.
+- Only one scan per configured scanner ID runs at once. Single-page scans time out after 120 seconds and batches after 10 minutes. Closing the UI does not cancel them. Reaching the 100-page limit may leave paper in the feeder; start a new document for the remainder.
 
 For USB devices, the host must expose them through a working CUPS/SANE installation. Docker Compose deliberately does not mount `/dev` wholesale or use `privileged: true`.
 

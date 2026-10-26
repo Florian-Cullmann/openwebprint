@@ -6,7 +6,7 @@ export type Command = (executable: string, args: string[], timeout?: number) => 
 export class CommandError extends AppError {
   constructor(
     message: string,
-    readonly reason: 'empty-destinations' | 'failed' = 'failed',
+    readonly reason: 'empty-destinations' | 'no-documents' | 'failed' = 'failed',
   ) {
     super(502, message);
   }
@@ -35,6 +35,8 @@ export const command: Command = async (executable, args, timeout = 20_000) => {
       e.stderr?.trim() === 'lpstat: No destinations added.'
     )
       throw new CommandError('No printers have been configured in CUPS.', 'empty-destinations');
+    if (executable === 'scanimage' && e.code === 7)
+      throw new CommandError('The document feeder is empty.', 'no-documents');
     // stderr may contain device addresses; it is deliberately not returned to clients.
     throw new CommandError(
       `${executable} could not complete the operation. Check connectivity, permissions and device options.`,
