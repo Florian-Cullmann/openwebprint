@@ -8,14 +8,14 @@ export function Brand() {
         src="/openwebprint-logo.svg"
         alt="openwebprint"
         width={1600}
-        height={420}
+        height={300}
       />
       <img
         className={s.brandDark}
         src="/openwebprint-logo-dark.svg"
         alt="openwebprint"
         width={1600}
-        height={420}
+        height={300}
       />
     </span>
   );
