@@ -73,6 +73,10 @@ For USB devices, the host must expose them through a working CUPS/SANE installat
 
 ## Docker networking
 
+On **macOS**, first enable **Docker** under **System Settings → Privacy & Security → Local Network**. Without this permission, Docker Desktop cannot connect to LAN printers even if the Mac itself can reach them. See [Docker's troubleshooting guide](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/#containers-cant-reach-devices-on-my-local-network). The permission takes effect without restarting Docker.
+
+This permission allows direct device connections; it does not guarantee multicast discovery through Docker's bridge. If discovery remains empty, use **Add manually** with the printer's IPP address (for example, `ipp://192.168.1.50:631/ipp/print`; confirm the path/port in the device's manual or network advertisement), or use a native installation / Linux host networking. A printer already installed in macOS is not automatically installed in the container's separate CUPS scheduler.
+
 The hardware Compose profile targets **Linux** and uses host networking so link-local multicast can work. The application itself binds to `127.0.0.1:3001`, CUPS to `127.0.0.1:631`. A local reverse proxy can expose the web app with TLS. Never expose the container's CUPS policy on a public interface: it intentionally trusts local clients inside this dedicated scheduler boundary.
 
 The container starts its own private D-Bus and Avahi processes without mounting the host's D-Bus socket. An existing host mDNS daemon or CUPS scheduler can conflict. If port 631 is in use, prefer a native application installation using the host's existing scheduler. You can also run the image in bridge networking and manually add reachable printer IPs, but automatic discovery may be incomplete. Docker Desktop host networking differs from native Linux networking; eSCL/WSD and mDNS may require a real Linux host.
@@ -81,17 +85,18 @@ Named volumes retain `/etc/cups` and the CUPS spool. To supply custom SANE confi
 
 ## Troubleshooting
 
-| Symptom                              | Check                                                                                                    |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Device never appears                 | Same subnet, multicast enabled, guest-network isolation, VPN, Avahi, device protocol settings            |
-| Printer is found but cannot be added | Exact IPP path, IPP Everywhere support, CUPS queue-creation rights                                       |
-| No selectable paper size             | IPP capabilities unavailable or missing standard A4/A5/Letter media; inspect CUPS queue configuration    |
-| Queue is ready but no page comes out | Physical network/device state, paper, CUPS backend errors; queue readiness is not a ping                 |
-| Print status is unknown              | CUPS unavailable, response lost, or history purged; check queue before resubmitting to avoid duplicates  |
-| Scanner is found but fails           | `scanimage --all-options`, supported mode/resolution, device permissions, firewall and eSCL/WSD settings |
-| `lp` / `scanimage` is missing        | Install CUPS client tools / sane-utils on the server; demo mode does not need them                       |
-| Browser write gets 403               | `APP_ORIGIN` must exactly match the browser origin; proxy must preserve `Origin`                         |
-| Login cookie is not stored           | `COOKIE_SECURE=true` requires HTTPS; align configuration and browser URL                                 |
+| Symptom                                   | Check                                                                                                    |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Device never appears                      | Same subnet, multicast enabled, guest-network isolation, VPN, Avahi, device protocol settings            |
+| Mac can reach a printer but Docker cannot | Enable Docker's macOS Local Network permission; check VPN/firewall rules for Docker Desktop              |
+| Printer is found but cannot be added      | Exact IPP path, IPP Everywhere support, CUPS queue-creation rights                                       |
+| No selectable paper size                  | IPP capabilities unavailable or missing standard A4/A5/Letter media; inspect CUPS queue configuration    |
+| Queue is ready but no page comes out      | Physical network/device state, paper, CUPS backend errors; queue readiness is not a ping                 |
+| Print status is unknown                   | CUPS unavailable, response lost, or history purged; check queue before resubmitting to avoid duplicates  |
+| Scanner is found but fails                | `scanimage --all-options`, supported mode/resolution, device permissions, firewall and eSCL/WSD settings |
+| `lp` / `scanimage` is missing             | Install CUPS client tools / sane-utils on the server; demo mode does not need them                       |
+| Browser write gets 403                    | `APP_ORIGIN` must exactly match the browser origin; proxy must preserve `Origin`                         |
+| Login cookie is not stored                | `COOKIE_SECURE=true` requires HTTPS; align configuration and browser URL                                 |
 
 Child process errors returned by the API omit raw stderr to avoid exposing local paths/addresses. Inspect CUPS logs (`journalctl -u cups` on many Linux systems) or run the relevant diagnostic commands yourself. Do not post scans, passwords, session cookies, or unredacted network details in public issues.
 

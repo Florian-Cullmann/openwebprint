@@ -118,7 +118,7 @@ The profile runs CUPS and Avahi inside the container and drops the web process t
 
 The Compose profile controls **networking**, while the browser choice controls the application mode. The historically named `demo` profile uses bridge networking and can also connect manually addressed hardware. Both profiles start the hardware daemons so leaving the demo needs no container restart. They have **separate persistent data and CUPS volumes**, so changing profiles does not transfer accounts or devices. Within an instance, mode and setup progress are stored in SQLite; demo records never become real devices.
 
-Docker Desktop on macOS/Windows does not reliably forward link-local discovery. Use manual IPP addresses and native SANE configuration, or run on a Linux host. USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
+Docker Desktop on macOS/Windows does not reliably forward link-local discovery. On macOS, enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
 
 ### Configuration
 

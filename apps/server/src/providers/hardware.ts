@@ -11,7 +11,7 @@ import type {
 import { randomUUID } from 'node:crypto';
 import { AppError } from '../errors.js';
 import type { StoredJob } from '../store.js';
-import { command, type Command } from './command.js';
+import { command, CommandError, type Command } from './command.js';
 import type { Provider } from './types.js';
 
 type Attributes = Record<string, unknown>;
@@ -131,7 +131,10 @@ export class HardwareProvider implements Provider {
               });
           }
         })
-        .catch((e: Error) => warnings.push(`CUPS: ${e.message}`)),
+        .catch((e: Error) => {
+          if (!(e instanceof CommandError && e.reason === 'empty-destinations'))
+            warnings.push(`CUPS: ${e.message}`);
+        }),
       this.run('scanimage', ['--formatted-device-list=%d\t%v %m%n'], 35_000)
         .then((output) => {
           for (const line of output.trim().split('\n')) {
@@ -150,6 +153,10 @@ export class HardwareProvider implements Provider {
         .then((found) => devices.push(...found))
         .catch(() => warnings.push('mDNS discovery is unavailable. Add devices manually.')),
     ]);
+    if (!devices.length)
+      warnings.push(
+        'No devices responded to discovery. If you use Docker Desktop on macOS, enable Docker in System Settings → Privacy & Security → Local Network. Docker bridge networking can also limit automatic discovery; add a device by IP address or use Linux host networking.',
+      );
     return { devices: [...new Map(devices.map((d) => [d.address, d])).values()], warnings };
   }
   private networkPrinters(): Promise<DeviceInput[]> {

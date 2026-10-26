@@ -10,14 +10,15 @@ import {
 import type { Device, PrintOptions } from '@openwebprint/shared';
 import type { StoredJob } from '../src/store.js';
 import { fixture } from './helpers.js';
-import { command } from '../src/providers/command.js';
+import { command, CommandError } from '../src/providers/command.js';
 import { randomUUID } from 'node:crypto';
 const discoveryTypes = vi.hoisted(() => [] as string[]);
+const advertisements = vi.hoisted(() => ({ enabled: true }));
 vi.mock('bonjour-service', () => ({
   Bonjour: class {
     find({ type }: { type: string }, callback: (service: unknown) => void) {
       discoveryTypes.push(type);
-      if (['ipp', 'ipps'].includes(type))
+      if (advertisements.enabled && ['ipp', 'ipps'].includes(type))
         callback({
           name: `Brother ${type}`,
           host: 'brother.local',
@@ -62,6 +63,49 @@ const job: StoredJob = {
   hasFile: false,
 };
 describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', () => {
+  it.each([
+    [new CommandError('No printers have been configured in CUPS.', 'empty-destinations'), false],
+    [new CommandError('Scheduler unavailable.'), true],
+  ])(
+    'keeps network discovery working when local queue enumeration returns %s',
+    async (failure, warning) => {
+      vi.useFakeTimers();
+      try {
+        const run = vi.fn(async (tool: string) => {
+          if (tool === 'lpstat') throw failure;
+          return '';
+        });
+        const pending = new HardwareProvider('localhost:631', run).discover();
+        await vi.advanceTimersByTimeAsync(4001);
+        const result = await pending;
+        expect(result.devices).toHaveLength(2);
+        expect(result.warnings.some((message) => message.startsWith('CUPS:'))).toBe(warning);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('explains network permission and multicast limitations when no devices respond', async () => {
+    vi.useFakeTimers();
+    advertisements.enabled = false;
+    try {
+      const run = vi.fn(async (tool: string) => {
+        if (tool === 'lpstat')
+          throw new CommandError('No printers configured.', 'empty-destinations');
+        return '';
+      });
+      const pending = new HardwareProvider('localhost:631', run).discover();
+      await vi.advanceTimersByTimeAsync(4001);
+      const result = await pending;
+      expect(result.devices).toEqual([]);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('Local Network');
+      expect(result.warnings[0]).toContain('IP address');
+    } finally {
+      advertisements.enabled = true;
+      vi.useRealTimers();
+    }
+  });
   it('discovers standard IPP/IPPS advertisements, local queues and SANE identifiers', async () => {
     vi.useFakeTimers();
     discoveryTypes.length = 0;
