@@ -41,6 +41,73 @@ async function download(job: Job) {
   expect(response.statusCode).toBe(200);
   return response.rawPayload;
 }
+it('keeps per-page physical dimensions across mixed-resolution appends, edits, and restart (stubbed scanner)', async () => {
+  const sizes = [
+    { widthMm: 148, heightMm: 210 },
+    { widthMm: 215.9, heightMm: 279.4 },
+    { widthMm: 210, heightMm: 297 },
+  ];
+  class SizedScanner extends DemoProvider {
+    page = 0;
+    override async scan(_device: Device, output: string, options: ScanOptions) {
+      const size = sizes[this.page++];
+      await sharp({
+        create: {
+          width: Math.round((size.widthMm * options.resolution) / 25.4),
+          height: Math.round((size.heightMm * options.resolution) / 25.4),
+          channels: 3,
+          background: '#fff',
+        },
+      })
+        .png() // No image DPI: acquisition settings must be captured per page.
+        .toFile(output);
+    }
+  }
+  f = await fixture({ provider: new SizedScanner() });
+  let job = await start(undefined, { resolution: 150 });
+  const firstSize = (await PDFDocument.load(await download(job))).getPage(0).getSize();
+  job = await start(job.id, { resolution: 300 });
+  job = await start(job.id, { resolution: 150 });
+  const pdf = await PDFDocument.load(await download(job));
+  expect(pdf.getPage(0).getSize()).toEqual(firstSize);
+  for (const [index, page] of pdf.getPages().entries()) {
+    expect((page.getWidth() * 25.4) / 72).toBeCloseTo(sizes[index].widthMm, 1);
+    expect((page.getHeight() * 25.4) / 72).toBeCloseTo(sizes[index].heightMm, 1);
+  }
+  expect(storedScanPages(f.service.job(job.id)).map((page) => page.resolution)).toEqual([
+    150, 300, 150,
+  ]);
+  expect(job.pages!.every((page) => !('resolution' in page))).toBe(true);
+  const directory = f.dataDir;
+  await f.close(false);
+  f = undefined;
+  f = await fixture({ dataDir: directory });
+  const crop = { x: 12, y: 24, width: 300, height: 450 };
+  const reordered = [...job.pages!].reverse();
+  reordered[1] = { ...reordered[1], crop, rotation: 90 };
+  const response = await edit(job, reordered);
+  expect(response.statusCode, response.body).toBe(200);
+  job = response.json<Job>();
+  const edited = await PDFDocument.load(await download(job));
+  expect(edited.getPage(0).getSize()).toEqual(pdf.getPage(2).getSize());
+  expect(edited.getPage(2).getSize()).toEqual(firstSize);
+  expect(edited.getPage(1).getWidth()).toBeCloseTo((crop.width * 72) / 300, 6);
+  expect(edited.getPage(1).getHeight()).toBeCloseTo((crop.height * 72) / 300, 6);
+  expect(edited.getPage(1).getRotation().angle).toBe(90);
+  expect(storedScanPages(f.service.job(job.id)).map((page) => page.resolution)).toEqual([
+    150, 300, 150,
+  ]);
+  // Editing cannot supply a new acquisition resolution for an existing page.
+  const tampered = await edit(
+    job,
+    job.pages!.map((page) => ({ ...page, resolution: 600 })),
+  );
+  expect(tampered.statusCode).toBe(200);
+  expect((await PDFDocument.load(await download(job))).getPage(1).getSize()).toEqual(
+    edited.getPage(1).getSize(),
+  );
+});
+
 it('appends flatbed and feeder pages to one PDF and persists the actual page order and rotations (stubbed scanner)', async () => {
   class NumberedScanner extends DemoProvider {
     page = 0;
@@ -183,8 +250,11 @@ it('opens and edits legacy single-page scans and removes their original files wi
   const legacy = publicJob(job);
   expect(legacy.pages).toEqual([{ id: job.id, rotation: 0 }]);
   expect((await edit(legacy, [{ id: job.id, rotation: 90 }])).statusCode).toBe(200);
-  expect((await start(job.id)).pages).toHaveLength(2);
+  const legacySize = (await PDFDocument.load(await download(legacy))).getPage(0).getSize();
+  expect((await start(job.id, { resolution: 150 })).pages).toHaveLength(2);
+  expect((await PDFDocument.load(await download(legacy))).getPage(0).getSize()).toEqual(legacySize);
   expect(storedScanPages(f.service.job(job.id))[0].path).toBe(legacyPreview);
+  expect(storedScanPages(f.service.job(job.id))[0].resolution).toBeUndefined();
   await f.workspace.removeDemo();
   expect(await readdir(f.service.filesDir)).toEqual([]);
 });
@@ -361,7 +431,7 @@ it('crops original pixels before every rotation, persists edits on restart, and 
     expect(await sharp(thumbnail.rawPayload).raw().toBuffer()).toEqual(expected.data);
     const pdf = await PDFDocument.load(await download(job));
     const page = pdf.getPage(0);
-    const scale = Math.min(595.28 / width, 841.89 / height);
+    const scale = 72 / 300;
     expect(page.getWidth()).toBeCloseTo(crop.width * scale);
     expect(page.getHeight()).toBeCloseTo(crop.height * scale);
     expect(page.getRotation().angle).toBe(rotation);

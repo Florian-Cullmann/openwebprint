@@ -12,6 +12,7 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
     await page.getByRole('button', { name: 'Try demo', exact: true }).click();
   await page.goto('/scans');
   await page.getByRole('button', { name: 'New scan', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Resolution', exact: true }).selectOption('150');
   await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
     timeout: 15_000,
@@ -106,7 +107,8 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
   const pdf = await PDFDocument.load(await readFile((await (await downloadEvent).path())!));
   const pdfPage = pdf.getPage(0);
   expect(pdfPage.getRotation().angle).toBe(90);
-  expect(pdfPage.getWidth() / pdfPage.getHeight()).toBeCloseTo(600 / 900);
+  expect(pdfPage.getWidth()).toBeCloseTo((600 * 72) / 150, 6);
+  expect(pdfPage.getHeight()).toBeCloseTo((900 * 72) / 150, 6);
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.reload();
   await page

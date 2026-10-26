@@ -4,8 +4,13 @@ import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Device, Job, Mode, ScanPage } from '@openwebprint/shared';
 
+export interface StoredScanPage extends ScanPage {
+  path: string;
+  // Acquisition DPI belongs to this page, not the most recent job options.
+  resolution?: number;
+}
 export interface StoredJob extends Job {
-  scanPages?: (ScanPage & { path: string })[];
+  scanPages?: StoredScanPage[];
   scanDirectory?: string;
   scanWorkPath?: string;
   externalId?: string;
@@ -123,7 +128,7 @@ export function publicJob({
   return job;
 }
 
-export function storedScanPages(job: StoredJob) {
+export function storedScanPages(job: StoredJob): StoredScanPage[] {
   return (
     job.scanPages ??
     (job.hasFile && job.previewPath

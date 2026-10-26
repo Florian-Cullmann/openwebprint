@@ -74,7 +74,7 @@ export class DemoProvider implements Provider {
       duplex: false,
     };
   }
-  async scan(_device: Device, outputPath: string, _options: ScanOptions, pageLimit = 100) {
+  async scan(_device: Device, outputPath: string, options: ScanOptions, pageLimit = 100) {
     const image = await sharp(
       Buffer.from(`<svg width="1240" height="1754" xmlns="http://www.w3.org/2000/svg">
     <rect width="1240" height="1754" fill="#fff"/><rect x="90" y="100" width="50" height="50" rx="10" fill="#24252a"/>
@@ -88,13 +88,15 @@ export class DemoProvider implements Provider {
     <rect x="90" y="1070" width="1010" height="180" rx="16" fill="#f1f1f3"/>
     <text x="130" y="1170" font-family="sans-serif" fill="#24252a" font-size="30">Your documents stay on your server.</text></svg>`),
     )
+      // The sample represents an A4 page at 150 dpi; scale its pixels to the
+      // simulated acquisition resolution so exported dimensions stay constant.
+      .resize(
+        Math.round((1240 * options.resolution) / 150),
+        Math.round((1754 * options.resolution) / 150),
+      )
       .png()
       .toBuffer();
-    const count = _options.batch
-      ? _options.duplex || _options.source === 'ADF Duplex'
-        ? 4
-        : 3
-      : 1;
+    const count = options.batch ? (options.duplex || options.source === 'ADF Duplex' ? 4 : 3) : 1;
     for (let page = 1; page <= Math.min(count, pageLimit); page++)
       await writeFile(outputPath.replace('%d', String(page)), image, { mode: 0o600 });
   }

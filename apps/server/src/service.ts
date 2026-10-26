@@ -12,7 +12,7 @@ import type {
 } from '@openwebprint/shared';
 import { MAX_SCAN_PAGES } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
-import { Store, publicJob, storedScanPages, type StoredJob } from './store.js';
+import { Store, publicJob, storedScanPages, type StoredJob, type StoredScanPage } from './store.js';
 import type { Provider } from './providers/types.js';
 import { demoDevices } from './providers/demo.js';
 import { normalizeDocument, exportScanPages } from './documents.js';
@@ -265,7 +265,7 @@ export class Service {
     )
       throw new AppError(409, 'Wait for a completed scan with available pages.');
   }
-  private async publishScan(job: StoredJob, pages: (ScanPage & { path: string })[]) {
+  private async publishScan(job: StoredJob, pages: StoredScanPage[]) {
     const filePath = join(job.scanWorkPath!, 'document.pdf');
     const previewPath = join(job.scanWorkPath!, 'preview.png');
     await exportScanPages(pages, filePath, previewPath);
@@ -318,7 +318,7 @@ export class Service {
       for (const name of files) {
         const path = join(directory, name);
         await chmod(path, 0o600);
-        pages.push({ id: randomUUID(), rotation: 0, path });
+        pages.push({ id: randomUUID(), rotation: 0, path, resolution: options.resolution });
       }
       await this.publishScan(job, pages);
     } catch (error) {
@@ -338,8 +338,9 @@ export class Service {
     )
       throw new AppError(400, 'Include each scanned page exactly once.');
     const updated = pages.map((page) => ({
-      ...page,
-      path: originals.find((original) => original.id === page.id)!.path,
+      ...originals.find((original) => original.id === page.id)!,
+      rotation: page.rotation,
+      crop: page.crop,
     }));
     this.prepareScan(job);
     const task = (async () => {

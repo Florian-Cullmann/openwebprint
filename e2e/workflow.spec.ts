@@ -209,7 +209,7 @@ test('open access → routes → print → scans → users → login → setting
               (image as HTMLImageElement).naturalHeight,
             ]),
         )
-        .toEqual([1754, 1240]);
+        .toEqual([3508, 2480]);
       await page.getByRole('button', { name: 'Move page 1 later', exact: true }).click();
       await expect
         .poll(() =>
@@ -220,7 +220,7 @@ test('open access → routes → print → scans → users → login → setting
               (image as HTMLImageElement).naturalHeight,
             ]),
         )
-        .toEqual([1754, 1240]);
+        .toEqual([3508, 2480]);
       if (info.project.name === 'desktop') {
         const list = page.getByRole('list', { name: 'Scanned pages' });
         const savedOrder = async () =>
@@ -258,7 +258,7 @@ test('open access → routes → print → scans → users → login → setting
                 (image as HTMLImageElement).naturalHeight,
               ]),
           )
-          .toEqual([1754, 1240]);
+          .toEqual([3508, 2480]);
         await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
         const afterDrag = await savedOrder();
         expect(afterDrag).toEqual([beforeDrag[1], beforeDrag[0], ...beforeDrag.slice(2)]);
