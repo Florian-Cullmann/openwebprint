@@ -19,7 +19,8 @@
     "test:e2e": "playwright test",
     "check": "npm run build && npm test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "screenshots": "npm run build && node scripts/capture-screenshots.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

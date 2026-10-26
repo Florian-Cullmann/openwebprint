@@ -11,11 +11,9 @@ Open source, self-hosted, and built around open standards.
 [![MIT](https://img.shields.io/badge/license-MIT-24252a.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-24252a.svg)](https://nodejs.org/)
 
-[Get started](#quick-start) · [Self-hosting](#self-hosting) · [Brother support](docs/hardware.md#brother-from-day-one) · [Contribute](CONTRIBUTING.md)
+[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Brother support](docs/hardware.md#brother-from-day-one) · [Contribute](CONTRIBUTING.md)
 
 </div>
-
-![openwebprint dashboard in demo mode](docs/images/dashboard.png)
 
 ## A calmer way to work with paper
 
@@ -31,6 +29,28 @@ This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clear
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.
 
 Demo print jobs never reach CUPS. Demo scans generate a sample document that explicitly identifies itself as simulated. **Hardware mode never falls back to demo behavior.**
+
+## Screenshots
+
+Captured from the running application with sample devices in **demo mode**. Printing and scanning are simulated; no physical device is used.
+
+### Your workspace at a glance
+
+![Overview showing three demo devices, their status, and recent jobs](docs/images/overview.png)
+
+Check device status, start a print or scan, and follow recent jobs from one page. **Remove demo data** clears the samples and opens the setup flow for your own devices.
+
+### Print from your browser
+
+![Print dialog with document upload, Brother printer selection, and print options](docs/images/printing.png)
+
+Upload a PDF or image, choose a printer, and set color, sides, paper size, and copies. Available options follow the selected printer's capabilities.
+
+### Preview and download a scan
+
+![Completed demo scan with a document preview and Download PDF action](docs/images/scanning.png)
+
+Review the scanned page, download its PDF, or scan another page. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
 
 ## Quick start
 

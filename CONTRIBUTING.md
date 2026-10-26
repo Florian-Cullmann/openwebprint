@@ -17,6 +17,10 @@ npm run test:e2e
 
 The browser tests start separate temporary servers for desktop and mobile, exercise the actual production frontend, and remove their private database afterward. Run `npm run build` before them. They intentionally verify uploads, downloads, persistence, navigation, mobile overflow, and serious/critical axe findings. They also verify the first-run choice, demo removal, and hardware setup without connecting physical devices. No print/scanner hardware is needed. Browser screenshots are written to `test-results/`, not the public README gallery.
 
+## README screenshots
+
+Run `npx playwright install chromium` once, then `npm run screenshots` to rebuild the app and capture the three README images in `docs/images/`. The script starts a disposable instance on a random loopback port, explicitly chooses demo mode, captures the actual UI at 1440 × 1000, and removes its temporary data afterward. It never uses your running instance, accounts, or hardware. Review all three images before committing them alongside any caption changes.
+
 ## Design and architecture
 
 - Use **React + TypeScript**. Style with CSS Modules and shared CSS variables; no Tailwind, Vue, or Laravel.
