@@ -65,7 +65,7 @@ export function DeviceDialog({
       subtitle={
         demo
           ? 'Only simulated devices are available in demo mode.'
-          : 'Brother, HP, Canon, Epson and other compatible devices.'
+          : 'Printers and scanners compatible with CUPS or SANE.'
       }
       close={() => {
         if (!adding) close();
@@ -207,8 +207,8 @@ export function DeviceDialog({
               {demo
                 ? 'Demo devices do not connect to hardware.'
                 : kind === 'printer'
-                  ? 'Use IPP Everywhere / AirPrint, or an existing CUPS queue as cups://QUEUE. Configure older Brother models with a suitable driver in CUPS first.'
-                  : 'Find the complete ID with scanimage -L. Depending on the model, Brother scanners use eSCL, WSD or an installed SANE driver.'}
+                  ? 'Use IPP Everywhere / AirPrint, or an existing CUPS queue as cups://QUEUE. Configure models that require a driver in CUPS first.'
+                  : 'Find the complete ID with scanimage -L. Depending on the model, scanners use eSCL, WSD or another installed SANE backend.'}
             </p>
             <div className={s.modalActions}>
               <button type="button" className={s.secondary} onClick={() => setTab('discover')}>

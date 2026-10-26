@@ -2,9 +2,9 @@
 
 openwebprint talks to **CUPS** for printing and **SANE** for scanning. The application does not contain proprietary device SDKs. Hardware support depends on the model, firmware, enabled protocols, host drivers, and network.
 
-## Brother from day one
+## Supported protocols
 
-Brother is supported through the same open standards as other manufacturers:
+Devices from different manufacturers use the same CUPS/SANE integration. Compatibility depends on the capabilities exposed by each model:
 
 | Device capability                  | Print path                                | Scan path              |
 | ---------------------------------- | ----------------------------------------- | ---------------------- |
@@ -13,9 +13,11 @@ Brother is supported through the same open standards as other manufacturers:
 | Older CUPS/SANE-compatible model   | Existing queue with an appropriate driver | Installed SANE backend |
 | Unsupported proprietary-only model | No automatic fallback                     | No simulated success   |
 
-For example, the upstream sane-airscan compatibility list includes Brother MFC-L2750DW with eSCL and WSD, MFC-L2700DW with WSD, and ADS-2700W with WSD. These are **upstream reports**, not certifications from openwebprint. The Brother pair in demo mode is a simulation, not evidence of a hardware test.
-
 Check the [sane-airscan compatibility list](https://github.com/alexpevzner/sane-airscan#compatibility) and your device's manual. Enable AirPrint/IPP, eSCL, or WSD scan in the device's web interface where supported. Wi-Fi Direct, guest Wi-Fi isolation, VPNs, and different VLANs can prevent discovery.
+
+## Brother-specific notes
+
+For example, the upstream sane-airscan compatibility list includes Brother MFC-L2750DW with eSCL and WSD, MFC-L2700DW with WSD, and ADS-2700W with WSD. These are **upstream reports**, not certifications from openwebprint. The Brother pair in demo mode is a simulation, not evidence of a hardware test.
 
 The Docker image includes the open-source `printer-driver-brlaser` package for some older monochrome Brother models. It is **not** automatically selected: automatic creation uses the CUPS `everywhere` model. For legacy devices, configure a queue with an installed suitable driver outside the app, then import it. Vendor Brother `brscan` packages are not bundled; install them on a native host only if your particular model needs them and you accept their licensing. Driverless devices need none of these packages.
 
