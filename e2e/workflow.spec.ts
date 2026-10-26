@@ -381,7 +381,7 @@ test('open access → routes → print → scans → users → login → setting
   );
   await category(page, 'Hardware');
   await expect(page).toHaveURL(/\/settings\/hardware$/);
-  await expect(page.getByRole('heading', { name: 'Brother devices' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Printers and scanners' })).toBeVisible();
   await category(page, 'Appearance');
   await page.getByRole('button', { name: 'Dark', exact: true }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');

@@ -691,11 +691,11 @@ export function App() {
                   )}
                   {settingsCategory === 'hardware' && (
                     <>
-                      <SettingsCard icon={<Printer size={20} />} title="Brother devices">
+                      <SettingsCard icon={<Printer size={20} />} title="Printers and scanners">
                         <p>
-                          Modern Brother printers connect to CUPS through IPP Everywhere / AirPrint.
-                          Brother scanners use sane-airscan through eSCL or WSD where supported by
-                          the model.
+                          Compatible printers connect to CUPS through IPP Everywhere / AirPrint.
+                          Scanners connect through SANE, including eSCL or WSD via sane-airscan
+                          where supported by the model.
                         </p>
                         <p>
                           Older models need a suitable CUPS/SANE driver on the host. Import existing

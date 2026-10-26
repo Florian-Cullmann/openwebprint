@@ -16,7 +16,7 @@ Open source, self-hosted, and built around open standards.
 [![MIT](https://img.shields.io/badge/license-MIT-24252a.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-24252a.svg)](https://nodejs.org/)
 
-[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Brother support](docs/hardware.md#brother-from-day-one) · [Contribute](CONTRIBUTING.md)
+[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Hardware compatibility](docs/hardware.md#supported-protocols) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
@@ -155,7 +155,7 @@ For Docker, export those two variables or put them in the root `.env`; Compose f
 
 ## Hardware support and honest limits
 
-**Brother is a first-class target**, alongside HP, Canon, Epson, and other standards-compatible devices. CUPS handles printing through IPP Everywhere/AirPrint; sane-airscan handles eSCL and WSD scanning. Some Brother models support only WSD scanning. Enable the relevant protocols in the device's settings.
+**Hardware compatibility depends on device protocols and host drivers.** CUPS handles printing through IPP Everywhere/AirPrint or an existing queue with a suitable driver; SANE handles scanning, including eSCL and WSD through sane-airscan. Enable the relevant protocols in the device's settings.
 
 See the [model compatibility and troubleshooting guide](docs/hardware.md). There is no blanket promise that every model from a manufacturer works. CUPS queue state is not proof of physical reachability or paper output. `completed` means the backend reported completion; communication errors remain `unknown`, with no automatic resubmission that could duplicate prints.
 
@@ -180,7 +180,7 @@ Settings use a horizontal menu with their own URLs:
 | General    | `/settings/general`    | Operating mode, scan storage, document retention, project information |
 | Users      | `/settings/users`      | Add and remove users; enable or disable login by user count           |
 | Appearance | `/settings/appearance` | Light, dark, or system theme                                          |
-| Hardware   | `/settings/hardware`   | Brother support and driver guidance                                   |
+| Hardware   | `/settings/hardware`   | Hardware compatibility and driver guidance                            |
 
 `/settings` redirects to General. Fastify serves the React entry point for page URLs; `/api/*` remains a separate API namespace.
 
