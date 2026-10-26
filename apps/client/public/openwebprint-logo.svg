@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="300" viewBox="0 0 1600 300">
+<svg xmlns="http://www.w3.org/2000/svg" width="1570" height="300" viewBox="30 0 1570 300">
 <defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#172637"/><stop offset="1" stop-color="#0B1421"/></linearGradient><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#5CE9D5"/><stop offset="1" stop-color="#38BDE9"/></linearGradient></defs>
 <g transform="translate(30 30) scale(.46875)">
 <rect width="512" height="512" rx="112" fill="url(#bg)"/>

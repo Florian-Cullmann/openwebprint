@@ -11,7 +11,7 @@
   align-items: center;
   gap: 28px;
   min-height: 76px;
-  max-width: 1180px;
+  max-width: 1060px;
   margin: auto;
   padding: 16px 28px;
 }
@@ -29,6 +29,9 @@
   display: block;
   width: 100%;
   height: auto;
+}
+.headerInner .brandLogo {
+  width: 210px;
 }
 .brandLogo .brandDark {
   display: none;
@@ -1120,7 +1123,7 @@
 }
 @media (max-width: 480px) {
   .headerInner .brandLogo {
-    width: 200px;
+    width: 180px;
   }
   .headerInner {
     padding-left: 16px;
