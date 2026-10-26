@@ -71,7 +71,14 @@ export interface Snapshot {
   mode: Mode;
   warnings: string[];
 }
+export interface OnboardingState {
+  phase: 'welcome' | 'devices' | 'storage' | 'complete';
+  mode: Mode;
+  scanRoot: string;
+  devices: Device[];
+}
 export interface SessionInfo {
+  onboardingRequired: boolean;
   authenticationRequired: boolean;
   authenticated: boolean;
   user?: User;

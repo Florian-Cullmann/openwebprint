@@ -27,6 +27,14 @@ export async function fixture(
     background: options.background ?? false,
     staticDir: '/nonexistent/owp-test',
   });
+  if (result.workspace.phase === 'welcome') {
+    if ((options.mode ?? 'demo') === 'demo') await result.workspace.tryDemo();
+    else {
+      await result.workspace.startHardware();
+      await result.workspace.selectDevices([]);
+      await result.workspace.saveStorage(join(dataDir, 'scans'), true);
+    }
+  }
   if (options.users !== false && !result.auth.hasUsers()) {
     const created = await result.app.inject({
       method: 'POST',

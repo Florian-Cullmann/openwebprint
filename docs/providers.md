@@ -1,6 +1,6 @@
 # Provider development
 
-`apps/server/src/providers/types.ts` is the extension point. `Service` owns persistence, mode isolation, file lifecycle, concurrency, and public job state. Providers own device discovery, backend configuration, actual execution, and status interpretation.
+`apps/server/src/providers/types.ts` is the extension point. `Workspace` owns the persisted setup state, explicit demo/hardware choice, and transitions between them. `Service` owns persistence, mode isolation, file lifecycle, concurrency, and public job state. Providers own device discovery, backend configuration, actual execution, and status interpretation.
 
 | Method                                | Contract                                                                                                          |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
@@ -12,6 +12,8 @@
 | `cancel(job, device)`                 | Ask the real backend to cancel; throw on rejection                                                                |
 | `scan(device, outputPath, options)`   | Write one real PNG to the supplied private path or throw; respect timeouts                                        |
 
+Real scan output uses a validated, writable absolute server root configured during setup or in Settings. Each job captures its paths when created; changing the root does not relocate existing files. Demo scans stay in instance storage.
+
 ## Adding an integration
 
 1. Keep it in a separate provider module. Select it in the server factory through trusted startup configuration, never through arbitrary client-supplied executable names.
@@ -20,7 +22,7 @@
 4. Add failure-path tests and fixtures for the actual library representation. IPP enum values may be decoded to strings (`completed`, `idle`), not numbers.
 5. Document platform dependencies, licensing, privileges, network boundaries, and hardware verification status.
 
-The current combined hardware provider delegates printing to CUPS and scanning to SANE. Only the demo provider generates output. Production code has no fallback to that provider. The server persists mode on every device and job and filters all lookups to the selected startup mode.
+The current combined hardware provider delegates printing to CUPS and scanning to SANE. Only the demo provider generates output. Production code has no fallback to that provider. The server persists mode on every device and job and filters all lookups to the persisted active mode. Fresh installations seed nothing until the user explicitly chooses the demo. Removing demo data blocks new operations, drains running demo work, and deletes only demo records and their referenced files before starting hardware setup.
 
 `cupsIpp()` queries the local scheduler; arbitrary client-controlled IPP hosts are not passed to the Node HTTP client. New printer URIs go to CUPS after validation; reaching LAN devices is an intentional administrator capability. Discovery advertisements are untrusted and must pass the same checks as manually entered addresses.
 

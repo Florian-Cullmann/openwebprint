@@ -50,17 +50,12 @@ test('open access → routes → print → scans → users → login → setting
   const second = `${info.project.name}-second`;
   const password = 'a';
   await page.goto('/overview');
-  // A retry can resume an account created earlier in this isolated test server.
-  if ((await (await page.request.get('/api/session')).json()).authenticationRequired) {
-    await expect(page).toHaveURL(/\/login$/);
-    await signIn(page, username, password);
-    await navigate(page, 'Settings');
-    await category(page, 'Users');
-    const users = await (await page.request.get('/api/users')).json();
-    for (const user of users)
-      await page.request.delete(`/api/users/${user.id}`, { headers: { 'x-openwebprint': '1' } });
-    await page.reload();
-    await page.goto('/overview');
+  const status = await (await page.request.get('/api/session')).json();
+  if (status.onboardingRequired) {
+    await expect(page.getByRole('heading', { name: 'Welcome to openwebprint' })).toBeVisible();
+    await accessible(page);
+    await page.getByRole('button', { name: 'Try demo', exact: true }).click();
+    await expect(page).toHaveURL(/\/overview$/);
   }
   const existingScans = (await (await page.request.get('/api/snapshot')).json()).jobs.filter(
     (job: { kind: string }) => job.kind === 'scan',
@@ -75,7 +70,7 @@ test('open access → routes → print → scans → users → login → setting
   await page.screenshot({
     path:
       info.project.name === 'desktop'
-        ? 'docs/images/dashboard.png'
+        ? 'test-results/desktop-overview.png'
         : 'test-results/mobile-dashboard.png',
     fullPage: true,
   });
@@ -222,5 +217,29 @@ test('open access → routes → print → scans → users → login → setting
   await accessible(page);
   await navigate(page, 'Overview');
   await page.screenshot({ path: `test-results/${info.project.name}-dark.png`, fullPage: true });
+  // Leaving the demo is a real persisted transition, not a client-only toggle.
+  await page.getByRole('button', { name: 'Remove demo data', exact: true }).click();
+  await expect(page).toHaveURL(/\/setup$/);
+  await expect(page.getByRole('heading', { name: 'Connect your devices' })).toBeVisible();
+  const clean = await (await page.request.get('/api/snapshot')).json();
+  expect(clean.mode).toBe('hardware');
+  expect(clean.jobs).toEqual([]);
+  expect(clean.devices).toEqual([]);
+  const skip = page.getByRole('button', { name: 'Continue without devices', exact: true });
+  await expect(skip).toBeEnabled({ timeout: 45_000 });
+  await skip.click();
+  await expect(page.getByRole('heading', { name: 'Where should scans be saved?' })).toBeVisible();
+  const setup = await (await page.request.get('/api/onboarding')).json();
+  await page.getByLabel('Scan storage folder', { exact: true }).fill('relative/path');
+  await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('absolute server folder');
+  await page.getByLabel('Scan storage folder', { exact: true }).fill(setup.scanRoot);
+  await page.getByRole('button', { name: 'Finish setup', exact: true }).click();
+  await expect(page).toHaveURL(/\/overview$/);
+  await expect(page.getByRole('heading', { name: 'No devices yet' })).toBeVisible();
+  await page.reload();
+  await expect(page).toHaveURL(/\/overview$/);
+  expect((await (await page.request.get('/api/onboarding')).json()).phase).toBe('complete');
+  await noOverflow(page);
   expect(errors).toEqual([]);
 });

@@ -2,6 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
+const port = process.env.E2E_PORT ?? '4173';
 const dir = await mkdtemp(join(tmpdir(), 'openwebprint-e2e-'));
 // Exercise the shipped bundle, not a TypeScript-only server entry point.
 const server = spawn(process.execPath, ['apps/server/dist/index.js'], {
@@ -11,8 +12,8 @@ const server = spawn(process.execPath, ['apps/server/dist/index.js'], {
     HOST: '127.0.0.1',
     MODE: 'demo',
     DATA_DIR: dir,
-    PORT: '4173',
-    APP_ORIGIN: 'http://127.0.0.1:4173',
+    PORT: port,
+    APP_ORIGIN: `http://127.0.0.1:${port}`,
     COOKIE_SECURE: 'false',
   },
 });

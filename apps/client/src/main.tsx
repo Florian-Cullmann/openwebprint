@@ -25,6 +25,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           'jobs',
           'scans',
           'login',
+          'setup',
           'settings/general',
           'settings/users',
           'settings/appearance',

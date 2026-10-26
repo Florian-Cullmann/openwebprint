@@ -12,9 +12,7 @@ import { deviceInputSchema, printOptionsSchema, scanOptionsSchema } from '@openw
 import type { Config } from './config.js';
 import { Store } from './store.js';
 import { Auth } from './auth.js';
-import { Service } from './service.js';
-import { DemoProvider } from './providers/demo.js';
-import { HardwareProvider } from './providers/hardware.js';
+import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
 import { AppError } from './errors.js';
 import { MAX_UPLOAD } from './documents.js';
@@ -26,7 +24,14 @@ const credentials = z.object({
 const idParam = z.object({ id: z.uuid() });
 export async function createApp(
   config: Config,
-  options: { provider?: Provider; logger?: boolean; background?: boolean; staticDir?: string } = {},
+  options: {
+    provider?: Provider;
+    demoProvider?: Provider;
+    hardwareProvider?: Provider;
+    logger?: boolean;
+    background?: boolean;
+    staticDir?: string;
+  } = {},
 ) {
   const app = Fastify({
     logger: options.logger ?? false,
@@ -37,13 +42,12 @@ export async function createApp(
   });
   const store = new Store(config.dataDir);
   const auth = new Auth(store, config);
-  const service = new Service(
-    store,
-    config.mode,
-    options.provider ??
-      (config.mode === 'demo' ? new DemoProvider() : new HardwareProvider(config.cupsServer)),
-  );
-  await service.initialize();
+  const workspace = new Workspace(store, config, {
+    demo: options.demoProvider ?? (config.mode === 'demo' ? options.provider : undefined),
+    hardware:
+      options.hardwareProvider ?? (config.mode === 'hardware' ? options.provider : undefined),
+  });
+  await workspace.initialize();
   await app.register(helmet, {
     contentSecurityPolicy: {
       directives: {
@@ -102,7 +106,8 @@ export async function createApp(
       authenticationRequired: auth.hasUsers(),
       authenticated: !!user,
       user,
-      mode: config.mode,
+      mode: workspace.mode,
+      onboardingRequired: workspace.required,
     };
   });
   const authLimit = { config: { rateLimit: { max: 5, timeWindow: '1 minute' } } };
@@ -129,24 +134,41 @@ export async function createApp(
     auth.logout(req, reply);
     return { ok: true };
   });
-  app.get('/api/snapshot', async () => service.snapshot());
-  let discovery: ReturnType<Provider['discover']> | undefined;
+  app.get('/api/onboarding', async () => workspace.state());
+  app.post('/api/onboarding/demo', async () => workspace.tryDemo());
+  app.post('/api/onboarding/start', async () => workspace.startHardware());
+  app.post('/api/onboarding/remove-demo', async () => workspace.removeDemo());
+  app.post('/api/onboarding/devices', async (req) => {
+    const { devices } = z.object({ devices: z.array(deviceInputSchema).max(50) }).parse(req.body);
+    return workspace.selectDevices(devices);
+  });
+  app.post('/api/onboarding/storage', async (req) => {
+    const { path } = z.object({ path: z.string().trim().min(1).max(1024) }).parse(req.body);
+    return workspace.saveStorage(path, true);
+  });
+  app.get('/api/storage', async () => ({ path: workspace.scanRoot }));
+  app.put('/api/storage', async (req) => {
+    const { path } = z.object({ path: z.string().trim().min(1).max(1024) }).parse(req.body);
+    return workspace.saveStorage(path);
+  });
+  app.get('/api/snapshot', async () => workspace.service.snapshot());
+  let discovery: Promise<Awaited<ReturnType<Provider['discover']>>> | undefined;
   app.post(
     '/api/devices/discover',
     { config: { rateLimit: { max: 6, timeWindow: '1 minute' } } },
     async () => {
-      discovery ??= service.provider.discover().finally(() => {
+      discovery ??= workspace.discover().finally(() => {
         discovery = undefined;
       });
       return discovery;
     },
   );
   app.post('/api/devices', async (req, reply) => {
-    const result = await service.addDevice(deviceInputSchema.parse(req.body));
+    const result = await workspace.addDevice(deviceInputSchema.parse(req.body));
     return reply.code(201).send(result);
   });
   app.delete('/api/devices/:id', async (req) => {
-    service.deleteDevice(idParam.parse(req.params).id);
+    await workspace.run((service) => service.deleteDevice(idParam.parse(req.params).id));
     return { ok: true };
   });
   app.post('/api/print', async (req, reply) => {
@@ -170,27 +192,33 @@ export async function createApp(
     } catch {
       throw new AppError(400, 'Invalid print options.');
     }
-    const job = await service.print(
-      z.uuid().parse(fields.deviceId),
-      file.data,
-      file.mime,
-      file.name,
-      printOptionsSchema.parse(input),
+    const job = await workspace.run((service) =>
+      service.print(
+        z.uuid().parse(fields.deviceId),
+        file.data,
+        file.mime,
+        file.name,
+        printOptionsSchema.parse(input),
+      ),
     );
     return reply.code(201).send(job);
   });
   app.post('/api/scans', async (req, reply) => {
     const input = z.object({ deviceId: z.uuid(), options: scanOptionsSchema }).parse(req.body);
-    return reply.code(202).send(service.scan(input.deviceId, input.options));
+    return reply
+      .code(202)
+      .send(await workspace.run((service) => service.scan(input.deviceId, input.options)));
   });
-  app.post('/api/jobs/:id/cancel', async (req) => service.cancel(idParam.parse(req.params).id));
+  app.post('/api/jobs/:id/cancel', async (req) =>
+    workspace.run((service) => service.cancel(idParam.parse(req.params).id)),
+  );
   app.delete('/api/jobs/:id', async (req) => {
-    await service.deleteJob(idParam.parse(req.params).id);
+    await workspace.run((service) => service.deleteJob(idParam.parse(req.params).id));
     return { ok: true };
   });
   app.get('/api/jobs/:id/:format', async (req, reply) => {
     const { id, format } = idParam.extend({ format: z.enum(['pdf', 'preview']) }).parse(req.params);
-    const job = service.job(id);
+    const job = workspace.service.job(id);
     if (job.kind !== 'scan' || !job.hasFile || job.status !== 'completed')
       throw new AppError(404, 'No scan available. Scan files expire after 7 days.');
     const path = format === 'pdf' ? job.filePath : job.previewPath;
@@ -215,19 +243,27 @@ export async function createApp(
   let retention: ReturnType<typeof setInterval> | undefined;
   if (options.background !== false) {
     timer = setInterval(() => {
-      void service.tick().catch(() => app.log.error('Job polling failed'));
+      void workspace.tick().catch(() => app.log.error('Job polling failed'));
     }, 2000);
     timer.unref();
     retention = setInterval(() => {
-      void service.expireFiles().catch(() => app.log.error('Retention cleanup failed'));
+      void workspace.service.expireFiles().catch(() => app.log.error('Retention cleanup failed'));
     }, 3600_000);
     retention.unref();
   }
   app.addHook('onClose', async () => {
     clearInterval(timer);
     clearInterval(retention);
-    await service.close();
+    await workspace.close();
     store.close();
   });
-  return { app, service, auth, store };
+  return {
+    app,
+    get service() {
+      return workspace.service;
+    },
+    workspace,
+    auth,
+    store,
+  };
 }

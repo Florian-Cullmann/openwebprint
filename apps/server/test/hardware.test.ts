@@ -249,15 +249,11 @@ describe('durability and mode isolation', () => {
     await f?.close();
     f = undefined;
   });
-  it('never seeds demo devices in hardware mode, even when sharing a database', async () => {
-    f = await fixture();
-    const dir = f.dataDir;
-    await f.close(false);
-    f = undefined;
-    f = await fixture({ mode: 'hardware', dataDir: dir });
+  it('never seeds demo devices during hardware setup', async () => {
+    f = await fixture({ mode: 'hardware' });
     expect(f.store.devices('hardware')).toEqual([]);
     expect((await f.service.snapshot()).devices).toEqual([]);
-    expect(f.store.devices('demo')).toHaveLength(3);
+    expect(f.store.devices('demo')).toEqual([]);
   });
   it('recovers interrupted scan state after restart and keeps users and device removals', async () => {
     f = await fixture();

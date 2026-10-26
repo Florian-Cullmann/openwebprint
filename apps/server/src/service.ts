@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile, unlink } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { Device, DeviceInput, Mode, PrintOptions, ScanOptions } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
 import { Store, publicJob, type StoredJob } from './store.js';
@@ -21,15 +21,12 @@ export class Service {
     readonly store: Store,
     readonly mode: Mode,
     readonly provider: Provider,
+    private scanDirectory = join(store.directory, 'files'),
   ) {
     this.filesDir = join(store.directory, 'files');
   }
   async initialize() {
     await mkdir(this.filesDir, { recursive: true, mode: 0o700 });
-    if (this.mode === 'demo' && !this.store.setting('demo-seeded')) {
-      for (const input of demoDevices) await this.addDevice(input);
-      this.store.set('demo-seeded', 'true');
-    }
     for (const job of this.store.jobs(this.mode)) {
       if (!terminal.has(job.status) && (job.kind === 'scan' || !job.externalId)) {
         job.status = job.kind === 'scan' ? 'failed' : 'unknown';
@@ -41,6 +38,14 @@ export class Service {
       }
     }
     await this.expireFiles();
+  }
+  setScanDirectory(path: string) {
+    this.scanDirectory = path;
+  }
+  async seedDemo() {
+    if (this.mode !== 'demo' || this.store.setting('demo-seeded')) return;
+    for (const input of demoDevices) await this.addDevice(input);
+    this.store.set('demo-seeded', 'true');
   }
   async expireFiles() {
     for (const job of [...this.store.jobs('demo'), ...this.store.jobs('hardware')]) {
@@ -70,7 +75,7 @@ export class Service {
     if (this.mode === 'demo' && !input.address.startsWith('demo://'))
       throw new AppError(
         400,
-        'Only demo:// devices are allowed in demo mode. Set MODE=hardware to use real devices.',
+        'Only demo:// devices are allowed in demo mode. Remove demo data and start setup to use real devices.',
       );
     const device = await this.provider.add(input, randomUUID());
     this.store.putDevice(device);
@@ -167,8 +172,8 @@ export class Service {
       'Scan · ' + new Date().toLocaleDateString('en-GB'),
       options,
     );
-    job.filePath = join(this.filesDir, `${job.id}.pdf`);
-    job.previewPath = join(this.filesDir, `${job.id}.png`);
+    job.filePath = join(this.scanDirectory, `${job.id}.pdf`);
+    job.previewPath = join(this.scanDirectory, `${job.id}.png`);
     this.activeScanners.add(deviceId);
     this.store.putJob(job);
     const task = this.performScan(job, device, options).finally(() => {
@@ -182,13 +187,14 @@ export class Service {
     try {
       job.status = 'processing';
       this.store.putJob(job);
+      await mkdir(dirname(job.previewPath!), { recursive: true, mode: 0o700 });
       await this.provider.scan(device, job.previewPath!, options);
       await exportScan(job.previewPath!, job.filePath!);
       job.status = 'completed';
       job.hasFile = true;
     } catch (e) {
       job.status = 'failed';
-      job.error = e instanceof Error ? e.message : 'Scan fehlgeschlagen.';
+      job.error = e instanceof Error ? e.message : 'Scan failed.';
       await remove(job.filePath);
       await remove(job.previewPath);
       job.filePath = undefined;

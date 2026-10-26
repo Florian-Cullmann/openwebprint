@@ -25,6 +25,8 @@ import {
 } from 'lucide-react';
 import type { Device, Job, SessionInfo, Snapshot } from '@openwebprint/shared';
 import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { SetupScreen } from './SetupScreen';
+import { StorageSettings } from './StorageSettings';
 import { UsersSettings } from './UsersSettings';
 import { api, post } from './api';
 import { AuthScreen } from './AuthScreen';
@@ -58,7 +60,10 @@ export function App() {
   const navigate = useNavigate();
   const view = location.pathname.split('/')[1] as View;
   const settingsCategory = location.pathname.split('/')[2] ?? 'general';
-  const canAccess = !!session && (!session.authenticationRequired || session.authenticated);
+  const canAccess =
+    !!session &&
+    !session.onboardingRequired &&
+    (!session.authenticationRequired || session.authenticated);
   const [dialog, setDialog] = useState<Dialog>();
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -133,12 +138,12 @@ export function App() {
     const timer = setTimeout(() => setToast(''), 5000);
     return () => clearTimeout(timer);
   }, [toast]);
-  async function action(operation: () => Promise<unknown>, message: string) {
+  async function action(operation: () => Promise<unknown>, message: string, updateSnapshot = true) {
     setBusy(true);
     try {
       await operation();
       setToast(message);
-      await refresh();
+      if (updateSnapshot) await refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -174,6 +179,11 @@ export function App() {
       return <Navigate to="/login" replace state={{ from: location.pathname }} />;
     return <AuthScreen demo={session.mode === 'demo'} done={loadSession} />;
   }
+  if (session.onboardingRequired) {
+    if (location.pathname !== '/setup') return <Navigate to="/setup" replace />;
+    return <SetupScreen changed={loadSession} />;
+  }
+  if (location.pathname === '/setup') return <Navigate to="/overview" replace />;
   if (location.pathname === '/login') {
     const from = (location.state as { from?: string } | null)?.from;
     return (
@@ -277,8 +287,23 @@ export function App() {
           <div className={s.demoBanner}>
             <span className={s.modeLabel}>Demo mode</span>
             <p>Devices, printing and scanning are simulated.</p>
-            <button className={s.textButton} onClick={() => go('settings')}>
-              Details <ArrowRight size={14} />
+            <button
+              className={s.textButton}
+              disabled={busy}
+              onClick={() =>
+                void action(
+                  async () => {
+                    await post('/onboarding/remove-demo');
+                    setSnapshot(undefined);
+                    setDialog(undefined);
+                    await loadSession();
+                  },
+                  'Demo data removed.',
+                  false,
+                )
+              }
+            >
+              {busy ? <Spinner /> : null} Remove demo data
             </button>
           </div>
         )}
@@ -585,13 +610,13 @@ export function App() {
                             ? 'Devices, print jobs and scan samples are simulated. No real hardware is contacted.'
                             : 'Devices are accessed through CUPS and SANE. Status and errors come from actual operations.'}
                         </p>
-                        <div className={s.codeBlock}>MODE=hardware</div>
                         <p>
-                          Set this value in the server configuration and restart the service to
-                          switch modes. With Docker, also start the hardware profile. Demo and
-                          hardware have separate devices and jobs.
+                          {demo
+                            ? 'Use Remove demo data to delete simulated devices, jobs and scan files and begin hardware setup.'
+                            : 'Your devices are configured through the setup flow and managed on the Devices page.'}
                         </p>
                       </SettingsCard>
+                      <StorageSettings demo={demo} />
                       <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
                         <p>
                           Sessions last 7 days. Scan files are removed after 7 days, or earlier when

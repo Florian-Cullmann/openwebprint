@@ -44,7 +44,11 @@ cp .env.example .env
 npm run dev
 ```
 
-Open **http://localhost:5173** and start using the app immediately. New installations have no users and do not show a login screen. The default mode is **demo** and does not require hardware tools.
+Open **http://localhost:5173**. On a fresh installation, choose **Try demo** to explore simulated devices without hardware, or **Start setup** to connect your own devices. New installations have no users and do not show a login screen.
+
+Setup searches for compatible printers and scanners, lets you choose which to connect (or add one manually), then asks for a writable scan storage folder on the server. You can continue without devices and add them later under **Devices**. Setup progress survives restarts.
+
+To leave the demo, click **Remove demo data** in the banner. This deletes demo devices, jobs, and scan files, waits for running demo operations to finish, and opens real device discovery. Accounts and any existing hardware records are preserved. Existing configured installations keep their current mode when upgrading.
 
 Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Passwords must not be empty. There are no length or character-composition requirements. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
 
@@ -55,7 +59,7 @@ docker compose --profile demo up --build -d
 docker compose logs demo
 ```
 
-Open **http://localhost:3001**; a fresh installation opens directly. The port is bound to loopback by default. Stop with `docker compose --profile demo down`. Named volumes retain accounts, devices, and job history.
+Open **http://localhost:3001** and choose a setup method. The port is bound to loopback by default. Stop with `docker compose --profile demo down`. Named volumes retain accounts, devices, and job history.
 
 ## Self-hosting
 
@@ -72,7 +76,7 @@ Run from the repository root: Fastify serves the compiled React app and API on t
 
 ### Real printers and scanners
 
-For Linux, install CUPS, SANE, and sane-airscan, then set `MODE=hardware`. On Debian/Ubuntu:
+For Linux, install CUPS, SANE, and sane-airscan, then choose **Start setup** in the browser (or **Remove demo data** if you tried the demo). On Debian/Ubuntu:
 
 ```sh
 sudo apt-get update
@@ -84,15 +88,15 @@ The operating-system CUPS administrator must permit the application service user
 For the bundled **Linux Docker** hardware stack:
 
 ```sh
-# Stop the demo first: both profiles use port 3001.
+# Stop the bridge profile first: both profiles use port 3001.
 docker compose --profile demo down
-MODE=hardware docker compose --profile hardware up --build -d
+docker compose --profile hardware up --build -d
 docker compose logs hardware
 ```
 
 The profile runs CUPS and Avahi inside the container and drops the web process to the unprivileged `node` user. It uses Linux host networking for mDNS/eSCL/WSD. Port 3001 and the dedicated CUPS scheduler (631) bind to loopback. **Do not run it alongside a host CUPS scheduler already listening on 127.0.0.1:631.** Use a native install instead, or stop the conflicting scheduler deliberately. Port 5353 may also conflict with another mDNS daemon. See [hardware networking and troubleshooting](docs/hardware.md).
 
-Demo and hardware profiles have **separate volumes and user lists**, both initially empty. On a native installation, `MODE` is selected at startup; the database separates each mode's devices/jobs while sharing its users. Switching modes does not convert demo devices into real devices.
+The Compose profile controls **networking**, while the browser choice controls the application mode. The historically named `demo` profile uses bridge networking and can also connect manually addressed hardware. Both profiles start the hardware daemons so leaving the demo needs no container restart. They have **separate persistent data and CUPS volumes**, so changing profiles does not transfer accounts or devices. Within an instance, mode and setup progress are stored in SQLite; demo records never become real devices.
 
 Docker Desktop on macOS/Windows does not reliably forward link-local discovery. Use manual IPP addresses and native SANE configuration, or run on a Linux host. USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
 
@@ -100,7 +104,7 @@ Docker Desktop on macOS/Windows does not reliably forward link-local discovery. 
 
 | Variable        | Default                 | Purpose                                                                                |
 | --------------- | ----------------------- | -------------------------------------------------------------------------------------- |
-| `MODE`          | `demo`                  | `demo` or `hardware`; never chosen by an HTTP request                                  |
+| `MODE`          | unset                   | Legacy upgrade hint only; new installations choose their mode in the browser           |
 | `HOST`          | `127.0.0.1`             | HTTP bind address; image defaults to `0.0.0.0`, hardware profile overrides to loopback |
 | `PORT`          | `3001`                  | HTTP port                                                                              |
 | `APP_ORIGIN`    | `http://localhost:5173` | Exact allowed browser origin; set to your deployed URL                                 |
@@ -115,6 +119,8 @@ For Docker, export those two variables or put them in the root `.env`; Compose f
 ### Storage, backups, and access recovery
 
 - Uploaded print files are removed immediately after the CUPS submission attempt. CUPS has its own spool/history policy; the bundled configuration disables retained job files.
+- Real scan storage defaults to `DATA_DIR/scans`. Choose an absolute server path during setup or change it under **Settings → General**. The app creates the folder and checks write access. Existing scans remain in their original location. Demo scans always use temporary instance storage.
+- In Docker, paths refer to the container. `/data/scans` is covered by the named data volume. For another location, configure a bind mount and grant the `node` user write access; entering a host path alone does not mount it. Back up any external scan folders as well as `DATA_DIR`.
 - Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry.
 - The UI shows the most recent **200** jobs. History is local SQLite data; it is not an analytics service.
 - Back up `DATA_DIR` and your CUPS configuration while the app is stopped. For Docker, back up the named volumes. Keep backups private; scans and personal metadata are not encrypted at rest.
@@ -137,16 +143,16 @@ Current scope:
 
 ## Pages and settings
 
-Pages have shareable URLs and support refresh and browser back/forward navigation: `/overview`, `/devices`, `/jobs`, `/scans`, and `/login` (when login is enabled). `/` redirects to `/overview`.
+Pages have shareable URLs and support refresh and browser back/forward navigation: `/overview`, `/devices`, `/jobs`, `/scans`, `/setup` (during onboarding), and `/login` (when login is enabled). `/` redirects to `/overview`.
 
 Settings use a horizontal menu with their own URLs:
 
-| Category   | URL                    | Contents                                                    |
-| ---------- | ---------------------- | ----------------------------------------------------------- |
-| General    | `/settings/general`    | Operating mode, document retention, project information     |
-| Users      | `/settings/users`      | Add and remove users; enable or disable login by user count |
-| Appearance | `/settings/appearance` | Light, dark, or system theme                                |
-| Hardware   | `/settings/hardware`   | Brother support and driver guidance                         |
+| Category   | URL                    | Contents                                                              |
+| ---------- | ---------------------- | --------------------------------------------------------------------- |
+| General    | `/settings/general`    | Operating mode, scan storage, document retention, project information |
+| Users      | `/settings/users`      | Add and remove users; enable or disable login by user count           |
+| Appearance | `/settings/appearance` | Light, dark, or system theme                                          |
+| Hardware   | `/settings/hardware`   | Brother support and driver guidance                                   |
 
 `/settings` redirects to General. Fastify serves the React entry point for page URLs; `/api/*` remains a separate API namespace.
 

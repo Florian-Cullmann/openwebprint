@@ -6,7 +6,7 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
-  timeout: 60_000,
+  timeout: 90_000,
   use: {
     baseURL: 'http://127.0.0.1:4173',
     colorScheme: 'light',
@@ -19,12 +19,20 @@ export default defineConfig({
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 1100 } },
     },
-    { name: 'mobile', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    {
+      name: 'mobile',
+      use: {
+        ...devices['iPhone 13'],
+        defaultBrowserType: 'chromium',
+        baseURL: 'http://127.0.0.1:4174',
+      },
+    },
   ],
-  webServer: {
+  webServer: [4173, 4174].map((port) => ({
     command: 'node --import tsx e2e/server.ts',
-    url: 'http://127.0.0.1:4173/api/health',
+    url: `http://127.0.0.1:${port}/api/health`,
+    env: { E2E_PORT: String(port) },
     reuseExistingServer: false,
     timeout: 30_000,
-  },
+  })),
 });

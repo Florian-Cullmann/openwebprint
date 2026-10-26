@@ -1331,3 +1331,135 @@
   color: var(--text);
   font-weight: 500;
 }
+.setupPage {
+  max-width: 880px;
+  margin: 0 auto;
+  min-height: 100dvh;
+  padding: 36px 28px 60px;
+}
+.setupHeader {
+  margin-bottom: 58px;
+}
+.setupContent {
+  max-width: 720px;
+}
+.setupDescription {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 14px 0 28px;
+  max-width: 620px;
+}
+.setupChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+.setupChoice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 26px;
+}
+.setupChoice > svg {
+  color: var(--muted);
+}
+.setupChoice p {
+  color: var(--muted);
+  font-size: 13px;
+  flex: 1;
+}
+.setupSteps {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 22px;
+}
+.setupSteps [aria-current] {
+  color: var(--text);
+  font-weight: 600;
+}
+.setupSearch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.setupSearch p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.setupDevices {
+  margin: 16px 0;
+}
+.setupDevice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  margin-bottom: 10px;
+  font-weight: 400;
+}
+.setupDevice input {
+  width: 17px;
+  min-height: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.setupDevice > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.setupDevice span {
+  flex: 1;
+  min-width: 0;
+}
+.setupDevice strong {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+}
+.setupDevice small {
+  display: block;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.setupActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 22px;
+  border-top: 1px solid var(--line);
+}
+@media (max-width: 600px) {
+  .setupPage {
+    padding: 26px 20px 40px;
+  }
+  .setupHeader {
+    margin-bottom: 40px;
+  }
+  .setupChoices {
+    grid-template-columns: 1fr;
+  }
+  .setupChoice {
+    padding: 22px;
+  }
+  .setupSearch {
+    flex-wrap: wrap;
+  }
+}

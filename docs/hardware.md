@@ -21,7 +21,7 @@ The Docker image includes the open-source `printer-driver-brlaser` package for s
 
 ## Printers
 
-1. Run in `MODE=hardware`.
+1. Choose **Start setup** on a fresh installation, or **Remove demo data** in the demo banner. Select discovered devices, or add their addresses manually. The Docker hardware profile provides Linux host networking; it does not bypass the browser setup choice.
 2. Open **Devices → Add device → Discover devices**.
 3. Discovery lists existing CUPS queues and `_ipp._tcp` / `_ipps._tcp` mDNS advertisements. SANE scanners appear separately.
 4. Add a device. New IPP devices are probed/configured with `lpadmin -m everywhere`. A failure is returned as an error and does not become a pretend device.

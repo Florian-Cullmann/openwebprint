@@ -2,7 +2,7 @@ import { resolve } from 'node:path';
 import { z } from 'zod';
 
 const envSchema = z.object({
-  MODE: z.enum(['demo', 'hardware']).default('demo'),
+  MODE: z.enum(['demo', 'hardware']).optional(),
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATA_DIR: z.string().default('./data'),
