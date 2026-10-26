@@ -64,7 +64,9 @@ Tests with a stubbed provider/transport must say so. A passing test fixture is n
 2. Keep the change scoped; include relevant verification and any remaining limitations.
 3. Update documentation for configuration, user-facing changes, and device support.
 4. Run `npm run check` for code changes and browser tests when changing user journeys. For documentation-only changes, check formatting, links, and the diff; application tests are unnecessary when runtime behavior is unchanged.
-5. Disclose any new dependency, license constraint, or platform-specific assumption.
+5. Include a screenshot as **Proof of Done** in the PR whenever possible. This is a requirement for everyone, including maintainers and coding agents. Capture the actual implemented result, especially for UI changes, and embed or attach the image with a short caption explaining what it verifies. Use before/after screenshots when they help demonstrate a fix. Do not use mockups as completion evidence or expose credentials, personal data, or private documents; use safe sample data.
+6. If a screenshot cannot meaningfully demonstrate the change or cannot be captured, explicitly explain why in the PR's **Proof of Done** section and provide the relevant alternative evidence (for example, focused test results). Do not silently omit this section. Screenshots supplement rather than replace required checks.
+7. Disclose any new dependency, license constraint, or platform-specific assumption.
 
 By submitting a contribution, you agree to license your contribution under the project's [MIT license](LICENSE). Dependencies and bundled OS packages retain their own licenses. No CLA is required.
 
