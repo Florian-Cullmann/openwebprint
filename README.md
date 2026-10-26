@@ -42,9 +42,9 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 ### Print from your browser
 
-![Print dialog with document upload, Brother printer selection, and print options](docs/images/printing.png)
+![Paginated document preview beside Brother printer selection and print options](docs/images/printing.png)
 
-Upload a PDF or image, choose a printer, and set color, sides, paper size, and copies. Available options follow the selected printer's capabilities.
+Review a PDF or image before printing, browse its pages, and set printer, color, sides, paper size, and copies. Open the retained document again from Jobs after submission.
 
 ### Preview and download a scan
 
