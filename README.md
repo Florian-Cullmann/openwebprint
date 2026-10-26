@@ -28,7 +28,7 @@ This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clear
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
-- **Scan a page:** 150/300/600 dpi, color or grayscale, image preview, and a real downloadable PDF.
+- **Scan documents:** 150/300/600 dpi, color or grayscale, multiple pages, reversible cropping, rotation and ordering, image preview, and a real downloadable PDF.
 - **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
 - **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.

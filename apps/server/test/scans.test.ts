@@ -1,13 +1,16 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { access, mkdir, readFile, readdir, writeFile, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { inflateSync } from 'node:zlib';
 import { PDFDocument, PDFDict, PDFName, PDFNumber, PDFRawStream } from 'pdf-lib';
 import sharp from 'sharp';
 import type { Device, Job, ScanOptions } from '@openwebprint/shared';
 import { DemoProvider } from '../src/providers/demo.js';
 import { publicJob, storedScanPages } from '../src/store.js';
 import { fixture } from './helpers.js';
+import * as documents from '../src/documents.js';
+import { AppError } from '../src/errors.js';
 let f: Awaited<ReturnType<typeof fixture>> | undefined;
 afterEach(async () => {
   await f?.close();
@@ -250,7 +253,14 @@ it('rejects concurrent edits/deletion during an append and rejects empty batches
         })
       ).statusCode,
     ).toBe(202);
-    expect((await edit(job)).statusCode).toBe(409);
+    expect(
+      (
+        await edit(
+          job,
+          job.pages!.map((page) => ({ ...page, crop: { x: 0, y: 0, width: 1, height: 1 } })),
+        )
+      ).statusCode,
+    ).toBe(409);
     expect(
       (await f.app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: f.headers }))
         .statusCode,
@@ -295,4 +305,203 @@ it('preserves the saved PDF and keeps private file paths out of conversion failu
   });
   expect(await download(job)).toEqual(before);
   expect(f.service.job(job.id).error).not.toContain(f.dataDir);
+});
+
+it('crops original pixels before every rotation, persists edits on restart, and resets without degrading the source (stubbed scanner)', async () => {
+  const width = 120;
+  const height = 160;
+  const pixels = Buffer.alloc(width * height * 3);
+  for (let y = 0; y < height; y++)
+    for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 3;
+      pixels[offset] = x;
+      pixels[offset + 1] = y;
+      pixels[offset + 2] = (x + y) % 256;
+    }
+  const original = await sharp(pixels, { raw: { width, height, channels: 3 } })
+    .png()
+    .toBuffer();
+  class PatternScanner extends DemoProvider {
+    override async scan(_device: Device, output: string) {
+      await writeFile(output, original);
+    }
+  }
+  f = await fixture({ provider: new PatternScanner() });
+  let job = await start();
+  const source = storedScanPages(f.service.job(job.id))[0].path;
+  const crop = { x: 13, y: 23, width: 61, height: 101 };
+  const cropped = sharp(original).extract({
+    left: crop.x,
+    top: crop.y,
+    width: crop.width,
+    height: crop.height,
+  });
+  const expectedPixels = await cropped.clone().raw().toBuffer();
+  const originalPdf = await download(job);
+  for (const rotation of [0, 90, 180, 270] as const) {
+    const previous = job;
+    const response = await edit(job, [{ ...job.pages![0], crop, rotation }]);
+    expect(response.statusCode, response.body).toBe(200);
+    job = response.json<Job>();
+    expect(job.pages![0]).toMatchObject({ crop, rotation });
+    expect((await edit(previous)).statusCode).toBe(409);
+    const preview = await f.app.inject({ url: `/api/jobs/${job.id}/preview`, headers: f.headers });
+    const expected = await cropped
+      .clone()
+      .rotate(rotation)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(await sharp(preview.rawPayload).raw().toBuffer({ resolveWithObject: true })).toEqual(
+      expected,
+    );
+    const thumbnail = await f.app.inject({
+      url: `/api/scans/${job.id}/pages/${job.pages![0].id}?rendered=1`,
+      headers: f.headers,
+    });
+    expect(await sharp(thumbnail.rawPayload).raw().toBuffer()).toEqual(expected.data);
+    const pdf = await PDFDocument.load(await download(job));
+    const page = pdf.getPage(0);
+    const scale = Math.min(595.28 / width, 841.89 / height);
+    expect(page.getWidth()).toBeCloseTo(crop.width * scale);
+    expect(page.getHeight()).toBeCloseTo(crop.height * scale);
+    expect(page.getRotation().angle).toBe(rotation);
+    const images = page.node.Resources()!.lookup(PDFName.of('XObject'), PDFDict);
+    const image = images.lookup(images.keys()[0]) as PDFRawStream;
+    expect(image.dict.lookup(PDFName.of('Width'), PDFNumber).asNumber()).toBe(crop.width);
+    expect(image.dict.lookup(PDFName.of('Height'), PDFNumber).asNumber()).toBe(crop.height);
+    expect(inflateSync(image.contents)).toEqual(expectedPixels);
+    expect(await readFile(source)).toEqual(original);
+  }
+  const directory = f.dataDir;
+  await f.close(false);
+  f = undefined;
+  f = await fixture({ dataDir: directory });
+  expect(publicJob(f.service.job(job.id))).toEqual(job);
+  const reset = await edit(job, [{ id: job.pages![0].id, rotation: 0 }]);
+  expect(reset.statusCode).toBe(200);
+  job = reset.json<Job>();
+  expect(job.pages![0]).not.toHaveProperty('crop');
+  const resetPdf = await PDFDocument.load(await download(job));
+  const initialPdf = await PDFDocument.load(originalPdf);
+  expect(resetPdf.getPage(0).getSize()).toEqual(initialPdf.getPage(0).getSize());
+  const resetPreview = await f.app.inject({
+    url: `/api/jobs/${job.id}/preview`,
+    headers: f.headers,
+  });
+  expect(await sharp(resetPreview.rawPayload).raw().toBuffer()).toEqual(pixels);
+  expect(await readFile(source)).toEqual(original);
+  const expired = f.service.job(job.id);
+  expired.createdAt = new Date(Date.now() - 8 * 86400_000).toISOString();
+  f.store.putJob(expired);
+  await f.service.expireFiles();
+  expect(await readdir(f.service.filesDir)).toEqual([]);
+});
+
+it('rejects invalid crops without publishing changes and preserves the previous document on conversion failure', async () => {
+  f = await fixture();
+  let job = await start();
+  const source = storedScanPages(f.service.job(job.id))[0].path;
+  const original = await readFile(source);
+  const { width, height } = await sharp(original).metadata();
+  const crop = { x: 1, y: 2, width: width! - 2, height: height! - 4 };
+  const saved = await edit(job, [{ ...job.pages![0], crop }]);
+  expect(saved.statusCode).toBe(200);
+  job = saved.json<Job>();
+  const before = await download(job);
+  for (const invalid of [
+    { ...crop, x: -1 },
+    { ...crop, y: -1 },
+    { ...crop, width: 0 },
+    { ...crop, height: -1 },
+    { ...crop, x: 0.5 },
+    { ...crop, width: null },
+    { ...crop, y: 'NaN' },
+    { ...crop, x: Number.MAX_VALUE },
+    { ...crop, width: Infinity },
+    { ...crop, x: width! },
+    { ...crop, y: height! },
+    { ...crop, width: width! },
+    { ...crop, height: height! },
+  ]) {
+    const response = await edit(job, [{ ...job.pages![0], crop: invalid } as never]);
+    expect(response.statusCode, response.body).toBe(400);
+    expect(publicJob(f.service.job(job.id))).toMatchObject({
+      pages: job.pages,
+      scanRevision: job.scanRevision,
+      status: 'completed',
+    });
+  }
+  expect(await download(job)).toEqual(before);
+  expect(await readFile(source)).toEqual(original);
+  await unlink(source);
+  const failed = await edit(job, [{ ...job.pages![0], crop: { ...crop, width: 1 } }]);
+  expect(failed.statusCode).toBe(422);
+  expect(failed.body).not.toContain(f.dataDir);
+  expect(await download(job)).toEqual(before);
+  expect(publicJob(f.service.job(job.id))).toMatchObject({
+    pages: job.pages,
+    scanRevision: job.scanRevision,
+    status: 'completed',
+  });
+  await f.service.deleteJob(job.id);
+  expect(await readdir(f.service.filesDir)).toEqual([]);
+});
+
+it('locks a crop while exporting and discards staged output if publication fails', async () => {
+  f = await fixture();
+  const job = await start();
+  const before = await download(job);
+  const previewPath = f.service.job(job.id).previewPath!;
+  const beforePreview = await readFile(previewPath);
+  const exportPages = documents.exportScanPages;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let staged!: () => void;
+  const started = new Promise<void>((resolve) => {
+    staged = resolve;
+  });
+  const exporter = vi
+    .spyOn(documents, 'exportScanPages')
+    .mockImplementationOnce(async (...args) => {
+      // Fail after generating complete staged files, but before committing the new revision.
+      await exportPages(...args);
+      staged();
+      await gate;
+      throw new AppError(422, 'Could not publish the cropped document.');
+    });
+  const pending = edit(job, [{ ...job.pages![0], crop: { x: 1, y: 2, width: 30, height: 40 } }]);
+  try {
+    await started;
+    expect((await edit(job)).statusCode).toBe(409);
+    expect(
+      (await f.app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: f.headers }))
+        .statusCode,
+    ).toBe(409);
+    expect(
+      (
+        await f.app.inject({
+          method: 'POST',
+          url: '/api/scans',
+          headers: f.headers,
+          payload: { deviceId: job.deviceId, jobId: job.id, options: {} },
+        })
+      ).statusCode,
+    ).toBe(409);
+    release();
+    expect((await pending).statusCode).toBe(422);
+    expect(publicJob(f.service.job(job.id))).toMatchObject({
+      status: 'completed',
+      pages: job.pages,
+      scanRevision: job.scanRevision,
+    });
+    expect(await download(job)).toEqual(before);
+    expect(await readFile(previewPath)).toEqual(beforePreview);
+    expect(await readdir(f.service.job(job.id).scanDirectory!)).toHaveLength(1);
+  } finally {
+    release();
+    exporter.mockRestore();
+    await pending;
+  }
 });
