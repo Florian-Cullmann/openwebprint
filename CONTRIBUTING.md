@@ -1,6 +1,18 @@
 # Contributing to openwebprint
 
-Useful, small contributions are welcome: a verified device report, a clearer error message, accessibility work, localization, or a new provider. Start with an issue for a large feature so we can agree on its scope.
+Useful, small contributions are welcome: a verified device report, a clearer error message, accessibility work, localization, or a new provider. Every change uses a dedicated branch and a pull request, including work performed by coding agents.
+
+## Required workflow
+
+Issues are **mandatory for features, bug fixes, and significant refactoring**. They are **optional for minor documentation changes, formatting, routine dependency updates, and trivial maintenance**. Reuse an applicable existing issue; do not create unnecessary issues solely to satisfy the workflow. Small contributions should be easy to submit.
+
+1. Find an existing issue or open one before implementation when required. Describe the problem, scope, and intended outcome. Discuss large changes before starting them.
+2. Create a dedicated branch from `main`, including the issue number when applicable, such as `fix/42-scanner-discovery`. A descriptive branch name is sufficient when no issue applies.
+3. Implement the change, run appropriate checks, then commit and push that branch.
+4. Open a PR and reference an existing issue when applicable, using `Closes #123` when the PR resolves it. Include the resulting behavior, verification, and any limitations.
+5. Integrate changes through the PR. **Do not commit or push directly to `main`**, even for small fixes or documentation changes.
+
+Routine dependency-bot PRs can proceed without a separate issue. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), rather than disclosing sensitive details in a public issue. Repository instructions for coding agents are maintained in [AGENTS.md](AGENTS.md).
 
 ## Local setup
 
@@ -47,7 +59,7 @@ Tests with a stubbed provider/transport must say so. A passing test fixture is n
 1. Explain the concrete problem and resulting behavior.
 2. Keep the change scoped; include relevant verification and any remaining limitations.
 3. Update documentation for configuration, user-facing changes, and device support.
-4. Ensure `npm run check` passes; run browser tests when changing user journeys.
+4. Run `npm run check` for code changes and browser tests when changing user journeys. For documentation-only changes, check formatting, links, and the diff; application tests are unnecessary when runtime behavior is unchanged.
 5. Disclose any new dependency, license constraint, or platform-specific assumption.
 
 By submitting a contribution, you agree to license your contribution under the project's [MIT license](LICENSE). Dependencies and bundled OS packages retain their own licenses. No CLA is required.
