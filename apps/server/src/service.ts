@@ -181,9 +181,14 @@ export class Service {
     const caps = device.capabilities;
     if (!caps)
       throw new AppError(409, 'Unable to retrieve print options. Check the CUPS connection.');
+    if (!caps.sides)
+      throw new AppError(
+        409,
+        'Unable to retrieve supported print sides. Check the CUPS connection.',
+      );
     if (
       (options.color === 'color' && !caps.color) ||
-      (options.sides !== 'one-sided' && !caps.duplex) ||
+      !caps.sides.includes(options.sides) ||
       !caps.media.includes(options.media)
     ) {
       throw new AppError(400, 'This device does not support the selected print options.');

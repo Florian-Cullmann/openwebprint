@@ -840,7 +840,7 @@ function DeviceCard({
                 : device.provider === 'cups'
                   ? 'CUPS / IPP'
                   : 'SANE'}
-              {device.capabilities?.duplex ? ' · Duplex' : ''}
+              {device.capabilities?.sides?.some((side) => side !== 'one-sided') ? ' · Duplex' : ''}
               {device.capabilities?.color ? '  · Color' : ''}
             </p>
             {device.detail && <p>{device.detail}</p>}

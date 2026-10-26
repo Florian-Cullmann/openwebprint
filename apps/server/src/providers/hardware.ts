@@ -8,7 +8,7 @@ import type {
   ScanOptions,
   JobStatus,
 } from '@openwebprint/shared';
-import { MAX_SCAN_PAGES } from '@openwebprint/shared';
+import { MAX_SCAN_PAGES, PRINT_SIDES } from '@openwebprint/shared';
 import { randomUUID } from 'node:crypto';
 import { dirname, basename, join } from 'node:path';
 import { AppError } from '../errors.js';
@@ -307,7 +307,10 @@ export class HardwareProvider implements Provider {
           color:
             list(attrs['print-color-mode-supported']).includes('color') ||
             attrs['color-supported'] === true,
-          duplex: list(attrs['sides-supported']).includes('two-sided-long-edge'),
+          sides:
+            attrs['sides-supported'] == null
+              ? undefined
+              : PRINT_SIDES.filter((side) => list(attrs['sides-supported']).includes(side)),
           media: media.filter((m) => list(attrs['media-supported']).includes(m)),
         },
       };

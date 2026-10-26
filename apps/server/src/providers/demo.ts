@@ -1,6 +1,7 @@
 import { writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import type { Device, DeviceInput, PrintOptions, ScanOptions } from '@openwebprint/shared';
+import { PRINT_SIDES } from '@openwebprint/shared';
 import type { StoredJob } from '../store.js';
 import type { Provider } from './types.js';
 export const demoDevices: DeviceInput[] = [
@@ -38,14 +39,15 @@ export class DemoProvider implements Provider {
         input.kind === 'printer'
           ? {
               color: !input.name.includes('L2750'),
-              duplex: true,
+              sides: [...PRINT_SIDES],
               media: ['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'],
             }
           : undefined,
     };
   }
   async inspect(device: Device) {
-    return { ...device, status: 'ready' as const };
+    // Rebuild capabilities so devices saved before sides discovery are refreshed too.
+    return this.add(device, device.id);
   }
   async print(_device: Device, _path: string, _title: string, _options: PrintOptions) {
     return `demo-${crypto.randomUUID()}`;

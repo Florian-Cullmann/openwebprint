@@ -145,7 +145,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     expect(inspected.status).toBe('ready');
     expect(inspected.capabilities).toEqual({
       color: false,
-      duplex: true,
+      sides: ['one-sided', 'two-sided-long-edge'],
       media: ['iso_a4_210x297mm'],
     });
     request.mockResolvedValue({ 'job-state': 'completed' });
