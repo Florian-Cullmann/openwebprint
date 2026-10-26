@@ -39,14 +39,7 @@ export function AuthScreen({ done, demo }: { done: () => Promise<void>; demo: bo
           </label>
           <label>
             Password
-            <input
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              minLength={12}
-              maxLength={256}
-            />
+            <input name="password" type="password" autoComplete="current-password" required />
           </label>
           {error && (
             <p className={s.error} role="alert">

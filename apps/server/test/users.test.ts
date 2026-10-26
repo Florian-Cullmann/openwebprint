@@ -165,3 +165,34 @@ describe('optional authentication and user management', () => {
     }
   });
 });
+
+it('creates and authenticates short, whitespace-only and long passwords without a complexity policy', async () => {
+  f = await fixture({ users: false });
+  for (const password of ['a', ' ', 'x'.repeat(512)]) {
+    const payload = { username: 'simple-password', password };
+    const created = await f.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: f.headers,
+      payload,
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const login = await f.app.inject({
+      method: 'POST',
+      url: '/api/login',
+      headers: f.headers,
+      payload,
+    });
+    expect(login.statusCode, login.body).toBe(200);
+    const cookie = String(login.headers['set-cookie']).split(';')[0];
+    expect(
+      (
+        await f.app.inject({
+          method: 'DELETE',
+          url: `/api/users/${created.json().id}`,
+          headers: { cookie, 'x-openwebprint': '1' },
+        })
+      ).statusCode,
+    ).toBe(200);
+  }
+});

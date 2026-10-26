@@ -100,8 +100,6 @@ export function UsersSettings({
               type="password"
               autoComplete="new-password"
               required
-              minLength={12}
-              maxLength={256}
               disabled={busy}
             />
           </label>
@@ -112,17 +110,13 @@ export function UsersSettings({
               type="password"
               autoComplete="new-password"
               required
-              minLength={12}
-              maxLength={256}
               disabled={busy}
             />
           </label>
         </div>
-        <p className={s.small}>
-          Use at least 12 characters.
-          {!session.authenticationRequired &&
-            ' You will be asked to sign in after creating this user.'}
-        </p>
+        {!session.authenticationRequired && (
+          <p className={s.small}>You will be asked to sign in after creating this user.</p>
+        )}
         {error && (
           <p className={s.error} role="alert">
             {error}

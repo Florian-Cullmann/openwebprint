@@ -46,7 +46,7 @@ npm run dev
 
 Open **http://localhost:5173** and start using the app immediately. New installations have no users and do not show a login screen. The default mode is **demo** and does not require hardware tools.
 
-Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Passwords must contain at least 12 characters. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
+Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Passwords must not be empty. There are no length or character-composition requirements. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
 
 ### Try it with Docker
 

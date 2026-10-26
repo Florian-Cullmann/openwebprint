@@ -48,7 +48,7 @@ test('open access → routes → print → scans → users → login → setting
   page.on('pageerror', (error) => errors.push(error.message));
   const username = `${info.project.name}-user`;
   const second = `${info.project.name}-second`;
-  const password = 'browser-password-12345';
+  const password = 'a';
   await page.goto('/overview');
   // A retry can resume an account created earlier in this isolated test server.
   if ((await (await page.request.get('/api/session')).json()).authenticationRequired) {
@@ -89,7 +89,7 @@ test('open access → routes → print → scans → users → login → setting
   await page.goForward();
   await expect(page).toHaveURL(/\/jobs$/);
   await navigate(page, 'Overview');
-  await page.getByRole('button', { name: 'Print document', exact: true }).click();
+  await page.getByRole('button', { name: 'Print', exact: true }).first().click();
   const png = await sharp({
     create: { width: 200, height: 300, channels: 3, background: '#eeeeef' },
   })

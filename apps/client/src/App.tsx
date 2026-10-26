@@ -314,7 +314,7 @@ export function App() {
             {view === 'overview' ? (
               <>
                 <button className={s.primary} onClick={() => openPrint()}>
-                  <Printer size={17} /> Print document
+                  <Printer size={17} /> Print
                 </button>
                 <button className={s.secondary} onClick={() => openScan()}>
                   <ScanLine size={17} /> Scan
@@ -326,7 +326,7 @@ export function App() {
               </button>
             ) : view === 'jobs' ? (
               <button className={s.primary} onClick={() => openPrint()}>
-                <Plus size={17} /> New print job
+                <Plus size={17} /> Print
               </button>
             ) : view === 'scans' ? (
               <button className={s.primary} onClick={() => openScan()}>
