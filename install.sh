@@ -17,6 +17,7 @@ case "$(uname -m)" in
 esac
 command -v curl >/dev/null 2>&1 || fail 'curl is required. Install it using your operating system package manager.'
 command -v tar >/dev/null 2>&1 || fail 'tar is required.'
+command -v ps >/dev/null 2>&1 || fail 'ps is required to verify the application process during recovery.'
 if command -v sha256sum >/dev/null 2>&1; then checksum=sha256sum
 elif command -v shasum >/dev/null 2>&1; then checksum=shasum
 else fail 'A SHA-256 tool (sha256sum or shasum) is required.'; fi

@@ -6,7 +6,14 @@ import { cp, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { commandLauncher, defaultRoot, openBrowser, runtime, shortcuts } from './platform.mjs';
+import {
+  commandLauncher,
+  defaultRoot,
+  instanceProcessExists,
+  openBrowser,
+  runtime,
+  shortcuts,
+} from './platform.mjs';
 
 process.umask(0o077);
 const { values, positionals } = parseArgs({
@@ -14,6 +21,7 @@ const { values, positionals } = parseArgs({
   options: {
     root: { type: 'string', default: defaultRoot() },
     port: { type: 'string' },
+    instance: { type: 'string' },
     'no-open': { type: 'boolean' },
     'no-autostart': { type: 'boolean' },
     'no-shortcuts': { type: 'boolean' },
@@ -70,16 +78,22 @@ async function control(action = 'status') {
     const proof = response.headers.get('x-openwebprint-proof');
     if (!response.ok || !/^[a-f0-9]{64}$/.test(proof || '')) {
       await response.body?.cancel();
-      return null;
+      throw new Error('The listener did not authenticate as this controller.');
     }
     const body = await response.text();
-    if (!authenticated(proof, signature(state.token, 'response', action, nonce, body))) return null;
+    if (!authenticated(proof, signature(state.token, 'response', action, nonce, body)))
+      throw new Error('The listener did not authenticate as this controller.');
     const result = JSON.parse(body);
-    if (result.root !== root) return null;
+    if (result.root !== root) throw new Error('The controller belongs to another installation.');
     return result;
   } catch (error) {
-    if (['ECONNREFUSED', 'ECONNRESET', 'UND_ERR_SOCKET'].includes(error.cause?.code)) return null;
-    throw error;
+    // Protocol errors and timeouts say nothing about process liveness. Only
+    // discard state once the OS confirms that this launch no longer exists.
+    if (!(await instanceProcessExists(state))) return null;
+    throw new Error(
+      'The openwebprint process is still running but its controller is unavailable. Try again; state was preserved.',
+      { cause: error },
+    );
   }
 }
 
@@ -109,7 +123,13 @@ async function start() {
   // A separate runtime makes the browser launcher and login hook short-lived.
   const child = spawn(
     runtime(app),
-    [join(app, 'scripts/install/manage.mjs'), '--root', root, 'serve'],
+    [
+      join(app, 'scripts/install/manage.mjs'),
+      '--root',
+      root,
+      `--instance=${randomBytes(32).toString('hex')}`,
+      'serve',
+    ],
     {
       cwd: app,
       detached: true,
@@ -134,7 +154,7 @@ async function start() {
         } catch (error) {
           // A probe can time out while module loading blocks the new process.
           // Keep waiting for readiness; never classify a timeout as stale state.
-          if (error.name !== 'TimeoutError') throw error;
+          if (error.name !== 'TimeoutError' && error.cause?.name !== 'TimeoutError') throw error;
         }
         await sleep(500);
       }
@@ -144,6 +164,8 @@ async function start() {
 }
 
 async function serve() {
+  if (!/^[a-f0-9]{64}$/.test(values.instance || ''))
+    throw new Error('Use start to launch the application.');
   const c = await config();
   // Claim the instance file before opening SQLite. Never signal an unverified PID.
   const token = randomBytes(32).toString('hex');
@@ -177,7 +199,12 @@ async function serve() {
     controlServer.once('error', reject);
     controlServer.listen(0, '127.0.0.1', done);
   });
-  const state = { port: controlServer.address().port, token, pid: process.pid };
+  const state = {
+    port: controlServer.address().port,
+    token,
+    pid: process.pid,
+    instanceId: values.instance,
+  };
   try {
     const file = await open(statePath, 'wx', 0o600);
     await file.writeFile(JSON.stringify(state));

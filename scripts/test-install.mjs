@@ -81,15 +81,40 @@ async function reusedControlPort(action, kind) {
   await run('stop');
   await assert.rejects(stat(statePath), { code: 'ENOENT' });
   const requests = [];
-  const foreign = createHttpServer((req, res) => {
-    requests.push({ method: req.method, authorization: req.headers.authorization });
-    if (kind === 'forbidden') res.writeHead(403).end('Forbidden');
-    else if (kind === 'html') res.end('<html>Unrelated service</html>');
-    else {
-      // Even matching metadata is insufficient without proof of the instance secret.
-      res.setHeader('X-Openwebprint-Proof', '0'.repeat(64));
-      res.end(JSON.stringify({ root, port, ready: true }));
-    }
+  const nonHttp = kind === 'silent' || kind === 'ssh';
+  const sockets = new Set();
+  let connections = 0;
+  const foreign = nonHttp
+    ? createServer((socket) => {
+        let bytes = '';
+        let recorded = false;
+        socket.on('data', (chunk) => {
+          bytes += chunk.toString();
+          if (!recorded && bytes.includes('\r\n\r\n')) {
+            recorded = true;
+            requests.push({
+              method: bytes.split(' ')[0],
+              authorization: /^authorization:\s*(.*)$/im.exec(bytes)?.[1].trim(),
+            });
+          }
+        });
+        if (kind === 'ssh') socket.write('SSH-2.0-unrelated-service\r\n');
+      })
+    : createHttpServer((req, res) => {
+        requests.push({ method: req.method, authorization: req.headers.authorization });
+        if (kind === 'forbidden') res.writeHead(403).end('Forbidden');
+        else if (kind === 'html') res.end('<html>Unrelated service</html>');
+        else {
+          // Even matching metadata is insufficient without proof of the instance secret.
+          res.setHeader('X-Openwebprint-Proof', '0'.repeat(64));
+          res.end(JSON.stringify({ root, port, ready: true }));
+        }
+      });
+  foreign.on('connection', (socket) => {
+    connections++;
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    socket.on('error', () => {});
   });
   await new Promise((done, reject) => {
     foreign.once('error', reject);
@@ -101,7 +126,8 @@ async function reusedControlPort(action, kind) {
     assert.match(await run('status'), /stopped/);
     await run(action);
     assert.ok(foreign.listening);
-    assert.ok(requests.length > 0);
+    assert.ok(connections > 0);
+    if (!nonHttp) assert.ok(requests.length > 0);
     assert.ok(
       requests.every((request) => request.method === 'GET'),
       'Never send stop to a foreign listener.',
@@ -111,8 +137,28 @@ async function reusedControlPort(action, kind) {
       'Never disclose the instance secret to a reused port.',
     );
   } finally {
+    for (const socket of sockets) socket.destroy();
     await new Promise((done) => foreign.close(done));
   }
+}
+
+async function pausedInstance() {
+  const statePath = join(root, 'running.json');
+  const before = await readFile(statePath, 'utf8');
+  const state = JSON.parse(before);
+  // Fault injection targets only the disposable server launched by this test.
+  process.kill(state.pid, 'SIGSTOP');
+  try {
+    for (const action of ['start', 'install', 'uninstall']) {
+      assert.match(await run(action, [], false), /process is still running/);
+      assert.equal(await readFile(statePath, 'utf8'), before);
+      await stat(join(root, 'app'));
+    }
+  } finally {
+    process.kill(state.pid, 'SIGCONT');
+  }
+  await run('start');
+  assert.equal(JSON.parse(await readFile(statePath)).pid, state.pid);
 }
 const portServer = createServer();
 await new Promise((done) => portServer.listen(0, '127.0.0.1', done));
@@ -178,11 +224,15 @@ try {
   assert.match(await run('status'), /running/);
   await writeFile(join(root, 'data', 'keep.txt'), 'preserve documents');
   const savedConfig = await readFile(join(root, 'config.json'), 'utf8');
+  await pausedInstance();
   await reusedControlPort('start', 'forbidden');
+  await reusedControlPort('start', 'silent');
+  await reusedControlPort('start', 'ssh');
   assert.equal((await fetch(`${base}/api/health`)).status, 200);
   // Also exercise a normal update while the authenticated instance is still running.
   await run('install');
   await reusedControlPort('install', 'html');
+  await reusedControlPort('install', 'silent');
   assert.equal(await readFile(join(root, 'config.json'), 'utf8'), savedConfig);
   assert.equal(await readFile(join(root, 'data', 'keep.txt'), 'utf8'), 'preserve documents');
   const after = await (await fetch(`${base}/api/snapshot`)).json();
@@ -215,9 +265,9 @@ try {
   assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
   await run('install');
   assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
-  await run('uninstall');
+  await reusedControlPort('uninstall', 'ssh');
   console.log(
-    'Packaged installation, port conflicts/reuse, production web/assets, native image conversion, control authentication, restart, update/data preservation, shortcut opt-out, reinstall, and uninstall passed.',
+    'Packaged installation, HTTP/TCP/SSH port reuse, paused-instance preservation, production web/assets, native image conversion, control authentication, restart, update/data preservation, shortcut opt-out, reinstall, and uninstall passed.',
   );
 } catch (error) {
   console.error(

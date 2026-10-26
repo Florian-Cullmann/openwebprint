@@ -21,6 +21,40 @@ export function runtime(app) {
   return join(app, 'runtime', 'node');
 }
 
+// A PID can be reused after exit/reboot. Check the public, random launch marker
+// as well; never use the controller secret in argv or signal a process here.
+export async function instanceProcessExists({ pid, instanceId }) {
+  if (!Number.isInteger(pid) || pid < 1) throw new Error('Invalid controller process ID.');
+  try {
+    process.kill(pid, 0);
+  } catch (error) {
+    if (error.code === 'ESRCH') return false;
+    if (error.code !== 'EPERM') throw error;
+  }
+  // Old state without a marker cannot safely identify an existing PID as stale.
+  if (typeof instanceId !== 'string' || !/^[a-f0-9]{64}$/.test(instanceId)) return true;
+  try {
+    const { stdout } = await exec('ps', ['-ww', '-p', String(pid), '-o', 'args='], {
+      timeout: 5000,
+      maxBuffer: 64 * 1024,
+      env: { ...process.env, LC_ALL: 'C' },
+    });
+    if (!stdout.trim()) throw new Error('The process identity is unavailable.');
+    return stdout.trim().split(/\s+/).includes(`--instance=${instanceId}`);
+  } catch (error) {
+    // The process may have exited between kill(0) and ps.
+    try {
+      process.kill(pid, 0);
+    } catch (probe) {
+      if (probe.code === 'ESRCH') return false;
+    }
+    throw new Error(
+      'Cannot verify the controller process. Ensure ps is available; installation state was preserved.',
+      { cause: error },
+    );
+  }
+}
+
 export async function openBrowser(url) {
   await exec(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
 }

@@ -8,10 +8,10 @@ The end-user package runs the production web application in your browser. It inc
 
 Windows is currently unsupported. Complete Windows installation, distribution, printing, and scanning are tracked in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
 
-| System                    | Requirements                                                                                                                     | Real printers and scanners                                       |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Linux x64 / arm64         | Desktop session; glibc 2.28+, kernel 4.18+; `curl`, `tar`, `sha256sum` or `shasum`; `xdg-open` to open the browser automatically | Existing CUPS and SANE installation; see below                   |
-| macOS x64 / Apple Silicon | macOS 14 or newer                                                                                                                | System CUPS for printing; separately installed SANE for scanning |
+| System                    | Requirements                                                                                                                           | Real printers and scanners                                       |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Linux x64 / arm64         | Desktop session; glibc 2.28+, kernel 4.18+; `curl`, `tar`, `ps`, `sha256sum` or `shasum`; `xdg-open` to open the browser automatically | Existing CUPS and SANE installation; see below                   |
+| macOS x64 / Apple Silicon | macOS 14 or newer                                                                                                                      | System CUPS for printing; separately installed SANE for scanning |
 
 Linux musl/Alpine and 32-bit systems are not supported by these packages. Linux x64 also requires SSE4.2. Platform requirements follow the bundled [Node.js runtime](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md#platform-list) and [sharp binaries](https://sharp.pixelplumbing.com/install/#prebuilt-binaries). The OS and CPU are selected automatically. Internet access is required to download the installer/package, but the application runs locally afterward. Allow room for the package, an installed copy, and an update staging copy, plus your documents. Updates temporarily keep the previous application files as well.
 
@@ -83,7 +83,9 @@ For example, manage the default installation locally with:
 "$HOME/Library/Application Support/openwebprint/openwebprint" status
 ```
 
-Use `open` to start the server and open the browser. After editing `config.json`, run `stop` followed by `start`. Invalid ports are rejected. The `autostart` and `shortcuts` preferences are retained across installer updates; edit them in `config.json` and rerun the installer to re-enable a previously disabled option. Updating with `--no-shortcuts --no-autostart` removes this installation's existing menu and login entries as well as disabling their creation. Entries belonging to another installation directory are preserved. A private loopback endpoint authenticates both control requests and responses; a stale port reused by an unrelated service does not identify a running instance or receive stop commands. The launcher never kills a process based only on a stored PID.
+Use `open` to start the server and open the browser. After editing `config.json`, run `stop` followed by `start`. Invalid ports are rejected. The `autostart` and `shortcuts` preferences are retained across installer updates; edit them in `config.json` and rerun the installer to re-enable a previously disabled option. Updating with `--no-shortcuts --no-autostart` removes this installation's existing menu and login entries as well as disabling their creation. Entries belonging to another installation directory are preserved.
+
+A private loopback endpoint authenticates both control requests and responses. If the controller times out or returns an unexpected protocol/response, the launcher checks the saved PID and a public per-launch identifier against the OS process arguments using `ps`. State is discarded only when that launch no longer exists, including when its PID has been reused. A paused or busy application keeps its state and files; retry when it responds again. If process identity cannot be verified, recovery stops without removing state. The secret is never placed in process arguments, and the launcher never kills a process based only on a stored PID.
 
 ## Updates and removal
 
