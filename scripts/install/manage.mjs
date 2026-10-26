@@ -87,7 +87,6 @@ async function start() {
     {
       cwd: app,
       detached: true,
-      windowsHide: true,
       stdio: ['ignore', log.fd, log.fd],
     },
   );
@@ -235,6 +234,8 @@ async function install() {
     if (!missing(error)) throw error;
   }
   c ??= { port: 3001 };
+  c.autostart = values['no-autostart'] ? false : c.autostart !== false;
+  c.shortcuts = values['no-shortcuts'] ? false : c.shortcuts !== false;
   if (values.port !== undefined) c.port = Number(values.port);
   if (!Number.isInteger(c.port) || c.port < 1024 || c.port > 65535)
     throw new Error('--port must be an integer between 1024 and 65535.');
@@ -256,20 +257,15 @@ async function install() {
   await rename(stage, app);
   await writeFile(configPath, `${JSON.stringify(c, null, 2)}\n`, { mode: 0o600 });
   await commandLauncher(root);
-  if (!values['no-shortcuts']) await shortcuts(root, { autostart: !values['no-autostart'] });
+  if (c.shortcuts) await shortcuts(root, { autostart: c.autostart });
   await start();
   await rm(join(root, 'app.previous'), { recursive: true, force: true });
   console.log(
     `openwebprint ${release.version} is ready at http://127.0.0.1:${c.port}\nInstalled in ${root}`,
   );
-  if (process.platform === 'win32')
-    console.log(
-      'Windows printing/scanning is not supported yet. You can use the web application and demo.',
-    );
-  else
-    console.log(
-      'Hardware mode uses the host CUPS and SANE tools. See the installation guide for hardware prerequisites.',
-    );
+  console.log(
+    'Hardware mode uses the host CUPS and SANE tools. See the installation guide for hardware prerequisites.',
+  );
   if (!values['no-open']) await browser(c.port);
 }
 
@@ -305,8 +301,8 @@ async function browser(port) {
 }
 
 async function main() {
-  if (!['linux', 'darwin', 'win32'].includes(process.platform))
-    throw new Error('Unsupported operating system.');
+  if (!['linux', 'darwin'].includes(process.platform))
+    throw new Error('Supported operating systems: Linux and macOS.');
   const action = positionals[0] || 'install';
   if (positionals.length > 1)
     throw new Error('Expected one command: install, open, start, stop, status, or uninstall.');
@@ -319,7 +315,7 @@ async function main() {
   if (action === 'uninstall') {
     if (source === app)
       throw new Error(
-        'Run uninstall using the downloaded installer so Windows can remove its runtime.',
+        'Run uninstall using the downloaded installer, outside the installed application.',
       );
     await stop();
     await managedApplication(app);

@@ -21,7 +21,7 @@ assert.equal(
     .digest('hex'),
   expected,
 );
-execFileSync(process.platform === 'win32' ? 'tar.exe' : 'tar', ['-xzf', archive, '-C', temporary]);
+execFileSync('tar', ['-xzf', archive, '-C', temporary]);
 const packageDirectory = join(temporary, basename(input));
 const root = join(temporary, 'Application Data');
 const node = runtime(packageDirectory);
@@ -117,6 +117,9 @@ try {
   assert.equal(await readFile(join(root, 'data', 'keep.txt'), 'utf8'), 'preserve documents');
   await run('install', ['--no-autostart']);
   assert.equal((await fetch(`${base}/api/health`)).status, 200);
+  assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
+  await run('install');
+  assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
   await run('uninstall');
   console.log(
     'Packaged installation, port conflict, production web/assets, native image conversion, control authorization, restart, update/data preservation, reinstall, and uninstall passed.',

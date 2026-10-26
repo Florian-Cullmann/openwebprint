@@ -17,53 +17,22 @@ await writeFile(checksum, `${'0'.repeat(64)}  package.tar.gz\n`);
 const shell = (value) => `'${value.replaceAll("'", "'\\''")}'`;
 try {
   let failure;
-  if (process.platform === 'win32') {
-    const wrapper = join(fixture, 'verify.ps1');
-    await writeFile(
-      wrapper,
-      `param($Installer, $Payload, $Checksum, $Marker)
-function Invoke-WebRequest {
-    param([switch]$UseBasicParsing, [Parameter(Position=0)][string]$Uri, [string]$OutFile)
-    if ($Uri.EndsWith('.sha256')) { Copy-Item -LiteralPath $Checksum -Destination $OutFile }
-    else { Copy-Item -LiteralPath $Payload -Destination $OutFile }
-}
-function tar.exe { Set-Content -LiteralPath $Marker 'unpacked'; throw 'Unexpected extraction' }
-& $Installer -Version v0.1.0 -NoOpen
-`,
-    );
-    try {
-      await exec('powershell.exe', [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-File',
-        wrapper,
-        resolve('install.ps1'),
-        payload,
-        checksum,
-        marker,
-      ]);
-    } catch (error) {
-      failure = error;
-    }
-  } else {
-    const bin = join(fixture, 'bin');
-    await mkdir(bin);
-    await writeFile(
-      join(bin, 'curl'),
-      `#!/bin/sh\nsource=${shell(payload)}\nfor argument do\n case "$argument" in *.sha256) source=${shell(checksum)} ;; esac\n destination=$argument\ndone\ncp "$source" "$destination"\n`,
-      { mode: 0o700 },
-    );
-    await writeFile(join(bin, 'tar'), `#!/bin/sh\ntouch ${shell(marker)}\nexit 1\n`, {
-      mode: 0o700,
+  const bin = join(fixture, 'bin');
+  await mkdir(bin);
+  await writeFile(
+    join(bin, 'curl'),
+    `#!/bin/sh\nsource=${shell(payload)}\nfor argument do\n case "$argument" in *.sha256) source=${shell(checksum)} ;; esac\n destination=$argument\ndone\ncp "$source" "$destination"\n`,
+    { mode: 0o700 },
+  );
+  await writeFile(join(bin, 'tar'), `#!/bin/sh\ntouch ${shell(marker)}\nexit 1\n`, {
+    mode: 0o700,
+  });
+  try {
+    await exec('sh', [resolve('install.sh')], {
+      env: { ...process.env, OPENWEBPRINT_VERSION: 'v0.1.0', PATH: `${bin}:${process.env.PATH}` },
     });
-    try {
-      await exec('sh', [resolve('install.sh')], {
-        env: { ...process.env, OPENWEBPRINT_VERSION: 'v0.1.0', PATH: `${bin}:${process.env.PATH}` },
-      });
-    } catch (error) {
-      failure = error;
-    }
+  } catch (error) {
+    failure = error;
   }
   assert.ok(failure, 'A corrupt package must fail installation.');
   assert.match(`${failure.stdout}\n${failure.stderr}`, /Checksum mismatch/);

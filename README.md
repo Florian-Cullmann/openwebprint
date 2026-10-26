@@ -70,14 +70,9 @@ curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/latest/down
 sh install-openwebprint.sh
 ```
 
-**Windows** — paste into Windows PowerShell:
+The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, with CUPS/SANE installed, **Start setup**. OS hardware tools and vendor drivers are separate from the web package.
 
-```powershell
-Invoke-WebRequest -UseBasicParsing https://github.com/Florian-Cullmann/openwebprint/releases/latest/download/install.ps1 -OutFile install-openwebprint.ps1
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-openwebprint.ps1
-```
-
-The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, on Linux/macOS with CUPS/SANE installed, **Start setup**. Windows currently supports the web application and demo; native printing/scanning is tracked in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14). OS hardware tools and vendor drivers are separate from the web package.
+**Supported platforms: Linux and macOS. Windows is currently unsupported**, including installation, printing, and scanning. Complete Windows support is planned in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
 
 Installer downloads require a published release with installer assets. See the [installation guide](docs/installation.md) for supported systems, hardware requirements, updates, backups, logs, uninstall, offline packages, and the maintainer release process.
 
@@ -147,7 +142,7 @@ The profile runs CUPS and Avahi inside the container and drops the web process t
 
 The Compose profile controls **networking**, while the browser choice controls the application mode. The historically named `demo` profile uses bridge networking and can also connect manually addressed hardware. Both profiles start the hardware daemons so leaving the demo needs no container restart. They have **separate persistent data and CUPS volumes**, so changing profiles does not transfer accounts or devices. Within an instance, mode and setup progress are stored in SQLite; demo records never become real devices.
 
-Docker Desktop on macOS/Windows does not reliably forward link-local discovery. On macOS, enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
+Docker Desktop on macOS does not reliably forward link-local discovery. Enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE. Docker Desktop on Windows is not a supported deployment target.
 
 For **automatic printer and eSCL scanner discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
 

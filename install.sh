@@ -8,7 +8,7 @@ fail() { printf 'openwebprint: %s\n' "$*" >&2; exit 1; }
 case "$(uname -s)" in
   Linux) platform=linux ;;
   Darwin) platform=darwin ;;
-  *) fail 'This script supports Linux and macOS. On Windows use install.ps1.' ;;
+  *) fail 'Supported operating systems: Linux and macOS. Windows support is planned in issue #14.' ;;
 esac
 case "$(uname -m)" in
   x86_64|amd64) arch=x64 ;;
@@ -38,7 +38,7 @@ trap 'rm -rf "$temporary"' EXIT HUP INT TERM
 printf 'Downloading openwebprint %s for %s/%s…\n' "$version" "$platform" "$arch"
 curl --proto '=https' --proto-redir '=https' -fsSL "$base/$name.tar.gz" -o "$temporary/$name.tar.gz" || fail 'Package download failed.'
 curl --proto '=https' --proto-redir '=https' -fsSL "$base/$name.tar.gz.sha256" -o "$temporary/checksum" || fail 'Checksum download failed.'
-expected=$(awk 'NR==1 { print $1 }' "$temporary/checksum")
+read -r expected remainder < "$temporary/checksum" || fail 'Invalid package checksum.'
 [ "${#expected}" = 64 ] || fail 'Invalid package checksum.'
 if [ "$checksum" = sha256sum ]; then actual=$(sha256sum "$temporary/$name.tar.gz");
 else actual=$(shasum -a 256 "$temporary/$name.tar.gz"); fi

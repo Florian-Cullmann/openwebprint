@@ -12,11 +12,8 @@ const version =
   process.env.OWP_RELEASE_VERSION || JSON.parse(await readFile(join(root, 'package.json'))).version;
 if (!/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/.test(version))
   throw new Error('Invalid release version.');
-if (
-  !['linux', 'darwin', 'win32'].includes(process.platform) ||
-  !['x64', 'arm64'].includes(process.arch)
-)
-  throw new Error('Release packages support Linux, macOS, and Windows on x64/arm64.');
+if (!['linux', 'darwin'].includes(process.platform) || !['x64', 'arm64'].includes(process.arch))
+  throw new Error('Release packages support Linux and macOS on x64/arm64.');
 const name = `openwebprint-${process.platform}-${process.arch}`;
 const stage = join(output, name);
 const temporary = join(output, 'runtime-download');
@@ -65,12 +62,11 @@ execFileSync(
   { cwd: stage, stdio: 'inherit' },
 );
 // tsup bundles the shared workspace. Workspace links and dependency CLI shims
-// are unnecessary at runtime and must not require Windows symlink privileges.
+// are unnecessary in the installed application.
 await rm(join(stage, 'node_modules', '@openwebprint'), { recursive: true, force: true });
 await rm(join(stage, 'node_modules', '.bin'), { recursive: true, force: true });
-const target = process.platform === 'win32' ? 'win' : process.platform;
-const runtimeName = `node-v${nodeVersion}-${target}-${process.arch}`;
-const archive = `${runtimeName}.${process.platform === 'win32' ? 'zip' : 'tar.gz'}`;
+const runtimeName = `node-v${nodeVersion}-${process.platform}-${process.arch}`;
+const archive = `${runtimeName}.tar.gz`;
 const base = `https://nodejs.org/dist/v${nodeVersion}`;
 async function download(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(180_000) });
@@ -90,28 +86,16 @@ if (!expected || createHash('sha256').update(bytes).digest('hex') !== expected)
   throw new Error('Node.js checksum verification failed.');
 const downloaded = join(temporary, archive);
 await writeFile(downloaded, bytes);
-if (process.platform === 'win32') {
-  // Paths are passed as script parameters, never interpolated into PowerShell source.
-  execFileSync('tar.exe', ['-xf', downloaded, '-C', temporary]);
-} else execFileSync('tar', ['-xzf', downloaded, '-C', temporary]);
+execFileSync('tar', ['-xzf', downloaded, '-C', temporary]);
 await mkdir(join(stage, 'runtime'));
-await cp(
-  join(temporary, runtimeName, process.platform === 'win32' ? 'node.exe' : 'bin/node'),
-  join(stage, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node'),
-);
+await cp(join(temporary, runtimeName, 'bin/node'), join(stage, 'runtime', 'node'));
 await cp(join(temporary, runtimeName, 'LICENSE'), join(stage, 'runtime', 'LICENSE'));
 await writeFile(
   join(stage, 'release.json'),
   `${JSON.stringify({ version, platform: process.platform, arch: process.arch, nodeVersion }, null, 2)}\n`,
 );
 const packed = join(output, `${name}.tar.gz`);
-execFileSync(process.platform === 'win32' ? 'tar.exe' : 'tar', [
-  '-czf',
-  packed,
-  '-C',
-  output,
-  name,
-]);
+execFileSync('tar', ['-czf', packed, '-C', output, name]);
 const sum = createHash('sha256')
   .update(await readFile(packed))
   .digest('hex');

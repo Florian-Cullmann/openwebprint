@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15-intel, macos-14, windows-2022, windows-11-arm]
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15-intel, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -36,15 +36,7 @@ jobs:
         env:
           OWP_TEST_SHORTCUTS: '1'
       - name: Check shell installer syntax
-        if: runner.os != 'Windows'
         run: sh -n install.sh
-      - name: Check PowerShell installer syntax
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          $errors = $null
-          [System.Management.Automation.Language.Parser]::ParseFile("$pwd/install.ps1", [ref]$null, [ref]$errors) | Out-Null
-          if ($errors.Count) { throw ($errors | Out-String) }
       - uses: actions/upload-artifact@v4
         with:
           name: installer-${{ runner.os }}-${{ runner.arch }}
@@ -69,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp install.sh install.ps1 release-assets/
+          cp install.sh release-assets/
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then
             gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes --prerelease --title "openwebprint $GITHUB_REF_NAME"
           else

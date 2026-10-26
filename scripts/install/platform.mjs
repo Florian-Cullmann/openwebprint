@@ -12,23 +12,17 @@ const desktop = (value) =>
   `"${value.replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('`', '\\`').replaceAll('$', '\\$').replaceAll('%', '%%')}"`;
 
 export function defaultRoot() {
-  if (process.platform === 'win32') {
-    if (!process.env.LOCALAPPDATA) throw new Error('LOCALAPPDATA is not set.');
-    return join(process.env.LOCALAPPDATA, 'openwebprint');
-  }
   if (process.platform === 'darwin')
     return join(homedir(), 'Library', 'Application Support', 'openwebprint');
   return join(process.env.XDG_DATA_HOME || join(homedir(), '.local', 'share'), 'openwebprint');
 }
 
 export function runtime(app) {
-  return join(app, 'runtime', process.platform === 'win32' ? 'node.exe' : 'node');
+  return join(app, 'runtime', 'node');
 }
 
 export async function openBrowser(url) {
-  if (process.platform === 'win32')
-    await exec('rundll32.exe', ['url.dll,FileProtocolHandler', url]);
-  else await exec(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
+  await exec(process.platform === 'darwin' ? 'open' : 'xdg-open', [url]);
 }
 
 // Login hooks start the same private runtime on every platform. No privileged
@@ -37,25 +31,6 @@ export async function shortcuts(root, { remove = false, autostart = true } = {})
   const node = runtime(join(root, 'app'));
   const manager = join(root, 'app', 'scripts', 'install', 'manage.mjs');
   const args = [manager, '--root', root];
-  if (process.platform === 'win32') {
-    await exec('powershell.exe', [
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      join(import.meta.dirname, 'shortcuts.ps1'),
-      '-Root',
-      root,
-      '-Node',
-      node,
-      '-Manager',
-      manager,
-      ...(remove ? ['-Remove'] : []),
-      ...(!autostart ? ['-NoAutostart'] : []),
-    ]);
-    return;
-  }
   const write = async (path, text, mode = 0o600) => {
     if (remove) return rm(path, { force: true });
     await mkdir(dirname(path), { recursive: true });
@@ -101,11 +76,8 @@ export async function shortcuts(root, { remove = false, autostart = true } = {})
 export async function commandLauncher(root, { remove = false } = {}) {
   const node = runtime(join(root, 'app'));
   const manager = join(root, 'app', 'scripts/install/manage.mjs');
-  const file = join(root, process.platform === 'win32' ? 'openwebprint.cmd' : 'openwebprint');
+  const file = join(root, 'openwebprint');
   if (remove) return rm(file, { force: true });
-  const text =
-    process.platform === 'win32'
-      ? `@echo off\r\n"${node.replaceAll('%', '%%')}" "${manager.replaceAll('%', '%%')}" --root "${root.replaceAll('%', '%%')}" %*\r\n`
-      : `#!/bin/sh\nexec ${[node, manager, '--root', root].map(shell).join(' ')} "$@"\n`;
+  const text = `#!/bin/sh\nexec ${[node, manager, '--root', root].map(shell).join(' ')} "$@"\n`;
   await writeFile(file, text, { mode: 0o700 });
 }

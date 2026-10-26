@@ -35,7 +35,7 @@ The optional macOS Bonjour bridge lives in `scripts/macos/Discovery.swift`; `npm
 
 ## End-user packages
 
-After `npm run build`, run `npm run package:release` and `npm run test:install` to build and exercise a release package for your OS/CPU. The smoke test installs into a disposable directory, starts real production servers on a temporary port, verifies native image processing and persistent data across updates, then stops/removes the installation. It does not change your launchers or login startup. The installer CI additionally creates/removes OS shortcuts in its disposable runner account and builds all six targets. See [installation and releases](docs/installation.md#maintainer-release-process) for the supported platform boundary, runtime pin, and tag-based publishing process.
+After `npm run build`, run `npm run package:release` and `npm run test:install` to build and exercise a release package for your OS/CPU. The smoke test installs into a disposable directory, starts real production servers on a temporary port, verifies native image processing and persistent data across updates, then stops/removes the installation. It does not change your launchers or login startup. The installer CI additionally creates/removes OS shortcuts in its disposable runner account and builds all four Linux/macOS targets. See [installation and releases](docs/installation.md#maintainer-release-process) for the supported platform boundary, runtime pin, and tag-based publishing process.
 
 ## README screenshots
 
