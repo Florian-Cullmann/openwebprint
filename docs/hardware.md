@@ -82,6 +82,8 @@ For USB devices, the host must expose them through a working CUPS/SANE installat
 
 ## Docker networking
 
+Supported deployment hosts are Linux and macOS. Windows is currently unsupported, including Docker Desktop deployments; complete Windows installation and hardware support are tracked in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
+
 On **macOS**, first enable **Docker** under **System Settings → Privacy & Security → Local Network**. Without this permission, Docker Desktop cannot connect to LAN printers even if the Mac itself can reach them. See [Docker's troubleshooting guide](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/#containers-cant-reach-devices-on-my-local-network). The permission takes effect without restarting Docker.
 
 This permission allows direct device connections; it does not guarantee multicast discovery through Docker's bridge. If discovery remains empty, use the macOS helper below for automatic printer discovery, or **Add manually** with the printer's IPP address (for example, `ipp://192.168.1.50:631/ipp/print`; confirm the path/port in the device's manual or network advertisement), or use a native installation / Linux host networking. A printer already installed in macOS is not automatically installed in the container's separate CUPS scheduler.

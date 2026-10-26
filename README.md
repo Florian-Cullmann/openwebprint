@@ -59,6 +59,25 @@ Review the scanned page, download its PDF, or scan another page. The sample docu
 
 ## Quick start
 
+### Install for everyday use
+
+Download and run the installer for your computer. The package includes the production web application, a private Node.js runtime, and application dependencies. It sets up a browser launcher, local data storage, and startup at login. **No Git, npm, system Node.js, Docker, VM, or Electron is required.**
+
+**Linux / macOS** — paste into Terminal, without `sudo`:
+
+```sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/latest/download/install.sh -o install-openwebprint.sh
+sh install-openwebprint.sh
+```
+
+The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, with CUPS/SANE installed, **Start setup**. OS hardware tools and vendor drivers are separate from the web package.
+
+**Supported platforms: Linux and macOS. Windows is currently unsupported**, including installation, printing, and scanning. Complete Windows support is planned in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
+
+Installer downloads require a published release with installer assets. See the [installation guide](docs/installation.md) for supported systems, hardware requirements, updates, backups, logs, uninstall, offline packages, and the maintainer release process.
+
+### Run from source (development)
+
 Requires Node.js **24 LTS** (recommended) or 26 and npm. SQLite is provided by Node's built-in `node:sqlite`; no database service is required. Node 24 may print an experimental SQLite warning.
 
 ```sh
@@ -123,7 +142,7 @@ The profile runs CUPS and Avahi inside the container and drops the web process t
 
 The Compose profile controls **networking**, while the browser choice controls the application mode. The historically named `demo` profile uses bridge networking and can also connect manually addressed hardware. Both profiles start the hardware daemons so leaving the demo needs no container restart. They have **separate persistent data and CUPS volumes**, so changing profiles does not transfer accounts or devices. Within an instance, mode and setup progress are stored in SQLite; demo records never become real devices.
 
-Docker Desktop on macOS/Windows does not reliably forward link-local discovery. On macOS, enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
+Docker Desktop on macOS does not reliably forward link-local discovery. Enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE. Docker Desktop on Windows is not a supported deployment target.
 
 For **automatic printer and eSCL scanner discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
 
