@@ -136,6 +136,17 @@ export async function createApp(
     await auth.login(input.username, input.password, reply);
     return { ok: true };
   });
+  app.post('/api/account/password', authLimit, async (req, reply) => {
+    const input = z
+      .object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(1),
+      })
+      .strict()
+      .parse(req.body);
+    await auth.changePassword(req, reply, input.currentPassword, input.newPassword);
+    return { ok: true };
+  });
   app.post('/api/logout', async (req, reply) => {
     auth.logout(req, reply);
     return { ok: true };

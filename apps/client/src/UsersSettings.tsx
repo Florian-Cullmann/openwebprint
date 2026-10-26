@@ -14,6 +14,8 @@ export function UsersSettings({
   const [users, setUsers] = useState<User[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
   const [removing, setRemoving] = useState<User>();
   const load = useCallback(async () => setUsers(await api<User[]>('/users')), []);
   useEffect(() => {
@@ -36,6 +38,30 @@ export function UsersSettings({
       await changed();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function changePassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    setPasswordError('');
+    setPasswordMessage('');
+    if (data.get('newPassword') !== data.get('confirmNewPassword')) {
+      setPasswordError('New passwords do not match.');
+      return;
+    }
+    setBusy(true);
+    try {
+      await post('/account/password', {
+        currentPassword: data.get('currentPassword'),
+        newPassword: data.get('newPassword'),
+      });
+      form.reset();
+      setPasswordMessage('Password changed. Other sessions have been signed out.');
+    } catch (e) {
+      setPasswordError((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -126,6 +152,59 @@ export function UsersSettings({
           {busy ? <Spinner /> : <Plus size={16} />} Add user
         </button>
       </form>
+      {session.user && (
+        <form
+          onSubmit={changePassword}
+          className={`${s.form} ${s.userForm}`}
+          aria-labelledby="password-title"
+        >
+          <h3 id="password-title">Change your password</h3>
+          <p>
+            You will stay signed in here. All other sessions for your account will be signed out.
+          </p>
+          <label>
+            Current password
+            <input
+              name="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              required
+              disabled={busy}
+            />
+          </label>
+          <div className={s.formGrid}>
+            <label>
+              New password
+              <input
+                name="newPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={busy}
+              />
+            </label>
+            <label>
+              Confirm new password
+              <input
+                name="confirmNewPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                disabled={busy}
+              />
+            </label>
+          </div>
+          {passwordError && (
+            <p className={s.error} role="alert">
+              {passwordError}
+            </p>
+          )}
+          {passwordMessage && <p role="status">{passwordMessage}</p>}
+          <button className={s.primary} disabled={busy}>
+            {busy && <Spinner />} Change password
+          </button>
+        </form>
+      )}
       {removing && (
         <Modal
           title="Remove user?"

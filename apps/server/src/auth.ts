@@ -68,6 +68,42 @@ export class Auth {
     if (!this.store.db.prepare('DELETE FROM users WHERE id=?').run(id).changes)
       throw new AppError(404, 'User not found.');
   }
+  async changePassword(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = this.user(req);
+    if (!user) throw new AppError(401, 'Please sign in.');
+    const saved = this.store.db.prepare('SELECT password FROM users WHERE id=?').get(user.id) as {
+      password: string;
+    };
+    const [salt, expected] = saved.password.split(':');
+    const key = (await scrypt(currentPassword, salt, 64)) as Buffer;
+    const expectedKey = Buffer.from(expected, 'hex');
+    if (expectedKey.length !== key.length || !timingSafeEqual(key, expectedKey))
+      throw new AppError(400, 'Current password is incorrect.');
+    const nextSalt = randomBytes(16).toString('hex');
+    const nextKey = (await scrypt(newPassword, nextSalt, 64)) as Buffer;
+    this.store.db.exec('BEGIN IMMEDIATE');
+    try {
+      // Recheck both credentials and session after asynchronous hashing.
+      if (
+        this.user(req)?.id !== user.id ||
+        !this.store.db
+          .prepare('UPDATE users SET password=? WHERE id=? AND password=?')
+          .run(`${nextSalt}:${nextKey.toString('hex')}`, user.id, saved.password).changes
+      )
+        throw new AppError(401, 'Your session changed. Please sign in again.');
+      this.store.db.prepare('DELETE FROM sessions WHERE user_id=?').run(user.id);
+      this.session(user.id, reply);
+      this.store.db.exec('COMMIT');
+    } catch (error) {
+      this.store.db.exec('ROLLBACK');
+      throw error;
+    }
+  }
   async login(username: string, password: string, reply: FastifyReply) {
     const saved = this.store.db
       .prepare('SELECT id, password FROM users WHERE username=? COLLATE NOCASE')
@@ -77,8 +113,12 @@ export class Auth {
     const expectedKey = Buffer.from(expected, 'hex');
     if (!saved || expectedKey.length !== key.length || !timingSafeEqual(key, expectedKey))
       throw new AppError(401, 'Incorrect username or password.');
-    // The account may have been removed while the password was being checked.
-    if (!this.store.db.prepare('SELECT id FROM users WHERE id=?').get(saved.id))
+    // The account or password may have changed while it was being checked.
+    if (
+      !this.store.db
+        .prepare('SELECT id FROM users WHERE id=? AND password=?')
+        .get(saved.id, saved.password)
+    )
       throw new AppError(401, 'Incorrect username or password.');
     this.session(saved.id, reply);
   }

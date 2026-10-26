@@ -360,6 +360,26 @@ test('open access → routes → print → scans → users → login → setting
   expect((await page.request.get('/api/snapshot')).status()).toBe(401);
   await signIn(page, username, password);
   await expect(page).toHaveURL(/\/settings\/users$/);
+  await page.getByLabel('Current password', { exact: true }).fill('wrong');
+  await page.getByLabel('New password', { exact: true }).fill('changed-password');
+  await page.getByLabel('Confirm new password', { exact: true }).fill('mismatch');
+  await page.getByRole('button', { name: 'Change password', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('New passwords do not match.');
+  await page.getByLabel('Confirm new password', { exact: true }).fill('changed-password');
+  await page.getByRole('button', { name: 'Change password', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Current password is incorrect.');
+  await page.getByLabel('Current password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Change password', exact: true }).click();
+  await expect(
+    page.getByText('Password changed. Other sessions have been signed out.'),
+  ).toBeVisible();
+  await expect(page.getByLabel('Current password', { exact: true })).toHaveValue('');
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await expect(page).toHaveURL(/\/login$/);
+  await signIn(page, username, password);
+  await expect(page.getByRole('alert')).toHaveText('Incorrect username or password.');
+  await signIn(page, username, 'changed-password');
+  await expect(page).toHaveURL(/\/settings\/users$/);
   await addUser(page, second, password);
   await expect(page.getByText(second, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
