@@ -1596,11 +1596,12 @@
   min-width: 0;
 }
 .scanPages {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
   gap: 16px;
   list-style: none;
-  padding: 0;
+  padding: 10px;
   margin: 0;
 }
 .scanPages li {
@@ -1708,5 +1709,27 @@
   }
   .scanPreviewPane > .scanIntro {
     min-height: 220px;
+  }
+}
+
+.scanPages[data-dragging='true'] > [data-page-id] {
+  transition: transform 140ms ease-out;
+  pointer-events: none;
+}
+.scanPages > .scanPageDragging {
+  opacity: 0.35;
+}
+.scanPages > .scanInsertionLine {
+  position: absolute;
+  z-index: 1;
+  border: 0;
+  border-radius: 2px;
+  background: var(--focus);
+  box-shadow: 0 0 0 2px var(--panel);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanPages[data-dragging='true'] > [data-page-id] {
+    transition: none;
   }
 }

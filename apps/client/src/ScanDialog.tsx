@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type DragEvent, type CSSProperties } from 'react';
 import { Download, ScanLine, FileCheck2, RotateCw, ArrowLeft, ArrowRight } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
@@ -12,6 +12,14 @@ import { api, post } from './api';
 import { Modal, Spinner } from './ui';
 import { DeviceDialog } from './DeviceDialog';
 import s from './App.module.css';
+type DragPreview = {
+  id: string;
+  from: number;
+  to: number;
+  ids: string[];
+  slots: { left: number; top: number; width: number; height: number }[];
+};
+
 export function ScanDialog({
   devices,
   initial,
@@ -41,6 +49,8 @@ export function ScanDialog({
   const [busy, setBusy] = useState(false);
   const requestActive = useRef(false);
   const dragged = useRef<string | null>(null);
+  const dropPending = useRef(false);
+  const [dragPreview, setDragPreview] = useState<DragPreview | null>(null);
   const [addingScanner, setAddingScanner] = useState(false);
   const changedRef = useRef(changed);
   changedRef.current = changed;
@@ -154,7 +164,74 @@ export function ScanDialog({
     const updated = [...pages];
     const [page] = updated.splice(from, 1);
     updated.splice(to, 0, page);
-    void edit(updated);
+    return edit(updated);
+  }
+  function dragOver(e: DragEvent<HTMLOListElement>) {
+    if (locked || !dragged.current || !dragPreview) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const { slots, from } = dragPreview;
+    let nearest = 0;
+    let distance = Infinity;
+    slots.forEach((slot, index) => {
+      const dx = Math.max(slot.left - x, 0, x - slot.left - slot.width);
+      const dy = Math.max(slot.top - y, 0, y - slot.top - slot.height);
+      if (dx * dx + dy * dy < distance) {
+        distance = dx * dx + dy * dy;
+        nearest = index;
+      }
+    });
+    const slot = slots[nearest];
+    const columns = slots.length > 1 && slots[0].top === slots[1].top;
+    const after = columns ? x > slot.left + slot.width / 2 : y > slot.top + slot.height / 2;
+    const insertion =
+      y < slots[0].top
+        ? 0
+        : y > slots[slots.length - 1].top + slots[slots.length - 1].height
+          ? slots.length
+          : nearest + Number(after);
+    const to = insertion > from ? insertion - 1 : insertion;
+    setDragPreview((current) => (current && current.to !== to ? { ...current, to } : current));
+  }
+  function drop(e: DragEvent<HTMLOListElement>) {
+    if (locked || !dragged.current || !dragPreview) return;
+    e.preventDefault();
+    const pending = move(dragged.current, dragPreview.to);
+    dragged.current = null;
+    dropPending.current = !!pending;
+    if (pending)
+      void pending.finally(() => {
+        dropPending.current = false;
+        setDragPreview(null);
+      });
+    else setDragPreview(null);
+  }
+  const previewIds = dragPreview ? [...dragPreview.ids] : [];
+  if (dragPreview) {
+    previewIds.splice(dragPreview.from, 1);
+    previewIds.splice(dragPreview.to, 0, dragPreview.id);
+  }
+  function pageStyle(id: string): CSSProperties | undefined {
+    if (!dragPreview) return;
+    const before = dragPreview.slots[dragPreview.ids.indexOf(id)];
+    const after = dragPreview.slots[previewIds.indexOf(id)];
+    if (!before || !after) return;
+    return { transform: `translate(${after.left - before.left}px, ${after.top - before.top}px)` };
+  }
+  let insertionStyle: CSSProperties | undefined;
+  if (dragPreview && dragPreview.to !== dragPreview.from) {
+    const slot = dragPreview.slots[dragPreview.to];
+    const previous = dragPreview.slots[dragPreview.to - 1];
+    const horizontal = !previous || previous.top < slot.top;
+    insertionStyle = {
+      left: slot.left - (horizontal ? 0 : 9),
+      top: slot.top - (horizontal ? 9 : 0),
+      width: horizontal ? slot.width : 3,
+      height: horizontal ? 3 : slot.height,
+    };
   }
   if (addingScanner)
     return (
@@ -194,27 +271,68 @@ export function ScanDialog({
         <div className={s.scanPreviewPane}>
           {complete ? (
             <>
-              <ol className={s.scanPages} aria-label="Scanned pages" aria-busy={locked}>
+              <ol
+                className={s.scanPages}
+                aria-label="Scanned pages"
+                aria-busy={locked}
+                data-dragging={!!dragPreview}
+                onDragEnter={(e) => {
+                  if (!locked && dragged.current) e.preventDefault();
+                }}
+                onDragOver={dragOver}
+                onDrop={drop}
+                onDragLeave={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  if (
+                    !dropPending.current &&
+                    (e.clientX < rect.left ||
+                      e.clientX > rect.right ||
+                      e.clientY < rect.top ||
+                      e.clientY > rect.bottom)
+                  )
+                    setDragPreview((current) =>
+                      current && current.to !== current.from
+                        ? { ...current, to: current.from }
+                        : current,
+                    );
+                }}
+              >
                 {pages.map((page, index) => (
                   <li
                     key={page.id}
                     data-page-id={page.id}
                     draggable={!locked}
+                    className={dragPreview?.id === page.id ? s.scanPageDragging : undefined}
+                    style={pageStyle(page.id)}
                     onDragStart={(e) => {
+                      if (locked) {
+                        e.preventDefault();
+                        return;
+                      }
                       dragged.current = page.id;
+                      const elements =
+                        e.currentTarget.parentElement!.querySelectorAll<HTMLElement>(
+                          '[data-page-id]',
+                        );
+                      const slots = Array.from(elements, (element) => ({
+                        left: element.offsetLeft,
+                        top: element.offsetTop,
+                        width: element.offsetWidth,
+                        height: element.offsetHeight,
+                      }));
+                      setDragPreview({
+                        id: page.id,
+                        from: index,
+                        to: index,
+                        ids: pages.map((page) => page.id),
+                        slots,
+                      });
                       e.dataTransfer.setData('text/plain', page.id);
                       e.dataTransfer.effectAllowed = 'move';
                     }}
                     onDragEnd={() => {
                       dragged.current = null;
-                    }}
-                    onDragOver={(e) => {
-                      if (!locked) e.preventDefault();
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (dragged.current) move(dragged.current, index);
-                      dragged.current = null;
+                      if (!dropPending.current) setDragPreview(null);
                     }}
                   >
                     <div className={s.scanPageImage}>
@@ -269,6 +387,14 @@ export function ScanDialog({
                     </div>
                   </li>
                 ))}
+                {insertionStyle && (
+                  <li
+                    className={s.scanInsertionLine}
+                    aria-hidden="true"
+                    data-insertion-index={dragPreview!.to}
+                    style={insertionStyle}
+                  />
+                )}
               </ol>
             </>
           ) : (
