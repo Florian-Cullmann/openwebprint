@@ -2,6 +2,8 @@
 
 `apps/server/src/providers/types.ts` is the extension point. `Workspace` owns the persisted setup state, explicit demo/hardware choice, and transitions between them. `Service` owns persistence, mode isolation, file lifecycle, concurrency, and public job state. Providers own device discovery, backend configuration, actual execution, and status interpretation.
 
+`host-discovery.ts` optionally merges fresh macOS Bonjour snapshots into hardware discovery results. The native host helper uses Network.framework and exports only advertised, TCP-resolvable IPv4 IPP/IPPS printers. The server revalidates addresses, size, schema, timestamp and source. `hostDiscovery` in the result records the source and refresh time for the UI. The demo provider never reads these files. Missing or expired snapshots produce a visible warning and cannot configure devices.
+
 | Method                                | Contract                                                                                                          |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `discover()`                          | Return candidate `DeviceInput[]` plus partial-failure warnings; finding a device is not a successful health probe |

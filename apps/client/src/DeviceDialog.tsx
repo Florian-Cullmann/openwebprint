@@ -110,6 +110,9 @@ export function DeviceDialog({
             {result && (
               <div className={s.discoveryResults}>
                 <span className={s.eyebrow}>{result.devices.length} DEVICES FOUND</span>
+                {result.hostDiscovery && (
+                  <p className={s.small}>Network discovery via macOS Bonjour.</p>
+                )}
                 {result.devices.map((d) => {
                   const exists =
                     devices.some((existing) => existing.address === d.address) ||

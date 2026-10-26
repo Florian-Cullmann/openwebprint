@@ -75,11 +75,35 @@ For USB devices, the host must expose them through a working CUPS/SANE installat
 
 On **macOS**, first enable **Docker** under **System Settings → Privacy & Security → Local Network**. Without this permission, Docker Desktop cannot connect to LAN printers even if the Mac itself can reach them. See [Docker's troubleshooting guide](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics/#containers-cant-reach-devices-on-my-local-network). The permission takes effect without restarting Docker.
 
-This permission allows direct device connections; it does not guarantee multicast discovery through Docker's bridge. If discovery remains empty, use **Add manually** with the printer's IPP address (for example, `ipp://192.168.1.50:631/ipp/print`; confirm the path/port in the device's manual or network advertisement), or use a native installation / Linux host networking. A printer already installed in macOS is not automatically installed in the container's separate CUPS scheduler.
+This permission allows direct device connections; it does not guarantee multicast discovery through Docker's bridge. If discovery remains empty, use the macOS helper below for automatic printer discovery, or **Add manually** with the printer's IPP address (for example, `ipp://192.168.1.50:631/ipp/print`; confirm the path/port in the device's manual or network advertisement), or use a native installation / Linux host networking. A printer already installed in macOS is not automatically installed in the container's separate CUPS scheduler.
 
 The hardware Compose profile targets **Linux** and uses host networking so link-local multicast can work. The application itself binds to `127.0.0.1:3001`, CUPS to `127.0.0.1:631`. A local reverse proxy can expose the web app with TLS. Never expose the container's CUPS policy on a public interface: it intentionally trusts local clients inside this dedicated scheduler boundary.
 
 The container starts its own private D-Bus and Avahi processes without mounting the host's D-Bus socket. An existing host mDNS daemon or CUPS scheduler can conflict. If port 631 is in use, prefer a native application installation using the host's existing scheduler. You can also run the image in bridge networking and manually add reachable printer IPs, but automatic discovery may be incomplete. Docker Desktop host networking differs from native Linux networking; eSCL/WSD and mDNS may require a real Linux host.
+
+### Automatic printer discovery with Docker Desktop on macOS
+
+Use the optional host helper when the container cannot receive Bonjour multicast. It uses Apple's **Network.framework** (`NWBrowser`, TXT records, and service resolution) to discover actual IPP/IPPS advertisements on the Mac. It does not import your installed printer list. A TCP connection resolves each advertised service to an IPv4 address usable inside Docker; no print data is sent. IPP/IPPS advertisements with the same device UUID appear once, preferring IPPS.
+
+Requires Node 24/26 and Xcode Command Line Tools on the Mac (`xcode-select --install` if missing). From the repository root, keep this command running in a terminal:
+
+```sh
+npm run discovery:macos
+```
+
+In another terminal, start the bridge profile with the macOS override:
+
+```sh
+docker compose -f compose.yaml -f compose.macos.yaml --profile demo up --build -d
+```
+
+Open **Search again** in setup or Devices. A successful host search is labeled **Network discovery via macOS Bonjour.** The printer is a candidate for you to select; finding it does not configure a CUPS queue or send a print job. Existing instance data and CUPS volumes are retained.
+
+The helper must keep running alongside Docker. It atomically refreshes `.local/discovery/devices.json` every 10 seconds; Docker mounts only that folder, read-only. No extra HTTP port, API key, host D-Bus socket, or Docker socket is used. The inventory contains printer names, addresses, and locations and is readable by local users so the container's unprivileged user can consume it. Do not put credentials or documents there. Results expire after 30 seconds if the helper stops; a clean Ctrl+C removes its snapshot immediately. The API rejects oversized, malformed, expired, future-dated, or unsafe snapshots. No addresses from your development network belong in the repository.
+
+This bridge discovers **printers** only. Scanner discovery still runs through SANE/sane-airscan in the container and may require explicit SANE configuration when multicast is blocked. IPv6-only printer services are not currently exported because link-local interface scopes do not carry across the Docker boundary. For a Linux server, use the existing host-network profile without this helper.
+
+To stop using the helper, stop it with Ctrl+C and recreate the service with the base Compose file only. Keep using both `-f` arguments when restarting the bridged setup. Rebooting the Mac requires restarting the helper; it does not install a login item or system daemon.
 
 Named volumes retain `/etc/cups` and the CUPS spool. To supply custom SANE configuration, mount a specific trusted configuration file read-only. Back up volumes before changing them. Do not mount a user's whole home directory or the host Docker socket.
 

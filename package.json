@@ -20,7 +20,9 @@
     "check": "npm run build && npm test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "screenshots": "npm run build && node scripts/capture-screenshots.mjs"
+    "screenshots": "npm run build && node scripts/capture-screenshots.mjs",
+    "discovery:macos": "node scripts/discovery-macos.mjs",
+    "build:discovery:macos": "node scripts/discovery-macos.mjs --build"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

@@ -193,6 +193,9 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                     {warning}
                   </p>
                 ))}
+                {discovery?.hostDiscovery && (
+                  <p className={s.small}>Network discovery via macOS Bonjour.</p>
+                )}
                 <div className={s.setupDevices}>
                   {discovery?.devices.map((device: DeviceInput) => {
                     const connected = state.devices.some(

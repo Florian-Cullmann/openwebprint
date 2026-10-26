@@ -24,7 +24,8 @@ export class Workspace {
     this.hardware = new Service(
       store,
       'hardware',
-      providers.hardware ?? new HardwareProvider(config.cupsServer),
+      providers.hardware ??
+        new HardwareProvider(config.cupsServer, undefined, undefined, config.hostDiscoveryFile),
       this.scanRoot,
     );
   }

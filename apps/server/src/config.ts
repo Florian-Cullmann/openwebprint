@@ -1,4 +1,4 @@
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 
 const envSchema = z.object({
@@ -6,6 +6,10 @@ const envSchema = z.object({
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATA_DIR: z.string().default('./data'),
+  HOST_DISCOVERY_FILE: z
+    .string()
+    .refine(isAbsolute, 'HOST_DISCOVERY_FILE must be an absolute server path')
+    .optional(),
   APP_ORIGIN: z
     .url()
     .refine(
@@ -26,6 +30,7 @@ export function readConfig(env = process.env) {
     host: e.HOST,
     port: e.PORT,
     dataDir: resolve(e.DATA_DIR),
+    hostDiscoveryFile: e.HOST_DISCOVERY_FILE,
     origin: new URL(e.APP_ORIGIN).origin,
     secureCookie: e.COOKIE_SECURE === 'true',
     cupsServer: e.CUPS_SERVER,

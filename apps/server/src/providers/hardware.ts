@@ -13,6 +13,7 @@ import { AppError } from '../errors.js';
 import type { StoredJob } from '../store.js';
 import { command, CommandError, type Command } from './command.js';
 import type { Provider } from './types.js';
+import { hostDiscovery } from './host-discovery.js';
 
 type Attributes = Record<string, unknown>;
 export type IppRequest = (
@@ -108,6 +109,7 @@ export class HardwareProvider implements Provider {
     private readonly server: string,
     private readonly run: Command = command,
     request?: IppRequest,
+    private readonly hostDiscoveryFile?: string,
   ) {
     this.request = request ?? cupsIpp(server);
   }
@@ -117,6 +119,7 @@ export class HardwareProvider implements Provider {
   async discover(): Promise<DiscoveryResult> {
     const devices: DeviceInput[] = [];
     const warnings: string[] = [];
+    let host: DiscoveryResult['hostDiscovery'];
     await Promise.all([
       this.cups('lpstat', ['-v'])
         .then((output) => {
@@ -152,12 +155,23 @@ export class HardwareProvider implements Provider {
       this.networkPrinters()
         .then((found) => devices.push(...found))
         .catch(() => warnings.push('mDNS discovery is unavailable. Add devices manually.')),
+      this.hostDiscoveryFile
+        ? hostDiscovery(this.hostDiscoveryFile, validatePrinterUri).then((result) => {
+            devices.push(...result.devices);
+            warnings.push(...result.warnings);
+            host = result.hostDiscovery;
+          })
+        : Promise.resolve(),
     ]);
     if (!devices.length)
       warnings.push(
-        'No devices responded to discovery. If you use Docker Desktop on macOS, enable Docker in System Settings → Privacy & Security → Local Network. Docker bridge networking can also limit automatic discovery; add a device by IP address or use Linux host networking.',
+        'No devices responded to discovery. If you use Docker Desktop on macOS, enable Docker in System Settings → Privacy & Security → Local Network. Docker bridge networking can also limit automatic discovery; use the optional macOS Bonjour helper, Linux host networking, or add a device by IP address.',
       );
-    return { devices: [...new Map(devices.map((d) => [d.address, d])).values()], warnings };
+    return {
+      devices: [...new Map(devices.map((d) => [d.address, d])).values()],
+      warnings,
+      ...(host ? { hostDiscovery: host } : {}),
+    };
   }
   private networkPrinters(): Promise<DeviceInput[]> {
     return new Promise((resolve, reject) => {

@@ -120,6 +120,8 @@ The Compose profile controls **networking**, while the browser choice controls t
 
 Docker Desktop on macOS/Windows does not reliably forward link-local discovery. On macOS, enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
 
+For **automatic printer discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-printer-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
+
 ### Configuration
 
 | Variable        | Default                 | Purpose                                                                                |

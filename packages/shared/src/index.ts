@@ -64,6 +64,7 @@ export interface Job {
 export interface DiscoveryResult {
   devices: DeviceInput[];
   warnings: string[];
+  hostDiscovery?: { source: 'macos-bonjour'; updatedAt: string };
 }
 export interface Snapshot {
   devices: Device[];
