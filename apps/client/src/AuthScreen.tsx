@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { LockKeyhole, Printer } from 'lucide-react';
+import { LockKeyhole } from 'lucide-react';
 import { post } from './api';
+import { Brand } from './Brand';
 import { Spinner } from './ui';
 import s from './App.module.css';
 export function AuthScreen({ done, demo }: { done: () => Promise<void>; demo: boolean }) {
@@ -24,10 +25,7 @@ export function AuthScreen({ done, demo }: { done: () => Promise<void>; demo: bo
     <main className={s.authPage}>
       <div className={s.authCard}>
         <div className={s.brand}>
-          <span className={s.brandMark}>
-            <Printer size={21} />
-          </span>
-          openwebprint
+          <Brand />
         </div>
         {demo && <span className={s.modeLabel}>Demo mode · simulated devices</span>}
         <h1>Sign in</h1>

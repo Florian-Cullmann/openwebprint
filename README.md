@@ -1,6 +1,11 @@
 <div align="center">
 
-# openwebprint
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/client/public/openwebprint-logo-dark.svg" />
+    <img src="apps/client/public/openwebprint-logo.svg" alt="openwebprint" width="560" />
+  </picture>
+</h1>
 
 **Your paper. Your workflow. Your server.**
 

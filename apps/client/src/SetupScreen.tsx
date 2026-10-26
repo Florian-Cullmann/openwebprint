@@ -3,6 +3,7 @@ import { ArrowRight, Check, FolderOpen, Plus, Printer, Radar, ScanLine } from 'l
 import type { DeviceInput, DiscoveryResult, OnboardingState } from '@openwebprint/shared';
 import { api, post } from './api';
 import { DeviceDialog } from './DeviceDialog';
+import { Brand } from './Brand';
 import { Spinner } from './ui';
 import s from './App.module.css';
 export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
@@ -93,10 +94,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
     <main className={s.setupPage}>
       <div className={s.setupHeader}>
         <span className={s.brand}>
-          <span className={s.brandMark}>
-            <Printer size={21} />
-          </span>
-          openwebprint
+          <Brand />
         </span>
       </div>
       <div className={s.setupContent}>

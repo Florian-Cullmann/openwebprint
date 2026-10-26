@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import type { Device, Job, SessionInfo, Snapshot } from '@openwebprint/shared';
 import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { Brand } from './Brand';
 import { SetupScreen } from './SetupScreen';
 import { StorageSettings } from './StorageSettings';
 import { JobPreviewDialog } from './JobPreviewDialog';
@@ -162,7 +163,7 @@ export function App() {
   if (!session)
     return (
       <div className={s.loading}>
-        <Printer size={36} />
+        <Brand />
         {error ? (
           <>
             <p role="alert">{error}</p>
@@ -235,10 +236,7 @@ export function App() {
       <header className={s.appHeader}>
         <div className={s.headerInner}>
           <Link className={s.brand} to="/overview" aria-label="openwebprint overview">
-            <span className={s.brandMark}>
-              <Printer size={21} />
-            </span>
-            openwebprint
+            <Brand />
           </Link>
           <nav className={s.navigation} aria-label="Main navigation">
             {navigation.map(({ id, label, icon: Icon }) => (
