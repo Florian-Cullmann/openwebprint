@@ -62,7 +62,17 @@ export class DemoProvider implements Provider {
     };
   }
   async cancel() {}
-  async scan(_device: Device, outputPath: string, _options: ScanOptions) {
+  async scanSources() {
+    return {
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'ADF', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: false,
+    };
+  }
+  async scan(_device: Device, outputPath: string, _options: ScanOptions, pageLimit = 100) {
     const image = await sharp(
       Buffer.from(`<svg width="1240" height="1754" xmlns="http://www.w3.org/2000/svg">
     <rect width="1240" height="1754" fill="#fff"/><rect x="90" y="100" width="50" height="50" rx="10" fill="#24252a"/>
@@ -78,6 +88,12 @@ export class DemoProvider implements Provider {
     )
       .png()
       .toBuffer();
-    await writeFile(outputPath, image, { mode: 0o600 });
+    const count = _options.batch
+      ? _options.duplex || _options.source === 'ADF Duplex'
+        ? 4
+        : 3
+      : 1;
+    for (let page = 1; page <= Math.min(count, pageLimit); page++)
+      await writeFile(outputPath.replace('%d', String(page)), image, { mode: 0o600 });
   }
 }

@@ -643,6 +643,12 @@
   color: var(--muted);
   margin-top: 7px;
 }
+.modalHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
 .modalBody {
   display: grid;
   gap: 20px;
@@ -1572,4 +1578,163 @@
   .printLayout {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+.scanDocumentSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.scanSettings {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.scanPages {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 10px;
+  margin: 0;
+}
+.scanPages li {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.scanPageImage {
+  aspect-ratio: 1;
+  padding: 16px;
+  background: var(--bg);
+}
+.scanPageImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.scanPageTools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+}
+.scanPageTools > span {
+  flex: 1;
+  font-size: 12px;
+}
+.scanPages[aria-busy='true'] {
+  opacity: 0.7;
+}
+.scanDuplex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scanDuplex input {
+  width: auto;
+}
+
+.scanDialog {
+  width: min(1120px, calc(100vw - 32px));
+}
+.scanLayout {
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.scanPreviewPane {
+  min-width: 0;
+  max-height: calc(100dvh - 180px);
+  overflow-y: auto;
+}
+.scanPreviewPane > .scanIntro {
+  min-height: 360px;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.scanControls {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.scanControls .modalActions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.scanControls .modalActions button {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  white-space: normal;
+}
+.scanControls .modalActions svg,
+.scanHeaderStatus > svg {
+  flex-shrink: 0;
+}
+.scanDialog .modalHeader {
+  align-items: center;
+}
+.scanDialog .modalHeader > :first-child {
+  min-width: 0;
+}
+.scanDialog .scanHeaderStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 800px) {
+  .scanLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .scanPreviewPane {
+    max-height: none;
+    overflow: visible;
+  }
+  .scanPreviewPane > .scanIntro {
+    min-height: 220px;
+  }
+}
+
+.scanPages[data-dragging='true'] > [data-page-id] {
+  transition: transform 140ms ease-out;
+  cursor: grabbing;
+}
+.scanPages > .scanPageDragging {
+  opacity: 0.35;
+}
+.scanPages > .scanInsertionLine {
+  position: absolute;
+  z-index: 1;
+  border: 0;
+  border-radius: 2px;
+  background: var(--focus);
+  box-shadow: 0 0 0 2px var(--panel);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanPages[data-dragging='true'] > [data-page-id] {
+    transition: none;
+  }
+}
+
+.scanPages > [data-page-id] {
+  cursor: grab;
+  user-select: none;
 }

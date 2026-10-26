@@ -8,9 +8,19 @@ export const printOptionsSchema = z.object({
     .enum(['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'])
     .default('iso_a4_210x297mm'),
 });
+export const MAX_SCAN_PAGES = 100;
 export const scanOptionsSchema = z.object({
   resolution: z.union([z.literal(150), z.literal(300), z.literal(600)]).default(300),
   color: z.enum(['Color', 'Gray']).default('Color'),
+  source: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine((v) => !/[\x00-\x1f\x7f]/.test(v))
+    .optional(),
+  batch: z.boolean().optional(),
+  duplex: z.boolean().optional(),
 });
 export const deviceInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -47,6 +57,26 @@ export interface Device {
   capabilities?: Capabilities;
   detail?: string;
 }
+export interface ScanPage {
+  id: string;
+  rotation: 0 | 90 | 180 | 270;
+}
+export interface ScanSources {
+  sources: { name: string; feeder: boolean }[];
+  duplex: boolean;
+}
+export const scanPagesSchema = z.object({
+  revision: z.string().min(1).max(80),
+  pages: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+      }),
+    )
+    .min(1)
+    .max(MAX_SCAN_PAGES),
+});
 export interface Job {
   id: string;
   deviceId: string;
@@ -60,6 +90,8 @@ export interface Job {
   options: PrintOptions | ScanOptions;
   error?: string;
   hasFile: boolean;
+  pages?: ScanPage[];
+  scanRevision?: string;
 }
 export interface DiscoveryResult {
   devices: DeviceInput[];

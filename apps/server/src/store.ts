@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Device, Job, Mode } from '@openwebprint/shared';
+import type { Device, Job, Mode, ScanPage } from '@openwebprint/shared';
 
 export interface StoredJob extends Job {
+  scanPages?: (ScanPage & { path: string })[];
+  scanDirectory?: string;
+  scanWorkPath?: string;
   externalId?: string;
   filePath?: string;
   previewPath?: string;
@@ -106,7 +109,25 @@ export function publicJob({
   externalId: _externalId,
   filePath: _filePath,
   previewPath: _previewPath,
+  scanPages: _scanPages,
+  scanDirectory: _scanDirectory,
+  scanWorkPath: _scanWorkPath,
   ...job
 }: StoredJob): Job {
+  if (job.kind === 'scan' && job.hasFile) {
+    job.pages = storedScanPages({ ...job, scanPages: _scanPages, previewPath: _previewPath }).map(
+      ({ id, rotation }) => ({ id, rotation }),
+    );
+    job.scanRevision ??= job.updatedAt;
+  }
   return job;
+}
+
+export function storedScanPages(job: StoredJob) {
+  return (
+    job.scanPages ??
+    (job.hasFile && job.previewPath
+      ? [{ id: job.id, rotation: 0 as const, path: job.previewPath }]
+      : [])
+  );
 }
