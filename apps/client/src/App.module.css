@@ -1714,7 +1714,7 @@
 
 .scanPages[data-dragging='true'] > [data-page-id] {
   transition: transform 140ms ease-out;
-  pointer-events: none;
+  cursor: grabbing;
 }
 .scanPages > .scanPageDragging {
   opacity: 0.35;
@@ -1732,4 +1732,9 @@
   .scanPages[data-dragging='true'] > [data-page-id] {
     transition: none;
   }
+}
+
+.scanPages > [data-page-id] {
+  cursor: grab;
+  user-select: none;
 }

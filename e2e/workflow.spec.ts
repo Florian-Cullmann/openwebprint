@@ -216,10 +216,11 @@ test('open access → routes → print → scans → users → login → setting
             .find((job: { id: string }) => job.id === scan.id)
             .pages.map((page: { id: string }) => page.id);
         const cards = list.locator('[data-page-id]');
-        const beginDrag = async (fromIndex: number, toIndex: number, after: boolean) => {
+        const beginDrag = async (fromIndex: number, toIndex: number, after: boolean | 'center') => {
           const from = (await cards.nth(fromIndex).boundingBox())!;
           const to = (await cards.nth(toIndex).boundingBox())!;
-          const x = after ? to.x + to.width - 10 : to.x + 10;
+          const x =
+            after === 'center' ? to.x + to.width / 2 : after ? to.x + to.width - 10 : to.x + 10;
           await page.mouse.move(from.x + from.width / 2, from.y + 40);
           await page.mouse.down();
           await page.mouse.move(from.x + from.width / 2 - 12, from.y + 45, { steps: 3 });
@@ -231,7 +232,7 @@ test('open access → routes → print → scans → users → login → setting
           (nodes) => (nodes[1] as HTMLElement).offsetLeft - (nodes[0] as HTMLElement).offsetLeft,
         );
         const beforeDrag = await savedOrder();
-        await beginDrag(1, 0, false);
+        await beginDrag(1, 0, 'center');
         await expect(list.locator('[data-insertion-index="0"]')).toBeVisible();
         await expect(cards.nth(0)).toHaveCSS('transform', `matrix(1, 0, 0, 1, ${shift}, 0)`);
         expect(await savedOrder()).toEqual(beforeDrag);
@@ -243,12 +244,41 @@ test('open access → routes → print → scans → users → login → setting
         await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
         const afterDrag = await savedOrder();
         expect(afterDrag).toEqual([beforeDrag[1], beforeDrag[0], ...beforeDrag.slice(2)]);
+        // Dropping onto a preview's center works in both directions, repeatedly.
+        await beginDrag(0, 1, 'center');
+        await page.mouse.up();
+        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        expect(await savedOrder()).toEqual(beforeDrag);
+        await beginDrag(1, 0, 'center');
+        await page.mouse.up();
+        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        expect(await savedOrder()).toEqual(afterDrag);
         await beginDrag(0, 1, true);
         await expect(list.locator('[data-insertion-index="1"]')).toBeVisible();
         await page.keyboard.press('Escape');
         await page.mouse.up();
         await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
         expect(await savedOrder()).toEqual(afterDrag);
+        // Captured pointer movement also scrolls a long gallery without saving until release.
+        await page.setViewportSize({ width: 1440, height: 700 });
+        await cards.nth(0).scrollIntoViewIfNeeded();
+        const first = (await cards.nth(0).boundingBox())!;
+        const pane = await list.evaluate((element) =>
+          element.parentElement!.getBoundingClientRect().toJSON(),
+        );
+        const scrollBefore = await list.evaluate((element) => element.parentElement!.scrollTop);
+        await page.mouse.move(first.x + first.width / 2, first.y + 40);
+        await page.mouse.down();
+        await page.mouse.move(first.x + first.width / 2 + 12, first.y + 45, { steps: 3 });
+        await page.mouse.move(pane.x + pane.width / 2, pane.y + pane.height - 8, { steps: 5 });
+        await expect
+          .poll(() => list.evaluate((element) => element.parentElement!.scrollTop))
+          .toBeGreaterThan(scrollBefore + 20);
+        await page.keyboard.press('Escape');
+        await page.mouse.up();
+        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        expect(await savedOrder()).toEqual(afterDrag);
+        await page.setViewportSize({ width: 1440, height: 1100 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
       }
       await expect(page.getByRole('list', { name: 'Scanned pages' })).toHaveAttribute(
