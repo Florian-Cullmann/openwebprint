@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
 import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { runtime } from './install/platform.mjs';
+import { runtime, shortcuts as synchronizeShortcuts } from './install/platform.mjs';
 
 // This exercises the actual release package, private runtime, SQLite, browser
 // assets, and sharp. It deliberately does not connect physical devices.
@@ -28,6 +29,22 @@ const node = runtime(packageDirectory);
 const manager = join(packageDirectory, 'scripts/install/manage.mjs');
 const shortcuts = process.env.OWP_TEST_SHORTCUTS === '1';
 const common = ['--root', root, '--no-open', ...(!shortcuts ? ['--no-shortcuts'] : [])];
+const loginEntry =
+  process.platform === 'darwin'
+    ? join(homedir(), 'Library', 'LaunchAgents', 'org.openwebprint.plist')
+    : join(
+        process.env.XDG_CONFIG_HOME || join(homedir(), '.config'),
+        'autostart',
+        'openwebprint.desktop',
+      );
+const menuEntry =
+  process.platform === 'darwin'
+    ? join(homedir(), 'Applications', 'openwebprint.app')
+    : join(
+        process.env.XDG_DATA_HOME || join(homedir(), '.local/share'),
+        'applications',
+        'openwebprint.desktop',
+      );
 async function run(action, extra = [], success = true) {
   const child = spawn(node, [manager, ...common, action, ...extra], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -46,6 +63,46 @@ async function run(action, extra = [], success = true) {
   assert.equal(code === 0, success, output);
   return output;
 }
+
+async function reusedControlPort(action, kind) {
+  const statePath = join(root, 'running.json');
+  const stale = JSON.parse(await readFile(statePath));
+  await run('stop');
+  await assert.rejects(stat(statePath), { code: 'ENOENT' });
+  const requests = [];
+  const foreign = createHttpServer((req, res) => {
+    requests.push({ method: req.method, authorization: req.headers.authorization });
+    if (kind === 'forbidden') res.writeHead(403).end('Forbidden');
+    else if (kind === 'html') res.end('<html>Unrelated service</html>');
+    else {
+      // Even matching metadata is insufficient without proof of the instance secret.
+      res.setHeader('X-Openwebprint-Proof', '0'.repeat(64));
+      res.end(JSON.stringify({ root, port, ready: true }));
+    }
+  });
+  await new Promise((done, reject) => {
+    foreign.once('error', reject);
+    foreign.listen(stale.port, '127.0.0.1', done);
+  });
+  try {
+    // PID reuse must not turn a stale control file into authority to signal a process.
+    await writeFile(statePath, JSON.stringify({ ...stale, pid: process.pid }));
+    assert.match(await run('status'), /stopped/);
+    await run(action);
+    assert.ok(foreign.listening);
+    assert.ok(requests.length > 0);
+    assert.ok(
+      requests.every((request) => request.method === 'GET'),
+      'Never send stop to a foreign listener.',
+    );
+    assert.ok(
+      requests.every((request) => request.authorization !== `Bearer ${stale.token}`),
+      'Never disclose the instance secret to a reused port.',
+    );
+  } finally {
+    await new Promise((done) => foreign.close(done));
+  }
+}
 const portServer = createServer();
 await new Promise((done) => portServer.listen(0, '127.0.0.1', done));
 const port = portServer.address().port;
@@ -54,6 +111,11 @@ try {
   assert.match(await run('install', ['--port', String(port)], false), /in use/);
   await new Promise((done) => portServer.close(done));
   await run('install', ['--port', String(port)]);
+  if (shortcuts) {
+    await synchronizeShortcuts(join(temporary, 'Another installation'), { remove: true });
+    await stat(loginEntry);
+    await stat(menuEntry);
+  }
   assert.equal((await fetch(`${base}/api/health`)).status, 200);
   assert.match(await (await fetch(`${base}/settings/general`)).text(), /<html/);
   const session = await (await fetch(`${base}/api/session`)).json();
@@ -103,16 +165,36 @@ try {
   assert.match(await run('status'), /running/);
   await writeFile(join(root, 'data', 'keep.txt'), 'preserve documents');
   const savedConfig = await readFile(join(root, 'config.json'), 'utf8');
-  await run('stop');
-  assert.match(await run('status'), /stopped/);
-  // A stale instance file must be recoverable without ever signaling a PID.
-  await run('start');
+  await reusedControlPort('start', 'forbidden');
+  assert.equal((await fetch(`${base}/api/health`)).status, 200);
+  // Also exercise a normal update while the authenticated instance is still running.
   await run('install');
+  await reusedControlPort('install', 'html');
   assert.equal(await readFile(join(root, 'config.json'), 'utf8'), savedConfig);
   assert.equal(await readFile(join(root, 'data', 'keep.txt'), 'utf8'), 'preserve documents');
   const after = await (await fetch(`${base}/api/snapshot`)).json();
   assert.deepEqual(after.devices.map((d) => d.id).sort(), snapshot.devices.map((d) => d.id).sort());
-  await run('uninstall');
+  await run('install', ['--no-shortcuts', '--no-autostart']);
+  const disabled = JSON.parse(await readFile(join(root, 'config.json')));
+  assert.equal(disabled.shortcuts, false);
+  assert.equal(disabled.autostart, false);
+  if (shortcuts) {
+    await assert.rejects(stat(loginEntry), { code: 'ENOENT' });
+    await assert.rejects(stat(menuEntry), { code: 'ENOENT' });
+    // Repair entries left behind by an earlier update that saved false settings
+    // without deleting them; cleanup must not depend on a true -> false transition.
+    await synchronizeShortcuts(root);
+    await stat(loginEntry);
+    await stat(menuEntry);
+  }
+  await run('install');
+  assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).shortcuts, false);
+  assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
+  if (shortcuts) {
+    await assert.rejects(stat(loginEntry), { code: 'ENOENT' });
+    await assert.rejects(stat(menuEntry), { code: 'ENOENT' });
+  }
+  await reusedControlPort('uninstall', 'forged');
   await assert.rejects(stat(join(root, 'app')), { code: 'ENOENT' });
   assert.equal(await readFile(join(root, 'data', 'keep.txt'), 'utf8'), 'preserve documents');
   await run('install', ['--no-autostart']);
@@ -122,7 +204,7 @@ try {
   assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
   await run('uninstall');
   console.log(
-    'Packaged installation, port conflict, production web/assets, native image conversion, control authorization, restart, update/data preservation, reinstall, and uninstall passed.',
+    'Packaged installation, port conflicts/reuse, production web/assets, native image conversion, control authentication, restart, update/data preservation, shortcut opt-out, reinstall, and uninstall passed.',
   );
 } catch (error) {
   console.error(

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { connect } from 'node:net';
 import { cp, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -29,6 +29,12 @@ const source = resolve(import.meta.dirname, '../..');
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const json = async (path) => JSON.parse(await readFile(path, 'utf8'));
 const missing = (error) => error.code === 'ENOENT';
+const signature = (token, ...parts) =>
+  createHmac('sha256', token).update(JSON.stringify(parts)).digest('hex');
+const authenticated = (actual, expected) =>
+  typeof actual === 'string' &&
+  /^[a-f0-9]{64}$/.test(actual) &&
+  timingSafeEqual(Buffer.from(actual, 'hex'), Buffer.from(expected, 'hex'));
 
 async function config() {
   const c = await json(configPath);
@@ -47,16 +53,29 @@ async function control(action = 'status') {
   }
   if (!Number.isInteger(state.port) || typeof state.token !== 'string')
     throw new Error('Invalid running.json; stop openwebprint before removing this file.');
+  const nonce = randomBytes(32).toString('hex');
   try {
     const response = await fetch(`http://127.0.0.1:${state.port}/${action}`, {
       method: action === 'stop' ? 'POST' : 'GET',
-      headers: { Authorization: `Bearer ${state.token}`, Connection: 'close' },
+      headers: {
+        Authorization: `Bearer ${signature(state.token, 'request', action, nonce)}`,
+        'X-Openwebprint-Challenge': nonce,
+        Connection: 'close',
+      },
+      redirect: 'manual',
       signal: AbortSignal.timeout(2000),
     });
-    if (!response.ok) throw new Error('The private control endpoint rejected the request.');
-    const result = await response.json();
-    if (result.root !== root)
-      throw new Error('The private control endpoint belongs to another installation.');
+    // Ports can be reused after exit. Authenticate the response, not just the
+    // request, before treating a listener as this installation's process.
+    const proof = response.headers.get('x-openwebprint-proof');
+    if (!response.ok || !/^[a-f0-9]{64}$/.test(proof || '')) {
+      await response.body?.cancel();
+      return null;
+    }
+    const body = await response.text();
+    if (!authenticated(proof, signature(state.token, 'response', action, nonce, body))) return null;
+    const result = JSON.parse(body);
+    if (result.root !== root) return null;
     return result;
   } catch (error) {
     if (['ECONNREFUSED', 'ECONNRESET', 'UND_ERR_SOCKET'].includes(error.cause?.code)) return null;
@@ -65,10 +84,16 @@ async function control(action = 'status') {
 }
 
 async function stop() {
-  if (!(await control())) return;
+  if (!(await control())) {
+    await rm(statePath, { force: true });
+    return;
+  }
   await control('stop');
   for (let i = 0; i < 160; i++) {
-    if (!(await control())) return;
+    if (!(await control())) {
+      await rm(statePath, { force: true });
+      return;
+    }
     await sleep(1000);
   }
   throw new Error('openwebprint did not stop. Close running operations and try again.');
@@ -77,6 +102,7 @@ async function stop() {
 async function start() {
   if (await control()) return;
   const c = await config();
+  await availablePort(c.port);
   const logDirectory = join(root, 'logs');
   await mkdir(logDirectory, { recursive: true, mode: 0o700 });
   const log = await open(join(logDirectory, 'server.log'), 'a', 0o600);
@@ -116,7 +142,16 @@ async function serve() {
   const token = randomBytes(32).toString('hex');
   let ready = false;
   const controlServer = createServer((req, res) => {
-    if (req.headers.authorization !== `Bearer ${token}`) {
+    const action = req.url?.slice(1);
+    const nonce = req.headers['x-openwebprint-challenge'];
+    if (
+      typeof nonce !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(nonce) ||
+      !authenticated(
+        req.headers.authorization?.replace(/^Bearer /, ''),
+        signature(token, 'request', action, nonce),
+      )
+    ) {
       res.writeHead(403).end();
       return;
     }
@@ -124,8 +159,10 @@ async function serve() {
       res.writeHead(404).end();
       return;
     }
+    const body = JSON.stringify({ root, port: c.port, ready });
     res.setHeader('Content-Type', 'application/json');
-    res.end(JSON.stringify({ root, port: c.port, ready }), () => {
+    res.setHeader('X-Openwebprint-Proof', signature(token, 'response', action, nonce, body));
+    res.end(body, () => {
       if (req.url === '/stop') process.kill(process.pid, 'SIGTERM');
     });
   });
@@ -257,7 +294,7 @@ async function install() {
   await rename(stage, app);
   await writeFile(configPath, `${JSON.stringify(c, null, 2)}\n`, { mode: 0o600 });
   await commandLauncher(root);
-  if (c.shortcuts) await shortcuts(root, { autostart: c.autostart });
+  await shortcuts(root, { remove: !c.shortcuts, autostart: c.autostart });
   await start();
   await rm(join(root, 'app.previous'), { recursive: true, force: true });
   console.log(
@@ -320,7 +357,7 @@ async function main() {
     await stop();
     await managedApplication(app);
     await managedApplication(join(root, 'app.previous'));
-    if (!values['no-shortcuts']) await shortcuts(root, { remove: true });
+    await shortcuts(root, { remove: true });
     await commandLauncher(root, { remove: true });
     for (const name of ['app', 'app.previous', 'app.staging', 'running.json'])
       await rm(join(root, name), { recursive: true, force: true });

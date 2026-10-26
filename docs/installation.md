@@ -83,7 +83,7 @@ For example, manage the default installation locally with:
 "$HOME/Library/Application Support/openwebprint/openwebprint" status
 ```
 
-Use `open` to start the server and open the browser. After editing `config.json`, run `stop` followed by `start`. Invalid ports are rejected. The `autostart` and `shortcuts` preferences are retained across installer updates; edit them in `config.json` and rerun the installer to re-enable a previously disabled option. A private authenticated loopback endpoint controls the process; the launcher never kills a process based only on a stored PID.
+Use `open` to start the server and open the browser. After editing `config.json`, run `stop` followed by `start`. Invalid ports are rejected. The `autostart` and `shortcuts` preferences are retained across installer updates; edit them in `config.json` and rerun the installer to re-enable a previously disabled option. Updating with `--no-shortcuts --no-autostart` removes this installation's existing menu and login entries as well as disabling their creation. Entries belonging to another installation directory are preserved. A private loopback endpoint authenticates both control requests and responses; a stale port reused by an unrelated service does not identify a running instance or receive stop commands. The launcher never kills a process based only on a stored PID.
 
 ## Updates and removal
 

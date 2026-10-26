@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
@@ -31,14 +31,26 @@ export async function shortcuts(root, { remove = false, autostart = true } = {})
   const node = runtime(join(root, 'app'));
   const manager = join(root, 'app', 'scripts', 'install', 'manage.mjs');
   const args = [manager, '--root', root];
+  // Multiple installation roots share one menu/login slot. A headless install
+  // must not remove another installation's entries (including during tests).
+  const removeOwned = async (path, marker, target = path) => {
+    let contents;
+    try {
+      contents = await readFile(path, 'utf8');
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+    if (contents.includes(marker)) await rm(target, { recursive: target !== path, force: true });
+  };
   const write = async (path, text, mode = 0o600) => {
-    if (remove) return rm(path, { force: true });
+    if (remove) return removeOwned(path, desktop(manager));
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, text, { mode });
   };
   if (process.platform === 'darwin') {
     const agent = join(homedir(), 'Library', 'LaunchAgents', 'org.openwebprint.plist');
-    if (remove || !autostart) await rm(agent, { force: true });
+    if (remove || !autostart) await removeOwned(agent, `<string>${xml(manager)}</string>`);
     else
       await write(
         agent,
@@ -49,7 +61,8 @@ export async function shortcuts(root, { remove = false, autostart = true } = {})
 <key>RunAtLoad</key><true/></dict></plist>\n`,
       );
     const bundle = join(homedir(), 'Applications', 'openwebprint.app');
-    if (remove) await rm(bundle, { recursive: true, force: true });
+    if (remove)
+      await removeOwned(join(bundle, 'Contents', 'MacOS', 'openwebprint'), shell(manager), bundle);
     else {
       await write(
         join(bundle, 'Contents', 'Info.plist'),
@@ -68,7 +81,7 @@ export async function shortcuts(root, { remove = false, autostart = true } = {})
   const entry = (command) =>
     `[Desktop Entry]\nType=Application\nName=openwebprint\nComment=Print and scan in your browser\nExec=${[node, ...args, command].map(desktop).join(' ')}\nTerminal=false\nCategories=Office;\n`;
   const login = join(config, 'autostart', 'openwebprint.desktop');
-  if (remove || !autostart) await rm(login, { force: true });
+  if (remove || !autostart) await removeOwned(login, desktop(manager));
   else await write(login, entry('start'));
   await write(join(data, 'applications', 'openwebprint.desktop'), entry('open'));
 }
