@@ -51,7 +51,7 @@ lpoptions -h localhost:631 -p YOUR_QUEUE -l
 
 If queue creation requires administrator authentication, create the queue using your operating system's printer settings, and import `cups://YOUR_QUEUE`. openwebprint does not store CUPS admin passwords. Remote CUPS authentication, Unix socket targets, raw port 9100, and LPD URLs are not accepted directly by the MVP. They can be configured behind an existing local CUPS queue where appropriate.
 
-CUPS must report at least one supported A4/A5/Letter media size for printing to be enabled. Color and duplex are checked from IPP capabilities. A paused queue appears offline/held; a ready queue is the scheduler's report, not a physical device probe. This prevents inventing consumable levels or network reachability.
+CUPS must report at least one supported A4/A5/Letter media size and an application-supported sides option for printing to be enabled. Color and each duplex binding edge are checked from IPP capabilities: only advertised single-sided, long-edge, or short-edge options are offered. Missing sides information is shown as unavailable and blocks submission until capabilities can be retrieved. A paused queue appears offline/held; a ready queue is the scheduler's report, not a physical device probe. This prevents inventing consumable levels or network reachability.
 
 Removing a device does not delete CUPS configuration or external jobs. This also applies to `owp_…` queues that openwebprint originally created. Reimport an existing queue from discovery rather than creating duplicates for the same physical printer. Separate printer and scanner entries are intentional for multifunction devices.
 

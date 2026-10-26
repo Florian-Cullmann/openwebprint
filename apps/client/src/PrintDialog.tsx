@@ -10,6 +10,11 @@ export const mediaLabels: Record<PrintOptions['media'], string> = {
   'na_letter_8.5x11in': 'Letter · 8.5 × 11 in',
   iso_a5_148x210mm: 'A5 · 148 × 210 mm',
 };
+const sidesLabels: Record<PrintOptions['sides'], string> = {
+  'one-sided': 'Single-sided',
+  'two-sided-long-edge': 'Duplex · long edge',
+  'two-sided-short-edge': 'Duplex · short edge',
+};
 export function PrintDialog({
   devices,
   initial,
@@ -34,12 +39,14 @@ export function PrintDialog({
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const device = printers.find((d) => d.id === deviceId);
+  const supportedSides = device?.capabilities?.sides;
   const [options, setOptions] = useState<PrintOptions>({
     copies: 1,
     color: 'monochrome',
     sides: 'one-sided',
     media: 'iso_a4_210x297mm',
   });
+  const validSides = !!supportedSides?.includes(options.sides);
   useEffect(() => {
     if (!file) return;
     const controller = new AbortController();
@@ -65,10 +72,15 @@ export function PrintDialog({
     setOptions((o) => ({
       ...o,
       color: 'monochrome',
-      sides: 'one-sided',
       media: device?.capabilities?.media[0] ?? 'iso_a4_210x297mm',
     }));
   }, [deviceId, device?.capabilities?.media.join(',')]);
+  useEffect(() => {
+    setOptions((o) => ({
+      ...o,
+      sides: supportedSides?.includes(o.sides) ? o.sides : (supportedSides?.[0] ?? 'one-sided'),
+    }));
+  }, [deviceId, supportedSides?.join(',')]);
   function choose(file?: File) {
     setError('');
     if (
@@ -84,7 +96,7 @@ export function PrintDialog({
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !device || !preview || previewing) return;
+    if (!file || !device || !preview || previewing || !validSides) return;
     setBusy(true);
     setError('');
     const data = new FormData();
@@ -227,19 +239,22 @@ export function PrintDialog({
                 <label>
                   Sides
                   <select
-                    value={options.sides}
-                    disabled={busy}
+                    value={validSides ? options.sides : ''}
+                    disabled={busy || !supportedSides?.length}
                     onChange={(e) =>
                       setOptions({ ...options, sides: e.target.value as PrintOptions['sides'] })
                     }
                   >
-                    <option value="one-sided">Single-sided</option>
-                    {device?.capabilities?.duplex && (
-                      <>
-                        <option value="two-sided-long-edge">Duplex · long edge</option>
-                        <option value="two-sided-short-edge">Duplex · short edge</option>
-                      </>
+                    {!supportedSides?.length && (
+                      <option value="">
+                        {supportedSides ? 'No supported sides' : 'Sides unavailable'}
+                      </option>
                     )}
+                    {supportedSides?.map((side) => (
+                      <option value={side} key={side}>
+                        {sidesLabels[side]}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label>
@@ -277,6 +292,12 @@ export function PrintDialog({
               {device && !device.capabilities && (
                 <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
               )}
+              {device?.capabilities && !supportedSides && (
+                <p className={s.error}>Print sides are unavailable. Check the CUPS connection.</p>
+              )}
+              {supportedSides?.length === 0 && (
+                <p className={s.error}>This printer reports no supported print sides.</p>
+              )}
             </div>
           </div>
           {error && (
@@ -291,7 +312,12 @@ export function PrintDialog({
             <button
               className={s.primary}
               disabled={
-                busy || !file || !preview || previewing || !device?.capabilities?.media.length
+                busy ||
+                !file ||
+                !preview ||
+                previewing ||
+                !validSides ||
+                !device?.capabilities?.media.length
               }
             >
               {busy ? <Spinner /> : <Printer size={17} />}{' '}

@@ -19,6 +19,8 @@ Scans retain private original page PNGs plus a generated PDF and first-page prev
 
 Real scan output uses a validated, writable absolute server root configured during setup or in Settings. Each job captures its paths when created; changing the root does not relocate existing files. Demo scans stay in instance storage.
 
+Printing capabilities expose `sides` as the supported subset of `one-sided`, `two-sided-long-edge`, and `two-sided-short-edge`. Missing `sides` means discovery is unavailable; an empty array means no application-supported sides were advertised. Never infer one binding edge from the other. The UI reconciles selections when capabilities change, and submission always re-inspects the printer and checks the exact side before retaining or sending a document. Existing job options remain unchanged; saved demo devices rebuild their capabilities on inspection after an upgrade.
+
 ## Adding an integration
 
 1. Keep it in a separate provider module. Select it in the server factory through trusted startup configuration, never through arbitrary client-supplied executable names.

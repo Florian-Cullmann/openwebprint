@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
+export const PRINT_SIDES = ['one-sided', 'two-sided-long-edge', 'two-sided-short-edge'] as const;
 export const printOptionsSchema = z.object({
   copies: z.number().int().min(1).max(99).default(1),
   color: z.enum(['color', 'monochrome']).default('monochrome'),
-  sides: z.enum(['one-sided', 'two-sided-long-edge', 'two-sided-short-edge']).default('one-sided'),
+  sides: z.enum(PRINT_SIDES).default('one-sided'),
   media: z
     .enum(['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'])
     .default('iso_a4_210x297mm'),
@@ -41,7 +42,8 @@ export type DeviceStatus = 'ready' | 'busy' | 'offline' | 'unknown';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'canceled' | 'failed' | 'unknown';
 export interface Capabilities {
   color: boolean;
-  duplex: boolean;
+  // Undefined means unavailable; an empty array means no supported application sides.
+  sides?: PrintOptions['sides'][];
   media: PrintOptions['media'][];
 }
 export interface Device {
