@@ -172,6 +172,17 @@ export function ScanDialog({
       subtitle={demo ? 'Demo mode: the scan sample is simulated.' : 'Collect pages in one PDF.'}
       close={close}
       className={s.scanDialog}
+      headerContent={
+        running && (
+          <p role="status" className={s.scanHeaderStatus}>
+            <Spinner />
+            <span>
+              {complete ? 'Adding pages…' : 'Scanning your document…'} You can continue in the
+              background.
+            </span>
+          </p>
+        )
+      }
     >
       <form
         onSubmit={(e) => {
@@ -262,13 +273,13 @@ export function ScanDialog({
             </>
           ) : (
             <div className={s.scanIntro}>
-              {running ? <Spinner /> : <ScanLine size={48} strokeWidth={1} />}
-              <h3>{running ? 'Scanning your document…' : 'Load your document'}</h3>
-              <p>
-                {running
-                  ? 'You can close this window. The scan will continue in the background.'
-                  : 'Place a page on the flatbed, or load the document feeder.'}
-              </p>
+              <ScanLine size={48} strokeWidth={1} />
+              {!running && (
+                <>
+                  <h3>Load your document</h3>
+                  <p>Place a page on the flatbed, or load the document feeder.</p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -287,11 +298,6 @@ export function ScanDialog({
                 <Download size={17} /> Download PDF
               </a>
             </div>
-          )}
-          {complete && running && (
-            <p role="status">
-              <Spinner /> Adding pages… You can continue in the background.
-            </p>
           )}
           {!scanners.length && !complete && (
             <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>

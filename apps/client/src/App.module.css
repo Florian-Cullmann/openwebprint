@@ -643,6 +643,12 @@
   color: var(--muted);
   margin-top: 7px;
 }
+.modalHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
 .modalBody {
   display: grid;
   gap: 20px;
@@ -1640,7 +1646,7 @@
   width: min(1120px, calc(100vw - 32px));
 }
 .scanLayout {
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr);
   align-items: start;
   gap: 28px;
 }
@@ -1662,7 +1668,34 @@
   min-width: 0;
 }
 .scanControls .modalActions {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.scanControls .modalActions button {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  white-space: normal;
+}
+.scanControls .modalActions svg,
+.scanHeaderStatus > svg {
+  flex-shrink: 0;
+}
+.scanDialog .modalHeader {
+  align-items: center;
+}
+.scanDialog .modalHeader > :first-child {
+  min-width: 0;
+}
+.scanDialog .scanHeaderStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.5;
 }
 @media (max-width: 800px) {
   .scanLayout {
