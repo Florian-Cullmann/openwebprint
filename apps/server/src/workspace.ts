@@ -85,7 +85,13 @@ export class Workspace {
   run<T>(operation: (service: Service) => Promise<T> | T): Promise<T> {
     if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
     if (this.required) throw new AppError(409, 'Complete setup before printing or scanning.');
-    const promise = Promise.resolve().then(() => operation(this.service));
+    return this.track(Promise.resolve().then(() => operation(this.service)));
+  }
+  snapshot() {
+    if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
+    return this.track(this.service.snapshot());
+  }
+  private track<T>(promise: Promise<T>): Promise<T> {
     this.operations.add(promise);
     void promise.then(
       () => this.operations.delete(promise),
@@ -141,13 +147,7 @@ export class Workspace {
   async addDevice(input: DeviceInput) {
     if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
     if (this.phase === 'welcome') throw new AppError(409, 'Choose demo mode or start setup first.');
-    const promise = this.service.addDevice(input);
-    this.operations.add(promise);
-    try {
-      return await promise;
-    } finally {
-      this.operations.delete(promise);
-    }
+    return this.track(this.service.addDevice(input));
   }
   async selectDevices(inputs: DeviceInput[]) {
     return this.exclusive(async () => {

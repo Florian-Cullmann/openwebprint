@@ -8,6 +8,7 @@ import type {
   PrintOptions,
   ScanOptions,
   ScanPage,
+  Snapshot,
 } from '@openwebprint/shared';
 import { MAX_SCAN_PAGES } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
@@ -17,6 +18,8 @@ import { demoDevices } from './providers/demo.js';
 import { normalizeDocument, exportScanPages } from './documents.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
+const DEVICE_STATUS_TTL = 5000;
+type DeviceState = Pick<Snapshot, 'devices' | 'warnings' | 'devicesCheckedAt'>;
 const remove = async (path?: string) => {
   if (path)
     await unlink(path).catch((error) => {
@@ -33,6 +36,8 @@ export class Service {
   private activeJobs = new Set<string>();
   private activeScanners = new Set<string>();
   private polling?: Promise<void>;
+  private deviceCache?: { result: Promise<DeviceState>; expiresAt: number };
+  private deviceInspections = new Set<Promise<DeviceState>>();
   constructor(
     readonly store: Store,
     readonly mode: Mode,
@@ -92,6 +97,7 @@ export class Service {
       );
     const device = await this.provider.add(input, randomUUID());
     this.store.putDevice(device);
+    this.deviceCache = undefined;
     return device;
   }
   deleteDevice(id: string) {
@@ -99,8 +105,29 @@ export class Service {
     if (this.store.jobs(this.mode).some((j) => j.deviceId === id && !terminal.has(j.status)))
       throw new AppError(409, 'This device still has active or unconfirmed jobs.');
     this.store.deleteDevice(id, this.mode);
+    this.deviceCache = undefined;
   }
-  async snapshot() {
+  private deviceState(): Promise<DeviceState> {
+    if (this.deviceCache && Date.now() < this.deviceCache.expiresAt) return this.deviceCache.result;
+    const result = this.inspectDevices();
+    // Pending checks stay shared even when the provider takes longer than the TTL.
+    const entry = { result, expiresAt: Infinity };
+    this.deviceCache = entry;
+    this.deviceInspections.add(result);
+    void result.then(
+      () => {
+        // Update only this entry: an intervening device change may have replaced it.
+        entry.expiresAt = Date.now() + DEVICE_STATUS_TTL;
+        this.deviceInspections.delete(result);
+      },
+      () => {
+        if (this.deviceCache === entry) this.deviceCache = undefined;
+        this.deviceInspections.delete(result);
+      },
+    );
+    return result;
+  }
+  private async inspectDevices(): Promise<DeviceState> {
     const warnings: string[] = [];
     const devices = await Promise.all(
       this.store.devices(this.mode).map(async (device) => {
@@ -108,14 +135,21 @@ export class Service {
           return await this.provider.inspect(device);
         } catch {
           warnings.push(`${device.name}: Unable to determine device status.`);
-          return { ...device, status: 'unknown' as const };
+          return {
+            ...device,
+            status: 'unknown' as const,
+            capabilities: undefined,
+            detail: 'Unable to determine device status.',
+          };
         }
       }),
     );
+    return { devices, warnings, devicesCheckedAt: new Date(Date.now()).toISOString() };
+  }
+  async snapshot(): Promise<Snapshot> {
     return {
-      devices,
+      ...(await this.deviceState()),
       jobs: this.store.jobs(this.mode).slice(0, 200).map(publicJob),
-      warnings,
       mode: this.mode,
     };
   }
@@ -385,7 +419,9 @@ export class Service {
     this.store.deleteJob(id, this.mode);
   }
   async close() {
+    await Promise.allSettled([...this.deviceInspections]);
     await Promise.all(this.tasks);
     await this.polling;
+    this.deviceCache = undefined;
   }
 }

@@ -117,6 +117,7 @@ export interface DiscoveryResult {
 }
 export interface Snapshot {
   devices: Device[];
+  devicesCheckedAt: string;
   jobs: Job[];
   mode: Mode;
   warnings: string[];
