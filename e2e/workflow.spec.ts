@@ -191,7 +191,7 @@ test('open access → routes → print → scans → users → login → setting
       await page
         .getByRole('combobox', { name: 'Paper source', exact: true })
         .selectOption('ADF Duplex');
-      await page.getByRole('button', { name: 'Scan many more pages', exact: true }).click();
+      await page.getByRole('button', { name: 'Scan multiple pages', exact: true }).click();
       await expect(page.getByAltText('Scanned page 6')).toBeVisible();
       const state = await (await page.request.get('/api/snapshot')).json();
       const scan = state.jobs.find((job: { kind: string }) => job.kind === 'scan');

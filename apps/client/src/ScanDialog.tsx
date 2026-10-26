@@ -1,13 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  Download,
-  ScanLine,
-  FileCheck2,
-  RotateCw,
-  ArrowLeft,
-  ArrowRight,
-  GripVertical,
-} from 'lucide-react';
+import { Download, ScanLine, FileCheck2, RotateCw, ArrowLeft, ArrowRight } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
   type Device,
@@ -179,17 +171,109 @@ export function ScanDialog({
       title={complete && !running ? 'Scan complete' : 'Scan document'}
       subtitle={demo ? 'Demo mode: the scan sample is simulated.' : 'Collect pages in one PDF.'}
       close={close}
-      wide={complete}
+      className={s.scanDialog}
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           void start(false);
         }}
-        className={s.modalBody}
+        className={`${s.modalBody} ${s.scanLayout}`}
       >
-        {complete ? (
-          <>
+        <div className={s.scanPreviewPane}>
+          {complete ? (
+            <>
+              <ol className={s.scanPages} aria-label="Scanned pages" aria-busy={locked}>
+                {pages.map((page, index) => (
+                  <li
+                    key={page.id}
+                    data-page-id={page.id}
+                    draggable={!locked}
+                    onDragStart={(e) => {
+                      dragged.current = page.id;
+                      e.dataTransfer.setData('text/plain', page.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragEnd={() => {
+                      dragged.current = null;
+                    }}
+                    onDragOver={(e) => {
+                      if (!locked) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragged.current) move(dragged.current, index);
+                      dragged.current = null;
+                    }}
+                  >
+                    <div className={s.scanPageImage}>
+                      <img
+                        src={`/api/scans/${job!.id}/pages/${page.id}`}
+                        alt={`Scanned page ${index + 1}`}
+                        style={{ transform: `rotate(${page.rotation}deg)` }}
+                        draggable={false}
+                      />
+                    </div>
+                    <div className={s.scanPageTools}>
+                      <span>Page {index + 1}</span>
+
+                      <button
+                        type="button"
+                        className={s.iconButton}
+                        disabled={locked}
+                        aria-label={`Rotate page ${index + 1} clockwise`}
+                        onClick={() =>
+                          void edit(
+                            pages.map((p) =>
+                              p.id === page.id
+                                ? {
+                                    ...p,
+                                    rotation: ((p.rotation + 90) % 360) as ScanPage['rotation'],
+                                  }
+                                : p,
+                            ),
+                          )
+                        }
+                      >
+                        <RotateCw size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className={s.iconButton}
+                        disabled={locked || index === 0}
+                        aria-label={`Move page ${index + 1} earlier`}
+                        onClick={() => move(page.id, index - 1)}
+                      >
+                        <ArrowLeft size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className={s.iconButton}
+                        disabled={locked || index === pages.length - 1}
+                        aria-label={`Move page ${index + 1} later`}
+                        onClick={() => move(page.id, index + 1)}
+                      >
+                        <ArrowRight size={16} />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </>
+          ) : (
+            <div className={s.scanIntro}>
+              {running ? <Spinner /> : <ScanLine size={48} strokeWidth={1} />}
+              <h3>{running ? 'Scanning your document…' : 'Load your document'}</h3>
+              <p>
+                {running
+                  ? 'You can close this window. The scan will continue in the background.'
+                  : 'Place a page on the flatbed, or load the document feeder.'}
+              </p>
+            </div>
+          )}
+        </div>
+        <div className={s.scanControls}>
+          {complete && (
             <div className={s.scanDocumentSummary}>
               <span className={`${s.badge} ${s.positive}`}>
                 <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
@@ -203,257 +287,129 @@ export function ScanDialog({
                 <Download size={17} /> Download PDF
               </a>
             </div>
-            <p className={s.small}>
-              Drag pages to reorder them, or use the arrow buttons. Changes are saved to the PDF
-              automatically.
-            </p>
-            <ol className={s.scanPages} aria-label="Scanned pages" aria-busy={locked}>
-              {pages.map((page, index) => (
-                <li
-                  key={page.id}
-                  data-page-id={page.id}
-                  draggable={!locked}
-                  onDragStart={(e) => {
-                    dragged.current = page.id;
-                    e.dataTransfer.setData('text/plain', page.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                  }}
-                  onDragEnd={() => {
-                    dragged.current = null;
-                  }}
-                  onDragOver={(e) => {
-                    if (!locked) e.preventDefault();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (dragged.current) move(dragged.current, index);
-                    dragged.current = null;
-                  }}
-                >
-                  <div className={s.scanPageImage}>
-                    <img
-                      src={`/api/scans/${job!.id}/pages/${page.id}`}
-                      alt={`Scanned page ${index + 1}`}
-                      style={{ transform: `rotate(${page.rotation}deg)` }}
-                      draggable={false}
-                    />
-                  </div>
-                  <div className={s.scanPageTools}>
-                    <span>Page {index + 1}</span>
-                    <button
-                      type="button"
-                      className={s.iconButton}
-                      disabled={locked}
-                      aria-label={`Drag page ${index + 1} to reorder`}
-                      style={{ touchAction: 'none' }}
-                      onPointerDown={(e) => {
-                        if (e.pointerType !== 'mouse') {
-                          dragged.current = page.id;
-                          e.currentTarget.setPointerCapture(e.pointerId);
-                        }
-                      }}
-                      onPointerUp={(e) => {
-                        if (e.pointerType === 'mouse') return;
-                        const target = document
-                          .elementFromPoint(e.clientX, e.clientY)
-                          ?.closest('[data-page-id]')
-                          ?.getAttribute('data-page-id');
-                        if (target && dragged.current)
-                          move(
-                            dragged.current,
-                            pages.findIndex((page) => page.id === target),
-                          );
-                        dragged.current = null;
-                      }}
-                      onPointerCancel={() => {
-                        dragged.current = null;
-                      }}
-                    >
-                      <GripVertical size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={s.iconButton}
-                      disabled={locked}
-                      aria-label={`Rotate page ${index + 1} clockwise`}
-                      onClick={() =>
-                        void edit(
-                          pages.map((p) =>
-                            p.id === page.id
-                              ? {
-                                  ...p,
-                                  rotation: ((p.rotation + 90) % 360) as ScanPage['rotation'],
-                                }
-                              : p,
-                          ),
-                        )
-                      }
-                    >
-                      <RotateCw size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={s.iconButton}
-                      disabled={locked || index === 0}
-                      aria-label={`Move page ${index + 1} earlier`}
-                      onClick={() => move(page.id, index - 1)}
-                    >
-                      <ArrowLeft size={16} />
-                    </button>
-                    <button
-                      type="button"
-                      className={s.iconButton}
-                      disabled={locked || index === pages.length - 1}
-                      aria-label={`Move page ${index + 1} later`}
-                      onClick={() => move(page.id, index + 1)}
-                    >
-                      <ArrowRight size={16} />
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          </>
-        ) : (
-          <div className={s.scanIntro}>
-            {running ? <Spinner /> : <ScanLine size={48} strokeWidth={1} />}
-            <h3>{running ? 'Scanning your document…' : 'Load your document'}</h3>
-            <p>
-              {running
-                ? 'You can close this window. The scan will continue in the background.'
-                : 'Place a page on the flatbed, or load the document feeder.'}
-            </p>
-          </div>
-        )}
-        {complete && running && (
-          <p role="status">
-            <Spinner /> Adding pages… You can continue in the background.
-          </p>
-        )}
-        {!scanners.length && !complete && (
-          <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>
-            Find and add a scanner
-          </button>
-        )}
-        <fieldset disabled={locked} className={s.scanSettings}>
-          <label>
-            Scanner
-            <select
-              required
-              value={deviceId}
-              disabled={complete}
-              onChange={(e) => setDeviceId(e.target.value)}
-            >
-              <option value="" disabled>
-                Select scanner
-              </option>
-              {scanners.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <div className={s.formGrid}>
-            <label>
-              Resolution
-              <select
-                value={resolution}
-                onChange={(e) => setResolution(Number(e.target.value) as ScanOptions['resolution'])}
-              >
-                <option value={150}>150 dpi · compact</option>
-                <option value={300}>300 dpi · recommended</option>
-                <option value={600}>600 dpi · detailed</option>
-              </select>
-            </label>
-            <label>
-              Color mode
-              <select
-                value={color}
-                onChange={(e) => setColor(e.target.value as ScanOptions['color'])}
-              >
-                <option value="Color">Color</option>
-                <option value="Gray">Grayscale</option>
-              </select>
-            </label>
-          </div>
-          <label>
-            Paper source
-            <select
-              value={source}
-              disabled={loadingSources || !sources.sources.length}
-              onChange={(e) => {
-                setSource(e.target.value);
-                setDuplex(false);
-              }}
-            >
-              <option value="">Device default</option>
-              {sources.sources.map((s) => (
-                <option key={s.name} value={s.name}>
-                  {s.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          {feeder && sources.duplex && (
-            <label className={s.scanDuplex}>
-              <input
-                type="checkbox"
-                checked={duplex}
-                onChange={(e) => setDuplex(e.target.checked)}
-              />{' '}
-              Scan both sides
-            </label>
           )}
-        </fieldset>
-        {sourceError && (
-          <p className={s.small}>
-            Could not load paper sources: {sourceError} You can still scan one page with the device
-            default.
-          </p>
-        )}
-        <p className={s.small}>
-          Choose an ADF or duplex ADF source to scan many pages. Up to {MAX_SCAN_PAGES} pages per
-          document. Unsupported settings produce an error.
-        </p>
-        {(error || job?.error) && (
-          <p role="alert" className={s.error}>
-            {error || job?.error}
-          </p>
-        )}
-        <div className={s.modalActions}>
-          {(!complete || running) && (
-            <button type="button" className={s.secondary} onClick={close}>
-              {running ? 'Continue in background' : 'Close'}
+          {complete && running && (
+            <p role="status">
+              <Spinner /> Adding pages… You can continue in the background.
+            </p>
+          )}
+          {!scanners.length && !complete && (
+            <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>
+              Find and add a scanner
             </button>
           )}
-          <button
-            type="button"
-            className={s.secondary}
-            disabled={locked || loadingSources || !feeder || pages.length >= MAX_SCAN_PAGES}
-            onClick={() => void start(true)}
-          >
-            Scan many {complete ? 'more ' : ''}pages
-          </button>
-          <button
-            className={s.primary}
-            disabled={
-              locked ||
-              loadingSources ||
-              !scanners.some((d) => d.id === deviceId) ||
-              pages.length >= MAX_SCAN_PAGES
-            }
-          >
-            {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
-            {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
-          </button>
+          <fieldset disabled={locked} className={s.scanSettings}>
+            <label>
+              Scanner
+              <select
+                required
+                value={deviceId}
+                disabled={complete}
+                onChange={(e) => setDeviceId(e.target.value)}
+              >
+                <option value="" disabled>
+                  Select scanner
+                </option>
+                {scanners.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className={s.formGrid}>
+              <label>
+                Resolution
+                <select
+                  value={resolution}
+                  onChange={(e) =>
+                    setResolution(Number(e.target.value) as ScanOptions['resolution'])
+                  }
+                >
+                  <option value={150}>150 dpi · compact</option>
+                  <option value={300}>300 dpi · recommended</option>
+                  <option value={600}>600 dpi · detailed</option>
+                </select>
+              </label>
+              <label>
+                Color mode
+                <select
+                  value={color}
+                  onChange={(e) => setColor(e.target.value as ScanOptions['color'])}
+                >
+                  <option value="Color">Color</option>
+                  <option value="Gray">Grayscale</option>
+                </select>
+              </label>
+            </div>
+            <label>
+              Paper source
+              <select
+                value={source}
+                disabled={loadingSources || !sources.sources.length}
+                onChange={(e) => {
+                  setSource(e.target.value);
+                  setDuplex(false);
+                }}
+              >
+                <option value="">Device default</option>
+                {sources.sources.map((s) => (
+                  <option key={s.name} value={s.name}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {feeder && sources.duplex && (
+              <label className={s.scanDuplex}>
+                <input
+                  type="checkbox"
+                  checked={duplex}
+                  onChange={(e) => setDuplex(e.target.checked)}
+                />{' '}
+                Scan both sides
+              </label>
+            )}
+          </fieldset>
+          {sourceError && (
+            <p className={s.small}>
+              Could not load paper sources: {sourceError} You can still scan one page with the
+              device default.
+            </p>
+          )}
+          {(error || job?.error) && (
+            <p role="alert" className={s.error}>
+              {error || job?.error}
+            </p>
+          )}
+          <div className={s.modalActions}>
+            {(!complete || running) && (
+              <button type="button" className={s.secondary} onClick={close}>
+                {running ? 'Continue in background' : 'Close'}
+              </button>
+            )}
+            <button
+              type="button"
+              className={s.secondary}
+              disabled={locked || loadingSources || !feeder || pages.length >= MAX_SCAN_PAGES}
+              onClick={() => void start(true)}
+            >
+              Scan multiple pages
+            </button>
+            <button
+              className={s.primary}
+              disabled={
+                locked ||
+                loadingSources ||
+                !scanners.some((d) => d.id === deviceId) ||
+                pages.length >= MAX_SCAN_PAGES
+              }
+            >
+              {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
+              {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
+            </button>
+          </div>
         </div>
-        {complete && (
-          <p className={s.small}>
-            The pages and PDF stay on this server for 7 days. You can delete them earlier on the
-            Scans page.
-          </p>
-        )}
       </form>
     </Modal>
   );

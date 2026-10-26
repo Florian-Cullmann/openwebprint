@@ -1635,3 +1635,45 @@
 .scanDuplex input {
   width: auto;
 }
+
+.scanDialog {
+  width: min(1120px, calc(100vw - 32px));
+}
+.scanLayout {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.scanPreviewPane {
+  min-width: 0;
+  max-height: calc(100dvh - 180px);
+  overflow-y: auto;
+}
+.scanPreviewPane > .scanIntro {
+  min-height: 360px;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.scanControls {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.scanControls .modalActions {
+  flex-wrap: wrap;
+}
+@media (max-width: 800px) {
+  .scanLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .scanPreviewPane {
+    max-height: none;
+    overflow: visible;
+  }
+  .scanPreviewPane > .scanIntro {
+    min-height: 220px;
+  }
+}
