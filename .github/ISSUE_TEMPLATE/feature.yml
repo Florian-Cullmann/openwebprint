@@ -1,0 +1,33 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+title: 'feat: '
+labels: ['enhancement']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What should be added and why?
+      placeholder: Describe the feature...
+    validations:
+      required: true
+
+  - type: textarea
+    id: changes
+    attributes:
+      label: Proposed Changes
+      description: What should be implemented?
+      placeholder: Describe the proposed changes...
+    validations:
+      required: false
+
+  - type: textarea
+    id: criteria
+    attributes:
+      label: Acceptance Criteria
+      description: When is this feature complete?
+      placeholder: |
+        - [ ] First requirement
+        - [ ] Second requirement
+    validations:
+      required: false
