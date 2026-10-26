@@ -25,6 +25,17 @@ assert.equal(
 execFileSync('tar', ['-xzf', archive, '-C', temporary]);
 const packageDirectory = join(temporary, basename(input));
 const root = join(temporary, 'Application Data');
+const serverEntry = join(packageDirectory, 'apps/server/dist/index.js');
+const originalServer = await readFile(serverEntry);
+// Module loading can block the controller's event loop after its socket opens.
+// Exercise a startup pause longer than one control probe, without consuming CPU.
+await writeFile(
+  serverEntry,
+  Buffer.concat([
+    Buffer.from('Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 3500);\n'),
+    originalServer,
+  ]),
+);
 const node = runtime(packageDirectory);
 const manager = join(packageDirectory, 'scripts/install/manage.mjs');
 const shortcuts = process.env.OWP_TEST_SHORTCUTS === '1';
@@ -111,6 +122,8 @@ try {
   assert.match(await run('install', ['--port', String(port)], false), /in use/);
   await new Promise((done) => portServer.close(done));
   await run('install', ['--port', String(port)]);
+  await writeFile(serverEntry, originalServer);
+  await writeFile(join(root, 'app/apps/server/dist/index.js'), originalServer);
   if (shortcuts) {
     await synchronizeShortcuts(join(temporary, 'Another installation'), { remove: true });
     await stat(loginEntry);

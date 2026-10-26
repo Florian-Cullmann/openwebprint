@@ -122,12 +122,19 @@ async function start() {
   await Promise.race([
     failed,
     (async () => {
-      for (let i = 0; i < 60; i++) {
-        if ((await control())?.ready) {
-          const response = await fetch(`http://127.0.0.1:${c.port}/api/health`, {
-            signal: AbortSignal.timeout(2000),
-          });
-          if (response.ok) return;
+      const deadline = Date.now() + 30_000;
+      while (Date.now() < deadline) {
+        try {
+          if ((await control())?.ready) {
+            const response = await fetch(`http://127.0.0.1:${c.port}/api/health`, {
+              signal: AbortSignal.timeout(2000),
+            });
+            if (response.ok) return;
+          }
+        } catch (error) {
+          // A probe can time out while module loading blocks the new process.
+          // Keep waiting for readiness; never classify a timeout as stale state.
+          if (error.name !== 'TimeoutError') throw error;
         }
         await sleep(500);
       }
