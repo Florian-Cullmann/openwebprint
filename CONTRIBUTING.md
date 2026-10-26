@@ -1,16 +1,18 @@
 # Contributing to openwebprint
 
-Useful, small contributions are welcome: a verified device report, a clearer error message, accessibility work, localization, or a new provider. **Every change requires a GitHub issue and a pull request**, including documentation, tests, maintenance, dependency updates, and work performed by coding agents.
+Useful, small contributions are welcome: a verified device report, a clearer error message, accessibility work, localization, or a new provider. Every change uses a dedicated branch and a pull request, including work performed by coding agents.
 
 ## Required workflow
 
-1. Find an existing issue or open one before implementation. Describe the problem, scope, and intended outcome. Avoid duplicate issues; discuss large changes before starting them.
-2. Create a dedicated branch from `main`, preferably including the issue number, such as `fix/42-scanner-discovery`.
+Issues are **mandatory for features, bug fixes, and significant refactoring**. They are **optional for minor documentation changes, formatting, routine dependency updates, and trivial maintenance**. Reuse an applicable existing issue; do not create unnecessary issues solely to satisfy the workflow. Small contributions should be easy to submit.
+
+1. Find an existing issue or open one before implementation when required. Describe the problem, scope, and intended outcome. Discuss large changes before starting them.
+2. Create a dedicated branch from `main`, including the issue number when applicable, such as `fix/42-scanner-discovery`. A descriptive branch name is sufficient when no issue applies.
 3. Implement the change, run appropriate checks, then commit and push that branch.
-4. Open a PR linked to its issue. Use `Closes #42` for a complete resolution or `Related to #42` for partial work. Include the resulting behavior, verification, and any limitations.
+4. Open a PR and reference an existing issue when applicable, using `Closes #123` when the PR resolves it. Include the resulting behavior, verification, and any limitations.
 5. Integrate changes through the PR. **Do not commit or push directly to `main`**, even for small fixes or documentation changes.
 
-Dependency-bot PRs must also have a linked tracking issue before merging. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), rather than disclosing sensitive details in a public issue. Repository instructions for coding agents are maintained in [AGENTS.md](AGENTS.md).
+Routine dependency-bot PRs can proceed without a separate issue. Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md), rather than disclosing sensitive details in a public issue. Repository instructions for coding agents are maintained in [AGENTS.md](AGENTS.md).
 
 ## Local setup
 
