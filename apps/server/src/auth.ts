@@ -1,74 +1,93 @@
-import { randomBytes, createHash, scrypt as scryptCallback, timingSafeEqual } from 'node:crypto';
+import {
+  randomBytes,
+  randomUUID,
+  createHash,
+  scrypt as scryptCallback,
+  timingSafeEqual,
+} from 'node:crypto';
 import { promisify } from 'node:util';
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { User } from '@openwebprint/shared';
 import type { Config } from './config.js';
 import type { Store } from './store.js';
 import { AppError } from './errors.js';
 const scrypt = promisify(scryptCallback);
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
 export class Auth {
-  readonly setupToken: string;
-  private initializing = false;
   constructor(
     private store: Store,
     private config: Config,
-  ) {
-    this.setupToken = config.setupToken ?? randomBytes(24).toString('hex');
+  ) {}
+  users(): User[] {
+    return this.store.db
+      .prepare('SELECT id, username, createdAt FROM users ORDER BY createdAt, id')
+      .all() as unknown as User[];
   }
-  initialized() {
-    return !!this.store.setting('password');
+  hasUsers() {
+    return Number(this.store.db.prepare('SELECT COUNT(*) AS count FROM users').get()!.count) > 0;
+  }
+  user(req: FastifyRequest): User | undefined {
+    const token = req.cookies.owp_session;
+    if (!token) return;
+    return this.store.db
+      .prepare(
+        'SELECT u.id, u.username, u.createdAt FROM users u JOIN sessions s ON s.user_id=u.id WHERE s.hash=? AND s.expires>?',
+      )
+      .get(hash(token), Date.now()) as unknown as User | undefined;
   }
   authenticated(req: FastifyRequest) {
-    const token = req.cookies.owp_session;
-    if (!token) return false;
-    return !!this.store.db
-      .prepare('SELECT hash FROM sessions WHERE hash=? AND expires>?')
-      .get(hash(token), Date.now());
+    return !!this.user(req);
   }
-  async setup(token: string, username: string, password: string, reply: FastifyReply) {
-    if (this.initialized() || this.initializing)
-      throw new AppError(409, 'Die Einrichtung wurde bereits gestartet oder abgeschlossen.');
-    const left = Buffer.from(hash(token));
-    const right = Buffer.from(hash(this.setupToken));
-    if (!timingSafeEqual(left, right))
-      throw new AppError(403, 'Der Einrichtungsschlüssel ist ungültig.');
-    this.initializing = true;
+  async createUser(username: string, password: string, actor?: User): Promise<User> {
+    const salt = randomBytes(16).toString('hex');
+    const key = (await scrypt(password, salt, 64)) as Buffer;
+    const user: User = { id: randomUUID(), username, createdAt: new Date().toISOString() };
+    this.store.db.exec('BEGIN IMMEDIATE');
     try {
-      const salt = randomBytes(16).toString('hex');
-      const key = (await scrypt(password, salt, 64)) as Buffer;
-      this.store.db.exec('BEGIN IMMEDIATE');
-      try {
-        this.store.set('username', username);
-        this.store.set('password', `${salt}:${key.toString('hex')}`);
-        this.store.db.exec('COMMIT');
-      } catch (e) {
-        this.store.db.exec('ROLLBACK');
-        throw e;
-      }
-      this.session(reply);
-    } finally {
-      this.initializing = false;
+      // Recheck after asynchronous hashing: only one anonymous first-user request can win.
+      if (
+        this.hasUsers() &&
+        (!actor || !this.store.db.prepare('SELECT id FROM users WHERE id=?').get(actor.id))
+      )
+        throw new AppError(401, 'Sign in to manage users.');
+      if (
+        this.store.db.prepare('SELECT id FROM users WHERE username=? COLLATE NOCASE').get(username)
+      )
+        throw new AppError(409, 'This username is already in use.');
+      this.store.db
+        .prepare('INSERT INTO users (id, username, password, createdAt) VALUES (?, ?, ?, ?)')
+        .run(user.id, username, `${salt}:${key.toString('hex')}`, user.createdAt);
+      this.store.db.exec('COMMIT');
+      return user;
+    } catch (error) {
+      this.store.db.exec('ROLLBACK');
+      throw error;
     }
+  }
+  deleteUser(id: string) {
+    if (!this.store.db.prepare('DELETE FROM users WHERE id=?').run(id).changes)
+      throw new AppError(404, 'User not found.');
   }
   async login(username: string, password: string, reply: FastifyReply) {
-    const saved = this.store.setting('password');
-    const [salt, expected] = saved?.split(':') ?? ['openwebprint-dummy', '00'.repeat(64)];
+    const saved = this.store.db
+      .prepare('SELECT id, password FROM users WHERE username=? COLLATE NOCASE')
+      .get(username) as { id: string; password: string } | undefined;
+    const [salt, expected] = saved?.password.split(':') ?? ['openwebprint-dummy', '00'.repeat(64)];
     const key = (await scrypt(password, salt, 64)) as Buffer;
-    if (
-      !saved ||
-      !timingSafeEqual(key, Buffer.from(expected, 'hex')) ||
-      username !== this.store.setting('username')
-    ) {
-      throw new AppError(401, 'Benutzername oder Passwort ist falsch.');
-    }
-    this.session(reply);
+    const expectedKey = Buffer.from(expected, 'hex');
+    if (!saved || expectedKey.length !== key.length || !timingSafeEqual(key, expectedKey))
+      throw new AppError(401, 'Incorrect username or password.');
+    // The account may have been removed while the password was being checked.
+    if (!this.store.db.prepare('SELECT id FROM users WHERE id=?').get(saved.id))
+      throw new AppError(401, 'Incorrect username or password.');
+    this.session(saved.id, reply);
   }
-  private session(reply: FastifyReply) {
+  private session(userId: string, reply: FastifyReply) {
     const token = randomBytes(32).toString('hex');
     this.store.db.prepare('DELETE FROM sessions WHERE expires<=?').run(Date.now());
     this.store.db
-      .prepare('INSERT INTO sessions VALUES (?, ?)')
-      .run(hash(token), Date.now() + 7 * 86400_000);
+      .prepare('INSERT INTO sessions (hash, expires, user_id) VALUES (?, ?, ?)')
+      .run(hash(token), Date.now() + 7 * 86400_000, userId);
     reply.setCookie('owp_session', token, {
       path: '/',
       httpOnly: true,

@@ -9,7 +9,6 @@ x-app: &app
   environment: &environment
     APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
     COOKIE_SECURE: ${COOKIE_SECURE:-false}
-    # Empty means generate a first-run token; do not set an empty SETUP_TOKEN.
   stop_grace_period: 150s
 services:
   demo:

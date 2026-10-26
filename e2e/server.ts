@@ -14,7 +14,6 @@ const server = spawn(process.execPath, ['apps/server/dist/index.js'], {
     PORT: '4173',
     APP_ORIGIN: 'http://127.0.0.1:4173',
     COOKIE_SECURE: 'false',
-    SETUP_TOKEN: 'browser-test-setup-token-000000',
   },
 });
 let stopping = false;

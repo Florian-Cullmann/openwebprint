@@ -15,16 +15,13 @@ export const command: Command = async (executable, args, timeout = 20_000) => {
   } catch (error) {
     const e = error as { code?: string; killed?: boolean; stderr?: string };
     if (e.code === 'ENOENT')
-      throw new AppError(
-        503,
-        `${executable} ist nicht installiert. Bitte die Hardware-Einrichtung prüfen.`,
-      );
+      throw new AppError(503, `${executable} is not installed. Check the hardware configuration.`);
     if (e.killed)
-      throw new AppError(504, `${executable}: Zeitlimit überschritten. Geräteverbindung prüfen.`);
+      throw new AppError(504, `${executable}: operation timed out. Check the device connection.`);
     // stderr may contain device addresses; it is deliberately not returned to clients.
     throw new AppError(
       502,
-      `${executable} konnte den Vorgang nicht ausführen. Verbindung, Berechtigungen und Geräteoptionen prüfen.`,
+      `${executable} could not complete the operation. Check connectivity, permissions and device options.`,
     );
   }
 };

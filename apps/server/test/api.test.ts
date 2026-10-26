@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { access, readdir } from 'node:fs/promises';
 import { PDFDocument, PDFName, PDFString, PDFDict } from 'pdf-lib';
 import sharp from 'sharp';
-import { fixture, multipart, pdf, credentials, secret } from './helpers.js';
+import { fixture, multipart, pdf, credentials } from './helpers.js';
 import { normalizeDocument, MAX_UPLOAD } from '../src/documents.js';
 import { DemoProvider } from '../src/providers/demo.js';
 import type { Device, Job } from '@openwebprint/shared';
@@ -57,25 +57,17 @@ describe('authenticated API and ownership', () => {
       ).statusCode,
     ).toBe(200);
   });
-  it('hashes sessions, sets defensive cookies, disallows setup twice and invalidates logout', async () => {
+  it('hashes sessions, sets defensive cookies, invalidates logout', async () => {
     f = await fixture();
-    const cookieHeader = String(f.setup.headers['set-cookie']);
+    const cookieHeader = String(f.login!.headers['set-cookie']);
     expect(cookieHeader).toContain('HttpOnly');
     expect(cookieHeader).toContain('SameSite=Strict');
     expect(cookieHeader).toContain('Secure');
     const stored = f.store.db.prepare('SELECT hash FROM sessions').get()!;
     expect(f.cookie).not.toContain(stored.hash);
-    expect(f.store.setting('password')).not.toContain(credentials.password);
-    expect(
-      (
-        await f.app.inject({
-          method: 'POST',
-          url: '/api/setup',
-          headers: f.headers,
-          payload: { ...credentials, token: secret },
-        })
-      ).statusCode,
-    ).toBe(409);
+    expect(String(f.store.db.prepare('SELECT password FROM users').get()!.password)).not.toContain(
+      credentials.password,
+    );
     await f.app.inject({ method: 'POST', url: '/api/logout', headers: f.headers });
     expect((await f.app.inject({ url: '/api/snapshot', headers: f.headers })).statusCode).toBe(401);
     expect(
@@ -91,7 +83,7 @@ describe('authenticated API and ownership', () => {
   });
   it('rate limits credential guessing', async () => {
     f = await fixture();
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 4; i++)
       expect(
         (
           await f.app.inject({
@@ -205,7 +197,7 @@ describe('devices and print pipeline', () => {
       .toBuffer();
     const converted = await normalizeDocument(png, 'image/png');
     expect((await PDFDocument.load(converted)).getPageCount()).toBe(1);
-    await expect(normalizeDocument(png, 'application/pdf')).rejects.toThrow('Erlaubt');
+    await expect(normalizeDocument(png, 'application/pdf')).rejects.toThrow('Only valid');
     const source = await PDFDocument.create();
     source.addPage();
     source.catalog.set(

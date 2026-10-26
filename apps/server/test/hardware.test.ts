@@ -144,7 +144,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     expect(run).toHaveBeenLastCalledWith('cancel', ['-h', 'localhost:631', 'Brother-42']);
     run.mockResolvedValue('request id is Another-42');
     await expect(provider.print(device, '/safe/id.pdf', 'Test', printOptions)).rejects.toThrow(
-      'Auftragskennung',
+      'job ID',
     );
   });
   it('rejects unsafe protocols, credentials and command-like identifiers before invoking tools', async () => {
@@ -200,9 +200,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     await expect(
       provider.scan(scanner, '/safe/output.png', { resolution: 300, color: 'Color' }),
     ).rejects.toThrow('Disconnected');
-    await expect(command('/nonexistent/openwebprint-command', [])).rejects.toThrow(
-      'nicht installiert',
-    );
+    await expect(command('/nonexistent/openwebprint-command', [])).rejects.toThrow('not installed');
   });
   it('round-trips actual IPP bytes through the library against a local protocol fixture', async () => {
     const { default: ipp } = await import('@sealsystems/ipp');
@@ -261,7 +259,7 @@ describe('durability and mode isolation', () => {
     expect((await f.service.snapshot()).devices).toEqual([]);
     expect(f.store.devices('demo')).toHaveLength(3);
   });
-  it('recovers interrupted scan state after restart and keeps setup and device removals', async () => {
+  it('recovers interrupted scan state after restart and keeps users and device removals', async () => {
     f = await fixture();
     const dir = f.dataDir;
     const removed = f.store.devices('demo')[0];
@@ -278,9 +276,9 @@ describe('durability and mode isolation', () => {
     await f.close(false);
     f = undefined;
     f = await fixture({ dataDir: dir });
-    expect(f.auth.initialized()).toBe(true);
+    expect(f.auth.hasUsers()).toBe(true);
     expect(f.store.devices('demo')).toHaveLength(2);
     expect(f.store.jobs('demo')[0].status).toBe('failed');
-    expect(f.store.jobs('demo')[0].error).toContain('neu gestartet');
+    expect(f.store.jobs('demo')[0].error).toContain('restarted');
   });
 });

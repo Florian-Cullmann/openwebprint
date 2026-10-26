@@ -71,11 +71,11 @@ export function ScanDialog({
   const complete = job?.status === 'completed' && job.hasFile;
   return (
     <Modal
-      title={complete ? 'Scan abgeschlossen' : 'Dokument scannen'}
+      title={complete ? 'Scan complete' : 'Scan document'}
       subtitle={
         demo
-          ? 'Demo-Modus: Die Scanvorlage ist simuliert.'
-          : 'Einzelseiten-Scan · die Quelle bestimmt der SANE-Standard.'
+          ? 'Demo mode: the scan sample is simulated.'
+          : 'Single-page scan · uses the default SANE source.'
       }
       close={close}
       wide={!!complete}
@@ -83,20 +83,20 @@ export function ScanDialog({
       {complete ? (
         <div className={s.scanResult}>
           <div className={s.scanPreview}>
-            <img src={`/api/jobs/${job.id}/preview`} alt="Vorschau des gescannten Dokuments" />
+            <img src={`/api/jobs/${job.id}/preview`} alt="Scanned document preview" />
           </div>
           <div className={s.scanResultInfo}>
             <span className={`${s.badge} ${s.positive}`}>
-              <FileCheck2 size={14} /> Scan abgeschlossen
+              <FileCheck2 size={14} /> Scan complete
             </span>
-            <h3>PDF bereit zum Download.</h3>
-            <p>Lade den Scan als PDF herunter.</p>
+            <h3>PDF ready to download.</h3>
+            <p>Download your scan as a PDF.</p>
             <a className={s.primary} href={`/api/jobs/${job.id}/pdf`} download>
-              <Download size={17} /> PDF herunterladen
+              <Download size={17} /> Download PDF
             </a>
             <p className={s.small}>
-              Vorschau und PDF bleiben 7 Tage auf diesem Server gespeichert. Du kannst sie unter
-              Scans jederzeit löschen.
+              The preview and PDF stay on this server for 7 days. You can delete them earlier on the
+              Scans page.
             </p>
             <button
               className={s.secondary}
@@ -105,7 +105,7 @@ export function ScanDialog({
                 setError('');
               }}
             >
-              Weitere Seite scannen
+              Scan another page
             </button>
           </div>
         </div>
@@ -113,11 +113,11 @@ export function ScanDialog({
         <form onSubmit={start} className={s.modalBody}>
           <div className={s.scanIntro}>
             {running ? <Spinner /> : <ScanLine size={48} strokeWidth={1} />}
-            <h3>{running ? 'Dein Dokument wird gescannt …' : 'Eine Seite einlegen'}</h3>
+            <h3>{running ? 'Scanning your document…' : 'Load one page'}</h3>
             <p>
               {running
-                ? 'Du kannst dieses Fenster schließen. Der Scan läuft weiter.'
-                : 'Lege eine Seite auf das Vorlagenglas oder in die am Gerät voreingestellte Quelle.'}
+                ? 'You can close this window. The scan will continue in the background.'
+                : 'Place one page on the flatbed or in the source selected by the device.'}
             </p>
           </div>
           {!running && (
@@ -126,7 +126,7 @@ export function ScanDialog({
                 Scanner
                 <select required value={deviceId} onChange={(e) => setDeviceId(e.target.value)}>
                   <option value="" disabled>
-                    Scanner auswählen
+                    Select scanner
                   </option>
                   {scanners.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -137,32 +137,32 @@ export function ScanDialog({
               </label>
               <div className={s.formGrid}>
                 <label>
-                  Auflösung
+                  Resolution
                   <select
                     value={resolution}
                     onChange={(e) =>
                       setResolution(Number(e.target.value) as ScanOptions['resolution'])
                     }
                   >
-                    <option value={150}>150 dpi · kompakt</option>
-                    <option value={300}>300 dpi · empfohlen</option>
-                    <option value={600}>600 dpi · detailreich</option>
+                    <option value={150}>150 dpi · compact</option>
+                    <option value={300}>300 dpi · recommended</option>
+                    <option value={600}>600 dpi · detailed</option>
                   </select>
                 </label>
                 <label>
-                  Farbmodus
+                  Color mode
                   <select
                     value={color}
                     onChange={(e) => setColor(e.target.value as ScanOptions['color'])}
                   >
-                    <option value="Color">Farbe</option>
-                    <option value="Gray">Graustufen</option>
+                    <option value="Color">Color</option>
+                    <option value="Gray">Grayscale</option>
                   </select>
                 </label>
               </div>
               <p className={s.small}>
-                Verfügbare Auflösungen und Farbmodi sind geräteabhängig. Nicht unterstützte
-                Einstellungen werden als Fehler gemeldet.
+                Resolutions and color modes depend on the device. Unsupported settings produce an
+                error.
               </p>
             </>
           )}
@@ -173,12 +173,12 @@ export function ScanDialog({
           )}
           <div className={s.modalActions}>
             <button type="button" className={s.secondary} onClick={close}>
-              {running ? 'Im Hintergrund fortsetzen' : 'Schließen'}
+              {running ? 'Continue in background' : 'Close'}
             </button>
             {!running && (
               <button className={s.primary} disabled={busy || !deviceId}>
                 {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
-                {demo ? 'Demo-Scan starten' : 'Scan starten'}
+                {demo ? 'Start demo scan' : 'Start scan'}
               </button>
             )}
           </div>

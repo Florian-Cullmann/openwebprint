@@ -22,7 +22,7 @@ The Docker image includes the open-source `printer-driver-brlaser` package for s
 ## Printers
 
 1. Run in `MODE=hardware`.
-2. Open **Meine Geräte → Gerät hinzufügen → Automatisch finden**.
+2. Open **Devices → Add device → Discover devices**.
 3. Discovery lists existing CUPS queues and `_ipp._tcp` / `_ipps._tcp` mDNS advertisements. SANE scanners appear separately.
 4. Add a device. New IPP devices are probed/configured with `lpadmin -m everywhere`. A failure is returned as an error and does not become a pretend device.
 5. Alternatively enter an address manually:
@@ -64,7 +64,7 @@ Copy the exact identifier from your own system into the manual scanner form. Do 
 - `sane-airscan` discovers eSCL and WSD devices. Some Brother scanners expose WSD only.
 - Manually configured airscan devices belong in `/etc/sane.d/airscan.conf`; consult the [upstream documentation](https://github.com/alexpevzner/sane-airscan).
 - Native backend packages may use different names such as `brother4:…`.
-- Scanner status is **Ungeprüft** until a scan actually accesses the backend. Discovery does not prove the scanner is currently reachable.
+- Scanner status is **Not checked** until a scan actually accesses the backend. Discovery does not prove the scanner is currently reachable.
 - The MVP requests one PNG via `scanimage`, then embeds it into an A4 PDF, preserving aspect ratio. It does not batch pages or choose an ADF source; the backend's default source applies.
 - 150, 300, and 600 dpi and `Color` / `Gray` are available choices. The SANE backend is authoritative: unsupported combinations fail explicitly. Mono-only/lineart-only devices may require a future capabilities adapter.
 - Only one scan per configured scanner ID runs at once. A scan times out after 120 seconds. Closing the UI does not cancel it.

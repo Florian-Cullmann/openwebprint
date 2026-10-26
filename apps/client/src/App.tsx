@@ -24,6 +24,8 @@ import {
   Monitor,
 } from 'lucide-react';
 import type { Device, Job, SessionInfo, Snapshot } from '@openwebprint/shared';
+import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { UsersSettings } from './UsersSettings';
 import { api, post } from './api';
 import { AuthScreen } from './AuthScreen';
 import { DeviceDialog } from './DeviceDialog';
@@ -35,14 +37,14 @@ import s from './App.module.css';
 type View = 'overview' | 'devices' | 'jobs' | 'scans' | 'settings';
 type Dialog = { type: 'print' | 'scan'; deviceId?: string; job?: Job } | { type: 'device' };
 const navigation: { id: View; label: string; icon: typeof Printer }[] = [
-  { id: 'overview', label: 'Übersicht', icon: LayoutDashboard },
-  { id: 'devices', label: 'Meine Geräte', icon: Printer },
-  { id: 'jobs', label: 'Aufträge', icon: ListOrdered },
-  { id: 'scans', label: 'Meine Scans', icon: ScanLine },
-  { id: 'settings', label: 'Einstellungen', icon: Settings2 },
+  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'devices', label: 'Devices', icon: Printer },
+  { id: 'jobs', label: 'Jobs', icon: ListOrdered },
+  { id: 'scans', label: 'Scans', icon: ScanLine },
+  { id: 'settings', label: 'Settings', icon: Settings2 },
 ];
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('de-DE', {
+  new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -52,7 +54,11 @@ const completed = new Set(['completed', 'canceled', 'failed']);
 export function App() {
   const [session, setSession] = useState<SessionInfo>();
   const [snapshot, setSnapshot] = useState<Snapshot>();
-  const [view, setView] = useState<View>('overview');
+  const location = useLocation();
+  const navigate = useNavigate();
+  const view = location.pathname.split('/')[1] as View;
+  const settingsCategory = location.pathname.split('/')[2] ?? 'general';
+  const canAccess = !!session && (!session.authenticationRequired || session.authenticated);
   const [dialog, setDialog] = useState<Dialog>();
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -61,7 +67,22 @@ export function App() {
   const [jobFilter, setJobFilter] = useState('all');
   const [deleting, setDeleting] = useState<{ device?: Device; job?: Job }>();
   const [theme, setTheme] = useState(() => localStorage.getItem('owp-theme') ?? 'system');
+  const [dark, setDark] = useState(
+    () =>
+      theme === 'dark' ||
+      (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches),
+  );
   const refreshing = useRef(false);
+  useEffect(() => {
+    setDialog(undefined);
+    setQuery('');
+    setJobFilter('all');
+    document.title = `openwebprint · ${location.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' / ')}`;
+  }, [location.pathname]);
   const loadSession = useCallback(async () => {
     setSession(await api<SessionInfo>('/session'));
   }, []);
@@ -80,6 +101,7 @@ export function App() {
     const apply = () => {
       document.documentElement.dataset.theme =
         theme === 'system' ? (media.matches ? 'dark' : 'light') : theme;
+      setDark(document.documentElement.dataset.theme === 'dark');
     };
     apply();
     localStorage.setItem('owp-theme', theme);
@@ -99,13 +121,13 @@ export function App() {
     }
   }, []);
   useEffect(() => {
-    if (!session?.authenticated) return;
+    if (!canAccess) return;
     void refresh();
     const timer = setInterval(() => {
       if (!document.hidden) void refresh();
     }, 5000);
     return () => clearInterval(timer);
-  }, [session?.authenticated, refresh]);
+  }, [canAccess, refresh]);
   useEffect(() => {
     if (!toast) return;
     const timer = setTimeout(() => setToast(''), 5000);
@@ -124,7 +146,7 @@ export function App() {
     }
   }
   function go(next: View) {
-    setView(next);
+    navigate(`/${next}`);
     setQuery('');
     setJobFilter('all');
   }
@@ -139,7 +161,7 @@ export function App() {
               className={s.secondary}
               onClick={() => void loadSession().catch((e) => setError(e.message))}
             >
-              Erneut verbinden
+              Reconnect
             </button>
           </>
         ) : (
@@ -147,18 +169,46 @@ export function App() {
         )}
       </div>
     );
-  if (!session.authenticated) return <AuthScreen session={session} done={loadSession} />;
+  if (session.authenticationRequired && !session.authenticated) {
+    if (location.pathname !== '/login')
+      return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    return <AuthScreen demo={session.mode === 'demo'} done={loadSession} />;
+  }
+  if (location.pathname === '/login') {
+    const from = (location.state as { from?: string } | null)?.from;
+    return (
+      <Navigate
+        to={
+          from &&
+          [
+            'overview',
+            'devices',
+            'jobs',
+            'scans',
+            'settings',
+            'settings/general',
+            'settings/users',
+            'settings/appearance',
+            'settings/hardware',
+          ].some((page) => from === `/${page}`)
+            ? from
+            : '/overview'
+        }
+        replace
+      />
+    );
+  }
   const demo = session.mode === 'demo';
   const devices = snapshot?.devices ?? [];
   const jobs = snapshot?.jobs ?? [];
   const activeJobs = jobs.filter((j) => !completed.has(j.status));
   const scans = jobs.filter((j) => j.kind === 'scan');
   const subtitle = {
-    overview: 'Dokumente drucken und scannen.',
-    devices: 'Drucker und Scanner verwalten.',
-    jobs: 'Status deiner Druck- und Scanaufträge.',
-    scans: 'Vorschau ansehen und als PDF herunterladen.',
-    settings: 'Betriebsmodus, Darstellung und Geräteunterstützung.',
+    overview: 'Print and scan documents.',
+    devices: 'Manage printers and scanners.',
+    jobs: 'Track print and scan jobs.',
+    scans: 'Preview scans and download PDFs.',
+    settings: 'Manage users, appearance and hardware.',
   };
   const openPrint = (deviceId?: string) => setDialog({ type: 'print', deviceId });
   const openScan = (deviceId?: string, job?: Job) => setDialog({ type: 'scan', deviceId, job });
@@ -166,73 +216,67 @@ export function App() {
     <div className={s.app}>
       <header className={s.appHeader}>
         <div className={s.headerInner}>
-          <a
-            className={s.brand}
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              go('overview');
-            }}
-            aria-label="openwebprint Übersicht"
-          >
+          <Link className={s.brand} to="/overview" aria-label="openwebprint overview">
             <span className={s.brandMark}>
               <Printer size={21} />
             </span>
             openwebprint
-          </a>
-          <nav className={s.navigation} aria-label="Hauptnavigation">
+          </Link>
+          <nav className={s.navigation} aria-label="Main navigation">
             {navigation.map(({ id, label, icon: Icon }) => (
-              <button
+              <NavLink
                 key={id}
+                to={`/${id}`}
                 className={`${s.navItem} ${view === id ? s.navActive : ''}`}
-                onClick={() => go(id)}
-                aria-current={view === id ? 'page' : undefined}
+                onClick={() => {
+                  setQuery('');
+                  setJobFilter('all');
+                  setDialog(undefined);
+                }}
               >
                 <Icon size={16} />
                 {label}
                 {id === 'jobs' && !!activeJobs.length && (
                   <span className={s.navCount}>{activeJobs.length}</span>
                 )}
-              </button>
+              </NavLink>
             ))}
           </nav>
           <div className={s.headerActions}>
             <button
               className={s.iconButton}
-              title="Farbschema wechseln"
-              aria-label="Farbschema wechseln"
-              onClick={() =>
-                setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark')
-              }
+              title="Change color scheme"
+              aria-label="Change color scheme"
+              onClick={() => setTheme(dark ? 'light' : 'dark')}
             >
-              {document.documentElement.dataset.theme === 'dark' ? (
-                <Sun size={18} />
-              ) : (
-                <Moon size={18} />
-              )}
+              {dark ? <Sun size={18} /> : <Moon size={18} />}
             </button>
-            <button
-              className={s.iconButton}
-              title={`Abmelden: ${session.username}`}
-              aria-label="Abmelden"
-              onClick={() =>
-                void action(async () => {
-                  await post('/logout');
-                  setSnapshot(undefined);
-                  await loadSession();
-                }, 'Abgemeldet')
-              }
-            >
-              <LogOut size={17} />
-            </button>
+            {session.authenticated && (
+              <button
+                className={s.iconButton}
+                title={`Sign out: ${session.user?.username}`}
+                aria-label="Sign out"
+                onClick={() =>
+                  void post('/logout')
+                    .then(async () => {
+                      setSnapshot(undefined);
+                      setDialog(undefined);
+                      await loadSession();
+                    })
+                    .catch((e) => setError(e.message))
+                }
+              >
+                <LogOut size={17} />
+              </button>
+            )}
           </div>
         </div>
       </header>
       <main className={s.main}>
         {demo && (
           <div className={s.demoBanner}>
-            <span className={s.modeLabel}>Demo-Modus</span>
-            <p>Geräte, Drucken und Scannen sind simuliert.</p>
+            <span className={s.modeLabel}>Demo mode</span>
+            <p>Devices, printing and scanning are simulated.</p>
             <button className={s.textButton} onClick={() => go('settings')}>
               Details <ArrowRight size={14} />
             </button>
@@ -244,7 +288,7 @@ export function App() {
             <p>{error}</p>
             <button
               className={s.iconButton}
-              aria-label="Fehler schließen"
+              aria-label="Dismiss error"
               onClick={() => setError('')}
             >
               <X size={17} />
@@ -255,14 +299,14 @@ export function App() {
           <div>
             <h1>
               {view === 'overview'
-                ? 'Übersicht'
+                ? 'Overview'
                 : view === 'devices'
-                  ? 'Meine Geräte'
+                  ? 'Devices'
                   : view === 'jobs'
-                    ? 'Alle Aufträge'
+                    ? 'All jobs'
                     : view === 'scans'
-                      ? 'Meine Scans'
-                      : 'Einstellungen'}
+                      ? 'Scans'
+                      : 'Settings'}
             </h1>
             <p>{subtitle[view]}</p>
           </div>
@@ -270,23 +314,23 @@ export function App() {
             {view === 'overview' ? (
               <>
                 <button className={s.primary} onClick={() => openPrint()}>
-                  <Printer size={17} /> Dokument drucken
+                  <Printer size={17} /> Print document
                 </button>
                 <button className={s.secondary} onClick={() => openScan()}>
-                  <ScanLine size={17} /> Scannen
+                  <ScanLine size={17} /> Scan
                 </button>
               </>
             ) : view === 'devices' ? (
               <button className={s.primary} onClick={() => setDialog({ type: 'device' })}>
-                <Plus size={17} /> Gerät hinzufügen
+                <Plus size={17} /> Add device
               </button>
             ) : view === 'jobs' ? (
               <button className={s.primary} onClick={() => openPrint()}>
-                <Plus size={17} /> Neuer Druckauftrag
+                <Plus size={17} /> New print job
               </button>
             ) : view === 'scans' ? (
               <button className={s.primary} onClick={() => openScan()}>
-                <ScanLine size={17} /> Neuer Scan
+                <ScanLine size={17} /> New scan
               </button>
             ) : null}
           </div>
@@ -294,7 +338,7 @@ export function App() {
         {!snapshot ? (
           <div className={s.loading}>
             <Spinner />
-            <p>Geräte und Aufträge werden geladen …</p>
+            <p>Loading devices and jobs…</p>
           </div>
         ) : (
           <>
@@ -309,10 +353,10 @@ export function App() {
                 <section aria-labelledby="devices-title">
                   <div className={s.sectionHeading}>
                     <h2 id="devices-title">
-                      Geräte <span className={s.counter}>{devices.length}</span>
+                      Devices <span className={s.counter}>{devices.length}</span>
                     </h2>
                     <button className={s.textButton} onClick={() => setDialog({ type: 'device' })}>
-                      <Plus size={16} /> Gerät hinzufügen
+                      <Plus size={16} /> Add device
                     </button>
                   </div>
                   {devices.length ? (
@@ -328,29 +372,27 @@ export function App() {
                       ))}
                     </div>
                   ) : (
-                    <Empty icon={<Printer />} title="Noch keine Geräte">
-                      Füge einen Drucker oder Scanner hinzu.
+                    <Empty icon={<Printer />} title="No devices yet">
+                      Add a printer or scanner.
                     </Empty>
                   )}
                   {devices.length > 3 && (
                     <button className={s.moreDevices} onClick={() => go('devices')}>
-                      Alle {devices.length} Geräte anzeigen <ArrowRight size={15} />
+                      Show all {devices.length} devices <ArrowRight size={15} />
                     </button>
                   )}
                 </section>
                 <section aria-labelledby="activity-title">
                   <div className={s.sectionHeading}>
-                    <h2 id="activity-title">Letzte Aufträge</h2>
+                    <h2 id="activity-title">Recent jobs</h2>
                     <button className={s.textButton} onClick={() => go('jobs')}>
-                      Alle Aufträge <ArrowRight size={16} />
+                      All jobs <ArrowRight size={16} />
                     </button>
                   </div>
                   <JobList
                     jobs={jobs.slice(0, 5)}
                     busy={busy}
-                    cancel={(id) =>
-                      void action(() => post(`/jobs/${id}/cancel`), 'Auftrag abgebrochen.')
-                    }
+                    cancel={(id) => void action(() => post(`/jobs/${id}/cancel`), 'Job canceled.')}
                     preview={(job) => openScan(job.deviceId, job)}
                   />
                 </section>
@@ -362,14 +404,14 @@ export function App() {
                   <label className={s.search}>
                     <Search size={18} />
                     <input
-                      aria-label="Geräte durchsuchen"
-                      placeholder="Geräte durchsuchen …"
+                      aria-label="Search devices"
+                      placeholder="Search devices…"
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
                   <button className={s.secondary} onClick={() => setDialog({ type: 'device' })}>
-                    <Radar size={16} /> Netzwerk durchsuchen
+                    <Radar size={16} /> Search network
                   </button>
                 </div>
                 <div className={s.deviceList}>
@@ -392,16 +434,16 @@ export function App() {
                 ).length && (
                   <Empty
                     icon={<Printer />}
-                    title={query ? 'Keine passenden Geräte.' : 'Hier ist Platz für deine Geräte.'}
+                    title={query ? 'No matching devices' : 'No devices yet'}
                   >
                     {query
-                      ? 'Versuche einen anderen Suchbegriff.'
-                      : 'Suche im Netzwerk oder füge ein Gerät manuell hinzu.'}
+                      ? 'Try another search term.'
+                      : 'Search the network or add a device manually.'}
                   </Empty>
                 )}
                 <p className={s.footnote}>
-                  Der Druckerstatus wird von CUPS gemeldet und bestätigt nicht die physische
-                  Erreichbarkeit. Scanner werden beim Scan angesprochen.
+                  Printer status is reported by CUPS and does not confirm physical connectivity.
+                  Scanners are contacted when a scan starts.
                 </p>
               </>
             )}
@@ -410,9 +452,9 @@ export function App() {
                 <div className={s.toolbar}>
                   <div className={s.tabs}>
                     {[
-                      ['all', 'Alle Aufträge'],
-                      ['active', 'Offen'],
-                      ['completed', 'Abgeschlossen'],
+                      ['all', 'All jobs'],
+                      ['active', 'Active'],
+                      ['completed', 'Completed'],
                     ].map(([id, label]) => (
                       <button
                         key={id}
@@ -426,9 +468,9 @@ export function App() {
                   <button
                     className={s.secondary}
                     disabled={busy}
-                    onClick={() => void action(refresh, 'Status aktualisiert.')}
+                    onClick={() => void action(refresh, 'Status updated.')}
                   >
-                    <RefreshCw size={16} /> Aktualisieren
+                    <RefreshCw size={16} /> Refresh
                   </button>
                 </div>
                 <JobList
@@ -440,15 +482,13 @@ export function App() {
                         : j.status === 'completed'),
                   )}
                   busy={busy}
-                  cancel={(id) =>
-                    void action(() => post(`/jobs/${id}/cancel`), 'Auftrag abgebrochen.')
-                  }
+                  cancel={(id) => void action(() => post(`/jobs/${id}/cancel`), 'Job canceled.')}
                   preview={(job) => openScan(job.deviceId, job)}
                   remove={(job) => setDeleting({ job })}
                 />
                 <p className={s.footnote}>
-                  Die letzten 200 Aufträge werden angezeigt. „Status ungeklärt“ bedeutet, dass keine
-                  verlässliche Bestätigung vorliegt. Prüfe CUPS, bevor du erneut druckst.
+                  Showing the latest 200 jobs. Unknown status means the result could not be
+                  confirmed. Check CUPS before printing again.
                 </p>
               </>
             )}
@@ -462,12 +502,12 @@ export function App() {
                           className={s.scanThumb}
                           disabled={!job.hasFile}
                           onClick={() => openScan(job.deviceId, job)}
-                          aria-label={`Scanvorschau öffnen: ${job.title}`}
+                          aria-label={`Open scan preview: ${job.title}`}
                         >
                           {job.hasFile ? (
                             <img
                               src={`/api/jobs/${job.id}/preview`}
-                              alt="Gescannte Seite"
+                              alt="Scanned page"
                               loading="lazy"
                             />
                           ) : (
@@ -483,19 +523,19 @@ export function App() {
                           <div className={s.scanCardActions}>
                             {job.hasFile ? (
                               <a className={s.secondary} href={`/api/jobs/${job.id}/pdf`} download>
-                                <ArrowDownToLine size={16} /> PDF speichern
+                                <ArrowDownToLine size={16} /> Save PDF
                               </a>
                             ) : (
                               <span className={s.small}>
                                 {job.status === 'completed'
-                                  ? 'Datei bereits gelöscht'
-                                  : 'Noch keine Datei'}
+                                  ? 'File already deleted'
+                                  : 'No file yet'}
                               </span>
                             )}
                             <button
                               className={s.iconButton}
                               disabled={!completed.has(job.status)}
-                              aria-label={`Scan löschen: ${job.title}`}
+                              aria-label={`Delete scan: ${job.title}`}
                               onClick={() => setDeleting({ job })}
                             >
                               <Trash2 size={17} />
@@ -508,114 +548,138 @@ export function App() {
                 ) : (
                   <Empty
                     icon={<ScanLine />}
-                    title="Noch keine Scans"
+                    title="No scans yet"
                     action={
                       <button className={s.primary} onClick={() => openScan()}>
-                        <ScanLine size={17} /> Ersten Scan starten
+                        <ScanLine size={17} /> Start first scan
                       </button>
                     }
                   >
-                    Scanne eine Seite und lade sie als PDF herunter.
+                    Scan a page and download it as a PDF.
                   </Empty>
                 )}
-                <p className={s.footnote}>
-                  Scans werden nach 7 Tagen automatisch gelöscht. Der MVP unterstützt einzelne
-                  Seiten; mehrseitige PDF-Dateien und OCR sind noch nicht enthalten.
-                </p>
               </>
             )}
             {view === 'settings' && (
               <div className={s.settingsGrid}>
-                <SettingsCard icon={<Settings2 size={20} />} title="Betriebsmodus">
-                  <span className={`${s.badge} ${demo ? s.amber : s.positive}`}>
-                    {demo ? 'Demo-Modus aktiv' : 'Echte Hardware aktiv'}
-                  </span>
-                  <p>
-                    {demo
-                      ? 'Geräte, Druckvorgänge und Scanvorlagen sind simuliert. Es wird keine Verbindung zu echter Hardware hergestellt.'
-                      : 'Geräte werden über CUPS und SANE angesprochen. Ergebnisse und Fehler stammen aus den tatsächlichen Vorgängen.'}
-                  </p>
-                  <div className={s.codeBlock}>MODE=hardware</div>
-                  <p>
-                    Zum Wechseln diesen Wert in der Serverkonfiguration setzen und den Dienst neu
-                    starten. In Docker zusätzlich das Profil „hardware“ starten. Demo und Hardware
-                    haben getrennte Gerätelisten und Aufträge.
-                  </p>
-                </SettingsCard>
-                <SettingsCard icon={<Sun size={20} />} title="Darstellung">
-                  <p>Wähle das Erscheinungsbild für diesen Browser.</p>
-                  <div className={s.themePicker}>
-                    {[
-                      ['light', 'Hell', Sun],
-                      ['dark', 'Dunkel', Moon],
-                      ['system', 'System', Monitor],
-                    ].map(([id, label, Icon]) => {
-                      const ThemeIcon = Icon as typeof Sun;
-                      return (
-                        <button
-                          key={String(id)}
-                          className={theme === id ? s.themeActive : ''}
-                          onClick={() => setTheme(String(id))}
+                <nav className={s.settingsNav} aria-label="Settings categories">
+                  {['general', 'users', 'appearance', 'hardware'].map((category) => (
+                    <NavLink
+                      key={category}
+                      to={`/settings/${category}`}
+                      className={({ isActive }) => (isActive ? s.settingsTabActive : s.settingsTab)}
+                    >
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </NavLink>
+                  ))}
+                </nav>
+                <div className={s.settingsContent}>
+                  {settingsCategory === 'general' && (
+                    <>
+                      <SettingsCard icon={<Settings2 size={20} />} title="Operating mode">
+                        <span className={`${s.badge} ${demo ? s.amber : s.positive}`}>
+                          {demo ? 'Demo mode enabled' : 'Hardware mode enabled'}
+                        </span>
+                        <p>
+                          {demo
+                            ? 'Devices, print jobs and scan samples are simulated. No real hardware is contacted.'
+                            : 'Devices are accessed through CUPS and SANE. Status and errors come from actual operations.'}
+                        </p>
+                        <div className={s.codeBlock}>MODE=hardware</div>
+                        <p>
+                          Set this value in the server configuration and restart the service to
+                          switch modes. With Docker, also start the hardware profile. Demo and
+                          hardware have separate devices and jobs.
+                        </p>
+                      </SettingsCard>
+                      <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
+                        <p>
+                          Sessions last 7 days. Scan files are removed after 7 days, or earlier when
+                          you delete them in Scans. Print uploads are removed after submission.
+                        </p>
+                        <p>
+                          CUPS has its own spool and retention rules. Use HTTPS and secure cookies
+                          for network access.
+                        </p>
+                        <a
+                          className={s.textButton}
+                          href="https://github.com/Florian-Cullmann/openwebprint#self-hosting"
+                          target="_blank"
+                          rel="noreferrer"
                         >
-                          <ThemeIcon size={23} />
-                          {String(label)}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </SettingsCard>
-                <SettingsCard icon={<Printer size={20} />} title="Brother-Geräte">
-                  <p>
-                    Moderne Brother-Drucker werden über IPP Everywhere / AirPrint mit CUPS
-                    verbunden. Brother-Scanner nutzen sane-airscan über eSCL oder WSD, sofern das
-                    Modell diese Protokolle unterstützt.
-                  </p>
-                  <p>
-                    Ältere Modelle benötigen einen passenden CUPS-/SANE-Treiber auf dem Host.
-                    Bestehende Warteschlangen kannst du über <code>cups://NAME</code> einbinden.
-                    Eine Modellgarantie können wir ohne Hardwaretest nicht geben.
-                  </p>
-                </SettingsCard>
-                <SettingsCard icon={<ShieldCheck size={20} />} title="Dokumente und Zugriff">
-                  <p>
-                    Deine Anmeldung gilt für 7 Tage. Scans werden nach 7 Tagen entfernt; vorab
-                    kannst du sie unter „Meine Scans“ löschen. Druckdateien werden nach der
-                    Übertragung aus openwebprint entfernt.
-                  </p>
-                  <p>
-                    CUPS hat einen eigenen Spool und eigene Aufbewahrungsregeln. Für den Zugriff
-                    außerhalb des Rechners richte HTTPS und sichere Cookies ein.
-                  </p>
-                  <a
-                    className={s.textButton}
-                    href="https://github.com/Florian-Cullmann/openwebprint#self-hosting"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Self-Hosting-Dokumentation <ArrowRight size={16} />
-                  </a>
-                </SettingsCard>
-                <SettingsCard icon={<Github size={20} />} title="Über openwebprint">
-                  <p>
-                    openwebprint ist freie Software unter der MIT-Lizenz. Neue Provider, bessere
-                    Geräteunterstützung oder eine kleine UX-Verbesserung: Beiträge sind willkommen.
-                  </p>
-                  <a
-                    className={s.secondary}
-                    href="https://github.com/Florian-Cullmann/openwebprint"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <Github size={17} /> Zum Repository
-                  </a>
-                  <span className={s.small}>Version 0.1.0 · React + Fastify + CUPS + SANE</span>
-                </SettingsCard>
+                          Self-hosting documentation <ArrowRight size={16} />
+                        </a>
+                      </SettingsCard>
+                      <SettingsCard icon={<Github size={20} />} title="About openwebprint">
+                        <p>
+                          openwebprint is free software under the MIT license. Contributions to
+                          providers, hardware support and user experience are welcome.
+                        </p>
+                        <a
+                          className={s.secondary}
+                          href="https://github.com/Florian-Cullmann/openwebprint"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <Github size={17} /> View repository
+                        </a>
+                        <span className={s.small}>
+                          Version 0.1.0 · React + Fastify + CUPS + SANE
+                        </span>
+                      </SettingsCard>
+                    </>
+                  )}
+                  {settingsCategory === 'users' && (
+                    <UsersSettings session={session} changed={loadSession} />
+                  )}
+                  {settingsCategory === 'appearance' && (
+                    <>
+                      <SettingsCard icon={<Sun size={20} />} title="Appearance">
+                        <p>Choose the appearance for this browser.</p>
+                        <div className={s.themePicker}>
+                          {[
+                            ['light', 'Light', Sun],
+                            ['dark', 'Dark', Moon],
+                            ['system', 'System', Monitor],
+                          ].map(([id, label, Icon]) => {
+                            const ThemeIcon = Icon as typeof Sun;
+                            return (
+                              <button
+                                key={String(id)}
+                                className={theme === id ? s.themeActive : ''}
+                                onClick={() => setTheme(String(id))}
+                              >
+                                <ThemeIcon size={23} />
+                                {String(label)}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </SettingsCard>
+                    </>
+                  )}
+                  {settingsCategory === 'hardware' && (
+                    <>
+                      <SettingsCard icon={<Printer size={20} />} title="Brother devices">
+                        <p>
+                          Modern Brother printers connect to CUPS through IPP Everywhere / AirPrint.
+                          Brother scanners use sane-airscan through eSCL or WSD where supported by
+                          the model.
+                        </p>
+                        <p>
+                          Older models need a suitable CUPS/SANE driver on the host. Import existing
+                          queues using <code>cups://NAME</code> as the address. Model compatibility
+                          requires a physical hardware test.
+                        </p>
+                      </SettingsCard>
+                    </>
+                  )}
+                </div>
               </div>
             )}
           </>
         )}
         <footer className={s.footer}>
-          <span>openwebprint · Selbst gehostet</span>
           <a
             href="https://github.com/Florian-Cullmann/openwebprint"
             target="_blank"
@@ -631,7 +695,7 @@ export function App() {
           {toast}
           <button
             className={s.iconButton}
-            aria-label="Meldung schließen"
+            aria-label="Dismiss notification"
             onClick={() => setToast('')}
           >
             <X size={15} />
@@ -667,7 +731,7 @@ export function App() {
       )}
       {deleting && (
         <Modal
-          title={deleting.device ? 'Gerät entfernen?' : 'Auftrag und Dateien löschen?'}
+          title={deleting.device ? 'Remove device?' : 'Delete job and files?'}
           subtitle={deleting.device?.name ?? deleting.job?.title}
           close={() => {
             if (!busy) setDeleting(undefined);
@@ -676,8 +740,8 @@ export function App() {
           <div className={s.modalBody}>
             <p>
               {deleting.device
-                ? 'Das Gerät wird aus openwebprint entfernt. Die CUPS-Warteschlange und ihre Konfiguration bleiben bestehen.'
-                : 'Der Eintrag und gespeicherte Scan-Dateien werden gelöscht. Ungeklärte Druckaufträge können in CUPS noch aktiv sein. Prüfe die Warteschlange; das Löschen bricht keinen Druckvorgang ab.'}
+                ? 'The device will be removed from openwebprint. Its CUPS queue and configuration will remain.'
+                : 'The record and any stored scan files will be deleted. Unconfirmed print jobs may still be active in CUPS. Check the queue; deleting a record does not cancel printing.'}
             </p>
             <div className={s.modalActions}>
               <button
@@ -685,7 +749,7 @@ export function App() {
                 disabled={busy}
                 onClick={() => setDeleting(undefined)}
               >
-                Behalten
+                Keep
               </button>
               <button
                 className={s.danger}
@@ -699,11 +763,11 @@ export function App() {
                       { method: 'DELETE' },
                     );
                     setDeleting(undefined);
-                  }, 'Eintrag entfernt.')
+                  }, 'Record removed.')
                 }
               >
                 {busy ? <Spinner /> : <Trash2 size={16} />}{' '}
-                {deleting.device ? 'Gerät entfernen' : 'Jetzt löschen'}
+                {deleting.device ? 'Remove device' : 'Delete'}
               </button>
             </div>
           </div>
@@ -729,12 +793,12 @@ function DeviceCard({
       <div className={s.deviceInfo}>
         <h3>{device.name}</h3>
         <p>
-          {device.kind === 'printer' ? 'Drucker' : 'Scanner'}
+          {device.kind === 'printer' ? 'Printer' : 'Scanner'}
           {device.location ? ` · ${device.location}` : ''}
         </p>
         {details && (
           <details className={s.deviceDetails}>
-            <summary>Verbindungsdetails</summary>
+            <summary>Connection details</summary>
             <code>{device.address}</code>
             <p>
               {device.provider === 'demo'
@@ -743,7 +807,7 @@ function DeviceCard({
                   ? 'CUPS / IPP'
                   : 'SANE'}
               {device.capabilities?.duplex ? ' · Duplex' : ''}
-              {device.capabilities?.color ? ' · Farbe' : ''}
+              {device.capabilities?.color ? '  · Color' : ''}
             </p>
             {device.detail && <p>{device.detail}</p>}
           </details>
@@ -752,7 +816,7 @@ function DeviceCard({
       <div className={s.deviceControls}>
         <DeviceBadge device={device} />
         <button className={s.secondary} onClick={run}>
-          {device.kind === 'printer' ? 'Drucken' : 'Scannen'}
+          {device.kind === 'printer' ? 'Print' : 'Scan'}
           <ArrowRight size={15} />
         </button>
         {remove && (
@@ -779,8 +843,8 @@ function JobList({
 }) {
   if (!jobs.length)
     return (
-      <Empty icon={<ListOrdered />} title="Noch keine Aufträge">
-        Druckaufträge und Scans erscheinen hier.
+      <Empty icon={<ListOrdered />} title="No jobs yet">
+        Print jobs and scans will appear here.
       </Empty>
     );
   return (
@@ -788,12 +852,12 @@ function JobList({
       <table className={s.jobTable}>
         <thead>
           <tr>
-            <th>Dokument</th>
-            <th>Gerät</th>
+            <th>Document</th>
+            <th>Device</th>
             <th>Status</th>
-            <th>Datum</th>
+            <th>Date</th>
             <th>
-              <span className={s.srOnly}>Aktionen</span>
+              <span className={s.srOnly}>Actions</span>
             </th>
           </tr>
         </thead>
@@ -809,9 +873,9 @@ function JobList({
                     <strong>{job.title}</strong>
                     <span>
                       {job.mode === 'demo' ? 'Demo · ' : ''}
-                      {job.kind === 'print' ? 'Druckauftrag' : 'Scan'}
+                      {job.kind === 'print' ? 'Print job' : 'Scan'}
                       {job.kind === 'print' && 'copies' in job.options
-                        ? ` · ${job.options.copies} ${job.options.copies === 1 ? 'Kopie' : 'Kopien'}`
+                        ? ` · ${job.options.copies} ${job.options.copies === 1 ? 'Copy' : 'Copies'}`
                         : ''}
                     </span>
                     {job.error && <p className={s.jobError}>{job.error}</p>}
@@ -829,8 +893,8 @@ function JobList({
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      title="Auftrag abbrechen"
-                      aria-label={`Auftrag abbrechen: ${job.title}`}
+                      title="Cancel job"
+                      aria-label={`Cancel job: ${job.title}`}
                       onClick={() => cancel(job.id)}
                     >
                       <X size={17} />
@@ -839,7 +903,7 @@ function JobList({
                   {job.hasFile && (
                     <button
                       className={s.iconButton}
-                      aria-label={`Vorschau öffnen: ${job.title}`}
+                      aria-label={`Open preview: ${job.title}`}
                       onClick={() => preview(job)}
                     >
                       <Search size={17} />
@@ -849,7 +913,7 @@ function JobList({
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      aria-label={`Auftrag löschen: ${job.title}`}
+                      aria-label={`Delete job: ${job.title}`}
                       onClick={() => remove(job)}
                     >
                       <Trash2 size={16} />

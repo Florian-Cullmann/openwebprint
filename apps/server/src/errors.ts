@@ -6,4 +6,4 @@ export class AppError extends Error {
     super(message);
   }
 }
-export const missingDevice = () => new AppError(404, 'Gerät nicht gefunden.');
+export const missingDevice = () => new AppError(404, 'Device not found.');

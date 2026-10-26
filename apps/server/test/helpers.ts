@@ -5,7 +5,6 @@ import { PDFDocument } from 'pdf-lib';
 import { createApp } from '../src/app.js';
 import { readConfig } from '../src/config.js';
 import type { Provider } from '../src/providers/types.js';
-export const secret = 'test-setup-token-at-least-24-characters';
 export const credentials = { username: 'admin', password: 'test-password-long-enough' };
 export async function fixture(
   options: {
@@ -13,12 +12,12 @@ export async function fixture(
     mode?: 'demo' | 'hardware';
     dataDir?: string;
     background?: boolean;
+    users?: boolean;
   } = {},
 ) {
   const dataDir = options.dataDir ?? (await mkdtemp(join(tmpdir(), 'owp-test-')));
   const config = readConfig({
     DATA_DIR: dataDir,
-    SETUP_TOKEN: secret,
     MODE: options.mode ?? 'demo',
     APP_ORIGIN: 'http://localhost:5173',
     COOKIE_SECURE: 'true',
@@ -28,28 +27,31 @@ export async function fixture(
     background: options.background ?? false,
     staticDir: '/nonexistent/owp-test',
   });
-  const setup = await result.app.inject({
-    method: 'POST',
-    url: '/api/setup',
-    headers: { 'x-openwebprint': '1' },
-    payload: { ...credentials, token: secret },
-  });
-  if (![200, 409].includes(setup.statusCode)) throw new Error(setup.body);
+  if (options.users !== false && !result.auth.hasUsers()) {
+    const created = await result.app.inject({
+      method: 'POST',
+      url: '/api/users',
+      headers: { 'x-openwebprint': '1' },
+      payload: credentials,
+    });
+    if (created.statusCode !== 201) throw new Error(created.body);
+  }
   const login =
-    setup.statusCode === 409
+    options.users !== false
       ? await result.app.inject({
           method: 'POST',
           url: '/api/login',
           headers: { 'x-openwebprint': '1' },
           payload: credentials,
         })
-      : setup;
-  const cookie = String(login.headers['set-cookie']).split(';')[0];
+      : undefined;
+  if (login && login.statusCode !== 200) throw new Error(login.body);
+  const cookie = login ? String(login.headers['set-cookie']).split(';')[0] : '';
   return {
     ...result,
     dataDir,
     cookie,
-    setup,
+    login,
     headers: { cookie, 'x-openwebprint': '1' },
     async close(remove = true) {
       await result.app.close();

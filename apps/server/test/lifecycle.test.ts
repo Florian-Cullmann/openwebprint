@@ -6,31 +6,31 @@ import { randomUUID } from 'node:crypto';
 import { createApp } from '../src/app.js';
 import { readConfig } from '../src/config.js';
 import { DemoProvider } from '../src/providers/demo.js';
-import { fixture, secret, credentials, pdf } from './helpers.js';
+import { fixture, credentials, pdf } from './helpers.js';
 import type { StoredJob } from '../src/store.js';
 let f: Awaited<ReturnType<typeof fixture>> | undefined;
 afterEach(async () => {
   await f?.close();
   f = undefined;
 });
-it('requires the first-run secret and makes concurrent setup exclusive', async () => {
-  const dir = await mkdtemp(join(tmpdir(), 'owp-setup-'));
-  const { app, store } = await createApp(readConfig({ DATA_DIR: dir, SETUP_TOKEN: secret }), {
-    background: false,
-  });
+it('allows only one anonymous first-user request to succeed', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'owp-users-'));
+  const { app, auth } = await createApp(readConfig({ DATA_DIR: dir }), { background: false });
   try {
+    expect((await app.inject('/api/snapshot')).statusCode).toBe(200);
     const request = {
       method: 'POST' as const,
-      url: '/api/setup',
+      url: '/api/users',
       headers: { 'x-openwebprint': '1' },
-      payload: { ...credentials, token: secret },
+      payload: credentials,
     };
-    expect(
-      (await app.inject({ ...request, payload: { ...credentials, token: 'wrong' } })).statusCode,
-    ).toBe(403);
-    expect(store.setting('password')).toBeUndefined();
-    const responses = await Promise.all([app.inject(request), app.inject(request)]);
-    expect(responses.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    const results = await Promise.all([
+      app.inject(request),
+      app.inject({ ...request, payload: { ...credentials, username: 'second' } }),
+    ]);
+    expect(results.map((result) => result.statusCode).sort()).toEqual([201, 401]);
+    expect(auth.users()).toHaveLength(1);
+    expect((await app.inject('/api/snapshot')).statusCode).toBe(401);
   } finally {
     await app.close();
     await rm(dir, { recursive: true, force: true });

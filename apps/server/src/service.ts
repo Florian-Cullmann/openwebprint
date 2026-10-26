@@ -34,7 +34,7 @@ export class Service {
       if (!terminal.has(job.status) && (job.kind === 'scan' || !job.externalId)) {
         job.status = job.kind === 'scan' ? 'failed' : 'unknown';
         job.error =
-          'Server während des Vorgangs neu gestartet. Vor einem erneuten Versuch den Gerätestatus prüfen.';
+          'The server restarted during this operation. Check the device before trying again.';
         this.store.putJob(job);
         await remove(job.filePath);
         await remove(job.previewPath);
@@ -70,7 +70,7 @@ export class Service {
     if (this.mode === 'demo' && !input.address.startsWith('demo://'))
       throw new AppError(
         400,
-        'Im Demo-Modus sind nur demo://-Geräte erlaubt. Für echte Geräte MODE=hardware setzen.',
+        'Only demo:// devices are allowed in demo mode. Set MODE=hardware to use real devices.',
       );
     const device = await this.provider.add(input, randomUUID());
     this.store.putDevice(device);
@@ -79,7 +79,7 @@ export class Service {
   deleteDevice(id: string) {
     this.device(id);
     if (this.store.jobs(this.mode).some((j) => j.deviceId === id && !terminal.has(j.status)))
-      throw new AppError(409, 'Dieses Gerät hat noch offene oder ungeklärte Aufträge.');
+      throw new AppError(409, 'This device still has active or unconfirmed jobs.');
     this.store.deleteDevice(id, this.mode);
   }
   async snapshot() {
@@ -89,7 +89,7 @@ export class Service {
         try {
           return await this.provider.inspect(device);
         } catch {
-          warnings.push(`${device.name}: Status konnte nicht ermittelt werden.`);
+          warnings.push(`${device.name}: Unable to determine device status.`);
           return { ...device, status: 'unknown' as const };
         }
       }),
@@ -124,27 +124,20 @@ export class Service {
   }
   async print(deviceId: string, data: Buffer, mime: string, name: string, options: PrintOptions) {
     let device = this.device(deviceId);
-    if (device.kind !== 'printer')
-      throw new AppError(400, 'Das ausgewählte Gerät ist kein Drucker.');
+    if (device.kind !== 'printer') throw new AppError(400, 'The selected device is not a printer.');
     device = await this.provider.inspect(device);
     const caps = device.capabilities;
     if (!caps)
-      throw new AppError(
-        409,
-        'Druckoptionen konnten nicht vom Gerät abgefragt werden. CUPS-Verbindung prüfen.',
-      );
+      throw new AppError(409, 'Unable to retrieve print options. Check the CUPS connection.');
     if (
       (options.color === 'color' && !caps.color) ||
       (options.sides !== 'one-sided' && !caps.duplex) ||
       !caps.media.includes(options.media)
     ) {
-      throw new AppError(
-        400,
-        'Die gewählten Druckoptionen werden von diesem Gerät nicht unterstützt.',
-      );
+      throw new AppError(400, 'This device does not support the selected print options.');
     }
     const normalized = await normalizeDocument(data, mime);
-    const title = name.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 120) || 'Dokument';
+    const title = name.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 120) || 'Document';
     const job = this.createJob(device, 'print', title, options);
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
     await writeFile(job.filePath, normalized, { mode: 0o600 });
@@ -154,7 +147,7 @@ export class Service {
     } catch (e) {
       // A transport failure may happen after CUPS accepted the job: never auto-retry.
       job.status = 'unknown';
-      job.error = e instanceof Error ? e.message : 'Druckübertragung fehlgeschlagen.';
+      job.error = e instanceof Error ? e.message : 'Print submission failed.';
     } finally {
       await remove(job.filePath);
       job.filePath = undefined;
@@ -165,14 +158,13 @@ export class Service {
   }
   scan(deviceId: string, options: ScanOptions) {
     const device = this.device(deviceId);
-    if (device.kind !== 'scanner')
-      throw new AppError(400, 'Das ausgewählte Gerät ist kein Scanner.');
+    if (device.kind !== 'scanner') throw new AppError(400, 'The selected device is not a scanner.');
     if (this.activeScanners.has(deviceId))
-      throw new AppError(409, 'Dieser Scanner wird gerade verwendet.');
+      throw new AppError(409, 'This scanner is already in use.');
     const job = this.createJob(
       device,
       'scan',
-      'Scan · ' + new Date().toLocaleDateString('de-DE'),
+      'Scan · ' + new Date().toLocaleDateString('en-GB'),
       options,
     );
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
@@ -223,7 +215,7 @@ export class Service {
             Object.assign(job, await this.provider.poll(job, device));
           } catch {
             job.status = 'unknown';
-            job.error = 'Der Auftragsstatus ist derzeit nicht abrufbar.';
+            job.error = 'Job status is currently unavailable.';
           }
           const current = this.store.job(job.id, this.mode);
           if (!current || current.status === 'canceled') return;
@@ -234,7 +226,7 @@ export class Service {
   }
   job(id: string) {
     const job = this.store.job(id, this.mode);
-    if (!job) throw new AppError(404, 'Auftrag nicht gefunden.');
+    if (!job) throw new AppError(404, 'Job not found.');
     return job;
   }
   async cancel(id: string) {
@@ -242,7 +234,7 @@ export class Service {
     if (job.kind !== 'print' || terminal.has(job.status) || !job.externalId)
       throw new AppError(
         409,
-        'Dieser Auftrag kann nicht abgebrochen werden. Ungeklärte Übertragungen direkt in CUPS prüfen.',
+        'This job cannot be canceled. Check unconfirmed submissions directly in CUPS.',
       );
     await this.provider.cancel(job, this.device(job.deviceId));
     job.status = 'canceled';
@@ -254,7 +246,7 @@ export class Service {
   async deleteJob(id: string) {
     const job = this.job(id);
     if (!terminal.has(job.status) && job.status !== 'unknown')
-      throw new AppError(409, 'Laufende Aufträge können nicht gelöscht werden.');
+      throw new AppError(409, 'Active jobs cannot be deleted.');
     await remove(job.filePath);
     await remove(job.previewPath);
     this.store.deleteJob(id, this.mode);

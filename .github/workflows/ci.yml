@@ -38,24 +38,25 @@ jobs:
       - run: docker build -t openwebprint:test .
       - name: Demo smoke test
         run: |
-          docker run -d --name owp-demo -p 127.0.0.1:3001:3001 openwebprint:test
+          docker run -d --name owp-demo -e OWP_TEST_INSTANCE=1 -p 127.0.0.1:3001:3001 openwebprint:test
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3001/api/health; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:3001/ > /dev/null
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3001/api/snapshot)" = 401
+          docker exec owp-demo node scripts/check-api.mjs
           docker exec owp-demo sh -c 'test "$(ps -o user= -p $(pgrep -f "node apps/server/dist/index.js" | head -1) | tr -d " ")" = node'
       - name: Hardware daemon smoke test (no physical devices)
         shell: bash
         run: |
           docker rm -f owp-demo
-          docker run -d --name owp-hardware -e MODE=hardware -p 127.0.0.1:3001:3001 openwebprint:test
+          docker run -d --name owp-hardware -e OWP_TEST_INSTANCE=1 -e MODE=hardware -p 127.0.0.1:3001:3001 openwebprint:test
           for attempt in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:3001/api/health; then break; fi
             sleep 1
           done
           curl -fsS http://127.0.0.1:3001/api/health
+          docker exec owp-hardware node scripts/check-api.mjs
           docker exec owp-hardware lpstat -h localhost:631 -r
           docker exec owp-hardware /usr/sbin/cupsd -t 2>&1 | tee /tmp/openwebprint-cups-check.log
           ! grep -q 'Filter .*not found' /tmp/openwebprint-cups-check.log

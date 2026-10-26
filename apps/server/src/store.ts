@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
@@ -16,10 +17,42 @@ export class Store {
     chmodSync(join(directory, 'openwebprint.sqlite'), 0o600);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL);
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, mode TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, mode TEXT NOT NULL, created TEXT NOT NULL, data TEXT NOT NULL);
-      PRAGMA user_version=1;`);
+      `);
+    this.migrateUsers();
+  }
+  private migrateUsers() {
+    const version = Number(this.db.prepare('PRAGMA user_version').get()!.user_version);
+    if (version > 2) throw new Error('This database requires a newer version of openwebprint.');
+    if (version === 2) return;
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      this.db.exec(
+        `CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT NOT NULL COLLATE NOCASE UNIQUE, password TEXT NOT NULL, createdAt TEXT NOT NULL);`,
+      );
+      const legacyPassword = this.setting('password');
+      if (legacyPassword) {
+        this.db
+          .prepare(
+            'INSERT OR IGNORE INTO users (id, username, password, createdAt) VALUES (?, ?, ?, ?)',
+          )
+          .run(
+            randomUUID(),
+            this.setting('username') ?? 'admin',
+            legacyPassword,
+            new Date().toISOString(),
+          );
+      }
+      // Existing passwords are preserved. Legacy sessions cannot identify a user and expire here.
+      this.db.exec(`DROP TABLE IF EXISTS sessions;
+        CREATE TABLE sessions (hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE);
+        DELETE FROM settings WHERE key IN ('username', 'password');
+        PRAGMA user_version=2; COMMIT;`);
+    } catch (error) {
+      this.db.exec('ROLLBACK');
+      throw error;
+    }
   }
   setting(key: string): string | undefined {
     return (

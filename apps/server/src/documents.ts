@@ -6,10 +6,10 @@ import { AppError } from './errors.js';
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 export async function normalizeDocument(buffer: Buffer, claimedType: string): Promise<Buffer> {
   if (buffer.length === 0 || buffer.length > MAX_UPLOAD)
-    throw new AppError(413, 'Die Datei muss zwischen 1 Byte und 25 MB groß sein.');
+    throw new AppError(413, 'The file must be between 1 byte and 25 MB.');
   if (buffer.subarray(0, 5).toString() === '%PDF-') {
     if (claimedType !== 'application/pdf')
-      throw new AppError(415, 'Dateityp und Dateiinhalt stimmen nicht überein.');
+      throw new AppError(415, 'The file type does not match its contents.');
     try {
       const source = await PDFDocument.load(buffer, { updateMetadata: false });
       if (source.isEncrypted || source.getPageCount() === 0 || source.getPageCount() > 500)
@@ -27,14 +27,14 @@ export async function normalizeDocument(buffer: Buffer, claimedType: string): Pr
     } catch {
       throw new AppError(
         422,
-        'Das PDF ist beschädigt, verschlüsselt oder umfasst mehr als 500 Seiten.',
+        'The PDF is damaged, encrypted, has unsupported form fields or exceeds 500 pages.',
       );
     }
   }
   const png = buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   const jpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
   if ((!png && !jpeg) || claimedType !== (png ? 'image/png' : 'image/jpeg'))
-    throw new AppError(415, 'Erlaubt sind echte PDF-, PNG- und JPEG-Dateien.');
+    throw new AppError(415, 'Only valid PDF, PNG and JPEG files are allowed.');
   try {
     const image = await sharp(buffer, { limitInputPixels: 40_000_000 })
       .rotate()
@@ -43,7 +43,7 @@ export async function normalizeDocument(buffer: Buffer, claimedType: string): Pr
       .toBuffer();
     return await imageToPdf(image);
   } catch {
-    throw new AppError(422, 'Das Bild ist beschädigt oder überschreitet 40 Megapixel.');
+    throw new AppError(422, 'The image is damaged or exceeds 40 megapixels.');
   }
 }
 export async function imageToPdf(image: Buffer): Promise<Buffer> {

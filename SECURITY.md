@@ -10,10 +10,10 @@ Include affected revision, reproduction steps using synthetic documents, impact,
 
 ## Trust model
 
-- One trusted administrator per instance. The account can print to and scan from LAN devices, configure local CUPS queues, and access all instance documents.
-- Setup requires a server-generated secret (or configured `SETUP_TOKEN`). Access to first-run logs is administrative access. Sessions expire after seven days and store only token hashes; passwords use salted scrypt.
+- All users are trusted administrators. They can manage accounts, print to and scan from LAN devices, configure local CUPS queues, and access all instance documents. Per-user document isolation and roles are not implemented.
+- New instances have no users and are intentionally open without login. Anyone who can reach an instance with no users can use its API and create the first account. Adding the first user immediately protects the API and enables login; only authenticated users can create subsequent accounts. Deleting the last user reopens the instance. Origin/header checks remain active in both modes. Sessions expire after seven days, are bound to a user, and store only token hashes; passwords use salted scrypt. Deleting a user revokes their sessions. Existing legacy passwords are migrated without silently disabling authentication.
 - The web process is unprivileged in the Docker image. The container starts CUPS, Avahi, and D-Bus as system services. Its CUPS policy trusts loopback clients and must never be rebound/exposed to an untrusted interface. Linux host-networking also includes local host processes in that loopback trust boundary.
-- Browser mutations require an application header and a matching Origin when present. CORS is not enabled. Non-browser clients may omit Origin but must authenticate and supply the application header.
+- Browser mutations require an application header and a matching Origin when present. CORS is not enabled. Non-browser clients may omit Origin but must supply the application header and authenticate when users exist.
 - Auth and mutation endpoints are rate-limited. Proxy headers are not trusted by default.
 - File types are checked against magic bytes and decoded. Images have a pixel limit; PDFs reject encryption, corruption, empty files, and more than 500 pages. Documents are rebuilt and page annotations removed. These checks are **not a malware scanner or complete PDF sandbox**. Only upload documents you trust; CUPS filters and image/PDF libraries remain security-sensitive dependencies.
 - Commands use `execFile`, validated argument values, no shell, and bounded time/output. Network device discovery records are untrusted. Hardware addresses intentionally allow connections to the administrator's LAN through CUPS/SANE.

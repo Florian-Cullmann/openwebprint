@@ -14,7 +14,6 @@ const envSchema = z.object({
     )
     .default('http://localhost:5173'),
   COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
-  SETUP_TOKEN: z.string().min(24).optional(),
   CUPS_SERVER: z
     .string()
     .regex(/^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/)
@@ -29,7 +28,6 @@ export function readConfig(env = process.env) {
     dataDir: resolve(e.DATA_DIR),
     origin: new URL(e.APP_ORIGIN).origin,
     secureCookie: e.COOKIE_SECURE === 'true',
-    setupToken: e.SETUP_TOKEN,
     cupsServer: e.CUPS_SERVER,
   };
 }

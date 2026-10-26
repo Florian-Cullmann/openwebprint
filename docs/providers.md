@@ -26,7 +26,7 @@ The current combined hardware provider delegates printing to CUPS and scanning t
 
 ## Persistence and failures
 
-The initial SQLite schema is created in `store.ts` with `user_version=1`, WAL mode, parameterized statements, and a busy timeout. A future incompatible schema change must ship an explicit versioned migration; do not silently reinterpret existing JSON fields. Public job serialization strips internal file paths and external job IDs.
+The SQLite schema is managed in `store.ts` with `user_version=2`, WAL mode, parameterized statements, and a busy timeout. The version-2 migration preserves legacy credentials in the users table and revokes legacy sessions; new databases start without accounts. A future incompatible schema change must ship an explicit versioned migration; do not silently reinterpret existing JSON fields. Public job serialization strips internal file paths and external job IDs.
 
 A print transport error can happen after the scheduler accepted a job. Store `unknown`, keep a clear error, and never retry automatically. Queued/processing scan jobs are marked failed after restart; interrupted unconfirmed print submissions remain unknown. Already submitted CUPS print jobs continue to be polled after restart.
 

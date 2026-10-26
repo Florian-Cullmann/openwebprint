@@ -6,7 +6,7 @@ import { Modal, Spinner } from './ui';
 import s from './App.module.css';
 export const mediaLabels: Record<PrintOptions['media'], string> = {
   iso_a4_210x297mm: 'A4 · 210 × 297 mm',
-  'na_letter_8.5x11in': 'Letter · 8,5 × 11 Zoll',
+  'na_letter_8.5x11in': 'Letter · 8.5 × 11 in',
   iso_a5_148x210mm: 'A5 · 148 × 210 mm',
 };
 export function PrintDialog({
@@ -53,7 +53,7 @@ export function PrintDialog({
         file.size > 25 * 1024 * 1024 ||
         !file.size)
     ) {
-      setError('Bitte eine PDF-, PNG- oder JPEG-Datei mit maximal 25 MB auswählen.');
+      setError('Choose a PDF, PNG or JPEG file up to 25 MB.');
       return;
     }
     setFile(file);
@@ -82,14 +82,12 @@ export function PrintDialog({
       title={
         sent
           ? sent.status === 'unknown'
-            ? 'Übertragung ungeklärt'
-            : 'Auftrag übertragen'
-          : 'Dokument drucken'
+            ? 'Submission unconfirmed'
+            : 'Job submitted'
+          : 'Print document'
       }
       subtitle={
-        demo
-          ? 'Demo-Modus: Es wird kein echtes Papier bedruckt.'
-          : 'PDF, PNG oder JPEG · maximal 25 MB'
+        demo ? 'Demo mode: nothing will be physically printed.' : 'PDF, PNG or JPEG · up to 25 MB'
       }
       close={() => {
         if (!busy) close();
@@ -100,14 +98,14 @@ export function PrintDialog({
           {sent.status === 'unknown' ? <AlertTriangle size={44} /> : <CheckCircle2 size={44} />}
           <h3>
             {sent.status === 'unknown'
-              ? 'Übertragung bitte prüfen'
+              ? 'Please check the submission'
               : demo
-                ? 'Dein Demo-Auftrag ist unterwegs.'
-                : 'Dein Auftrag liegt bei CUPS.'}
+                ? 'Demo job submitted.'
+                : 'Your job has been sent to CUPS.'}
           </h3>
-          <p>{sent.error ?? 'Den aktuellen Status findest du unter Aufträge.'}</p>
+          <p>{sent.error ?? 'Track its status on the Jobs page.'}</p>
           <button className={s.primary} onClick={close}>
-            Zu meinem Workflow
+            Done
           </button>
         </div>
       ) : (
@@ -126,11 +124,11 @@ export function PrintDialog({
             }}
           >
             {file ? <FileText size={32} /> : <UploadCloud size={34} />}
-            <h3>{file ? file.name : 'Datei zum Drucken auswählen'}</h3>
+            <h3>{file ? file.name : 'Choose a file to print'}</h3>
             <p>
               {file
-                ? `${(file.size / 1024 / 1024).toFixed(2)} MB · bereit für den nächsten Schritt`
-                : 'Datei hierher ziehen oder auf deinem Gerät auswählen.'}
+                ? `${(file.size / 1024 / 1024).toFixed(2)} MB · ready to print`
+                : 'Drop a file here or select one from your device.'}
             </p>
             <button
               type="button"
@@ -138,19 +136,19 @@ export function PrintDialog({
               disabled={busy}
               onClick={() => input.current?.click()}
             >
-              {file ? 'Andere Datei auswählen' : 'Datei auswählen'}
+              {file ? 'Choose another file' : 'Choose file'}
             </button>
             <input
               ref={input}
               type="file"
-              aria-label="Dokument auswählen"
+              aria-label="Select document"
               accept="application/pdf,image/png,image/jpeg"
               className={s.srOnly}
               onChange={(e) => choose(e.target.files?.[0])}
             />
           </div>
           <label>
-            Drucker
+            Printer
             <select
               value={deviceId}
               onChange={(e) => setDeviceId(e.target.value)}
@@ -158,7 +156,7 @@ export function PrintDialog({
               disabled={busy}
             >
               <option value="" disabled>
-                Drucker auswählen
+                Select printer
               </option>
               {printers.map((d) => (
                 <option value={d.id} key={d.id}>
@@ -169,7 +167,7 @@ export function PrintDialog({
           </label>
           <div className={s.formGrid}>
             <label>
-              Farbmodus
+              Color mode
               <select
                 value={options.color}
                 disabled={busy}
@@ -177,12 +175,12 @@ export function PrintDialog({
                   setOptions({ ...options, color: e.target.value as PrintOptions['color'] })
                 }
               >
-                <option value="monochrome">Schwarzweiß</option>
-                {device?.capabilities?.color && <option value="color">Farbe</option>}
+                <option value="monochrome">Black and white</option>
+                {device?.capabilities?.color && <option value="color">Color</option>}
               </select>
             </label>
             <label>
-              Seiten
+              Sides
               <select
                 value={options.sides}
                 disabled={busy}
@@ -190,17 +188,17 @@ export function PrintDialog({
                   setOptions({ ...options, sides: e.target.value as PrintOptions['sides'] })
                 }
               >
-                <option value="one-sided">Einseitig</option>
+                <option value="one-sided">Single-sided</option>
                 {device?.capabilities?.duplex && (
                   <>
-                    <option value="two-sided-long-edge">Duplex · lange Kante</option>
-                    <option value="two-sided-short-edge">Duplex · kurze Kante</option>
+                    <option value="two-sided-long-edge">Duplex · long edge</option>
+                    <option value="two-sided-short-edge">Duplex · short edge</option>
                   </>
                 )}
               </select>
             </label>
             <label>
-              Papierformat
+              Paper size
               <select
                 value={options.media}
                 disabled={busy}
@@ -216,7 +214,7 @@ export function PrintDialog({
               </select>
             </label>
             <label>
-              Kopien
+              Copies
               <input
                 type="number"
                 min={1}
@@ -228,13 +226,9 @@ export function PrintDialog({
               />
             </label>
           </div>
-          {!printers.length && (
-            <p className={s.error}>Füge zuerst unter Geräte einen Drucker hinzu.</p>
-          )}
+          {!printers.length && <p className={s.error}>Add a printer on the Devices page first.</p>}
           {device && !device.capabilities && (
-            <p className={s.error}>
-              Druckoptionen sind noch nicht verfügbar. CUPS-Verbindung prüfen.
-            </p>
+            <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
           )}
           {error && (
             <p role="alert" className={s.error}>
@@ -243,14 +237,14 @@ export function PrintDialog({
           )}
           <div className={s.modalActions}>
             <button type="button" className={s.secondary} disabled={busy} onClick={close}>
-              Abbrechen
+              Cancel
             </button>
             <button
               className={s.primary}
               disabled={busy || !file || !device?.capabilities?.media.length}
             >
               {busy ? <Spinner /> : <Printer size={17} />}{' '}
-              {busy ? 'Wird übertragen …' : demo ? 'Demo-Druck starten' : 'Jetzt drucken'}
+              {busy ? 'Submitting…' : demo ? 'Start demo print' : 'Print now'}
             </button>
           </div>
         </form>

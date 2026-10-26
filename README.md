@@ -21,13 +21,13 @@ Open source, self-hosted, and built around open standards.
 
 openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, third-party fonts, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
-This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface currently uses German; contributions for localization are welcome.
+This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, and supported paper sizes.
 - **Scan a page:** 150/300/600 dpi, color or grayscale, image preview, and a real downloadable PDF.
 - **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
-- **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, setup wizard, and protected sessions.
+- **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.
 
 Demo print jobs never reach CUPS. Demo scans generate a sample document that explicitly identifies itself as simulated. **Hardware mode never falls back to demo behavior.**
@@ -44,9 +44,9 @@ cp .env.example .env
 npm run dev
 ```
 
-Open **http://localhost:5173**. Copy the one-time setup token from the API terminal into the wizard and create an administrator password (at least 12 characters). The default mode is **demo** and does not require any hardware tools.
+Open **http://localhost:5173** and start using the app immediately. New installations have no users and do not show a login screen. The default mode is **demo** and does not require hardware tools.
 
-The first-run token is generated at startup until setup succeeds. Set `SETUP_TOKEN` to a random value of at least 24 characters if you need a predictable deployment secret. Do not use the example or test tokens in production. Once initialized, setup is closed and the password/session state persists in SQLite.
+Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Passwords must contain at least 12 characters. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
 
 ### Try it with Docker
 
@@ -55,7 +55,7 @@ docker compose --profile demo up --build -d
 docker compose logs demo
 ```
 
-Open **http://localhost:3001** and use the setup token from the logs. The port is bound to loopback by default. Stop with `docker compose --profile demo down`. Named volumes retain accounts, devices, and job history.
+Open **http://localhost:3001**; a fresh installation opens directly. The port is bound to loopback by default. Stop with `docker compose --profile demo down`. Named volumes retain accounts, devices, and job history.
 
 ## Self-hosting
 
@@ -92,7 +92,7 @@ docker compose logs hardware
 
 The profile runs CUPS and Avahi inside the container and drops the web process to the unprivileged `node` user. It uses Linux host networking for mDNS/eSCL/WSD. Port 3001 and the dedicated CUPS scheduler (631) bind to loopback. **Do not run it alongside a host CUPS scheduler already listening on 127.0.0.1:631.** Use a native install instead, or stop the conflicting scheduler deliberately. Port 5353 may also conflict with another mDNS daemon. See [hardware networking and troubleshooting](docs/hardware.md).
 
-Demo and hardware profiles have **separate volumes and separate first-run setup**. On a native installation, `MODE` is selected at startup; the database separates each mode's devices/jobs while sharing its administrator account. Switching modes does not convert demo devices into real devices.
+Demo and hardware profiles have **separate volumes and user lists**, both initially empty. On a native installation, `MODE` is selected at startup; the database separates each mode's devices/jobs while sharing its users. Switching modes does not convert demo devices into real devices.
 
 Docker Desktop on macOS/Windows does not reliably forward link-local discovery. Use manual IPP addresses and native SANE configuration, or run on a Linux host. USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
 
@@ -105,13 +105,12 @@ Docker Desktop on macOS/Windows does not reliably forward link-local discovery. 
 | `PORT`          | `3001`                  | HTTP port                                                                              |
 | `APP_ORIGIN`    | `http://localhost:5173` | Exact allowed browser origin; set to your deployed URL                                 |
 | `DATA_DIR`      | `./data`                | SQLite, sessions, and private scan storage                                             |
-| `SETUP_TOKEN`   | generated               | First-run secret, minimum 24 characters; optional                                      |
 | `COOKIE_SECURE` | `false`                 | Set `true` with HTTPS                                                                  |
 | `CUPS_SERVER`   | `localhost:631`         | Local scheduler only: localhost, 127.0.0.1, or [::1], optionally with port             |
 
 For LAN or internet access, put a reverse proxy on the same host in front of loopback port 3001, terminate TLS, set `APP_ORIGIN=https://print.example.org` and `COOKIE_SECURE=true`. The proxy must preserve the `Origin` header and allow uploads of at least 25 MiB plus multipart overhead. No CORS wildcard is used. Request limits use the direct peer IP; the app intentionally does not trust arbitrary forwarding headers. A shared proxy therefore shares rate limits.
 
-For Docker, export those two variables or put them in the root `.env`; Compose forwards them. Other settings require updating the service environment explicitly. Do not expose CUPS, SANE, or the first-run logs to an untrusted network.
+For Docker, export those two variables or put them in the root `.env`; Compose forwards them. Other settings require updating the service environment explicitly. Do not expose CUPS or SANE to an untrusted network. With no users, everyone who can reach the web app has full access; add a user before making the app accessible beyond a trusted environment.
 
 ### Storage, backups, and access recovery
 
@@ -119,7 +118,7 @@ For Docker, export those two variables or put them in the root `.env`; Compose f
 - Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry.
 - The UI shows the most recent **200** jobs. History is local SQLite data; it is not an analytics service.
 - Back up `DATA_DIR` and your CUPS configuration while the app is stopped. For Docker, back up the named volumes. Keep backups private; scans and personal metadata are not encrypted at rest.
-- A single administrator account is supported. To reset access, stop the server and run `node --env-file-if-exists=.env scripts/reset-access.mjs --confirm`. This clears credentials and sessions, preserving devices/documents. Restart and use the new setup token. With Docker, stop the service first, then run `docker compose --profile demo run --rm --entrypoint node demo scripts/reset-access.mjs --confirm` (replace `demo` with `hardware` as appropriate).
+- Multiple users are supported, all with the same administrator permissions. To reset access, stop the server and run `node --env-file-if-exists=.env scripts/reset-access.mjs --confirm`. This removes all users and sessions, preserving devices/documents. Restart to use the instance without signing in, then add users again in Settings. With Docker, stop the service first, then run `docker compose --profile demo run --rm --entrypoint node demo scripts/reset-access.mjs --confirm` (replace `demo` with `hardware` as appropriate).
 
 ## Hardware support and honest limits
 
@@ -132,9 +131,24 @@ Current scope:
 - Single-page scans; no ADF batch selection, multi-page scan assembly, OCR, or scan cancellation. Closing the dialog leaves a scan running (up to 120 seconds).
 - PDF uploads are rebuilt and form fields flattened before printing; annotations and document-level active content are omitted. Digital signatures are not validated.
 - Standard A4, A5, and Letter print media, only when the CUPS queue reports support. Color/duplex capabilities come from IPP; scan options are backend-dependent and unsupported options fail explicitly.
-- No printer firmware management, ink-level estimates, cloud relay, multi-user roles, or remote CUPS authentication.
+- No printer firmware management, ink-level estimates, cloud relay, per-user roles or document isolation, or remote CUPS authentication.
 - Jobs submitted outside openwebprint are not imported. Removing a device leaves its CUPS queue intact. CUPS history purging can make old job states unavailable.
 - No physical hardware has been certified by this initial implementation. Tests cover real document generation, provider contracts, and local IPP wire fixtures; a successful demo is not a successful hardware test.
+
+## Pages and settings
+
+Pages have shareable URLs and support refresh and browser back/forward navigation: `/overview`, `/devices`, `/jobs`, `/scans`, and `/login` (when login is enabled). `/` redirects to `/overview`.
+
+Settings use a horizontal menu with their own URLs:
+
+| Category   | URL                    | Contents                                                    |
+| ---------- | ---------------------- | ----------------------------------------------------------- |
+| General    | `/settings/general`    | Operating mode, document retention, project information     |
+| Users      | `/settings/users`      | Add and remove users; enable or disable login by user count |
+| Appearance | `/settings/appearance` | Light, dark, or system theme                                |
+| Hardware   | `/settings/hardware`   | Brother support and driver guidance                         |
+
+`/settings` redirects to General. Fastify serves the React entry point for page URLs; `/api/*` remains a separate API namespace.
 
 ## Architecture
 

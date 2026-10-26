@@ -1250,3 +1250,84 @@
     animation: none;
   }
 }
+.navItem {
+  text-decoration: none;
+}
+.scanThumb {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.scanThumb img {
+  position: absolute;
+  inset: 18px;
+  display: block;
+  width: calc(100% - 36px);
+  height: calc(100% - 36px);
+  object-fit: contain;
+}
+.scanThumb:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.userList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.userList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.userList li:last-child {
+  border-bottom: 0;
+}
+.userList small {
+  color: var(--muted);
+}
+.userForm {
+  width: 100%;
+  max-width: 560px;
+  margin-top: 6px;
+}
+.userForm > .primary {
+  justify-self: start;
+}
+.footer {
+  justify-content: flex-end;
+}
+.settingsNav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 26px;
+  padding-bottom: 10px;
+}
+.settingsTab,
+.settingsTabActive {
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-radius: 6px;
+  text-decoration: none;
+  font-size: 13px;
+  color: var(--muted);
+}
+.settingsTab:hover {
+  background: var(--hover);
+}
+.settingsTabActive {
+  background: var(--soft);
+  color: var(--text);
+  font-weight: 500;
+}

@@ -3,7 +3,7 @@ import { X, LoaderCircle, Printer, ScanLine } from 'lucide-react';
 import type { Device, JobStatus } from '@openwebprint/shared';
 import s from './App.module.css';
 export function Spinner() {
-  return <LoaderCircle className={s.spinner} size={18} aria-label="Wird geladen" />;
+  return <LoaderCircle className={s.spinner} size={18} aria-label="Loading" />;
 }
 export function DeviceIcon({ kind, large = false }: { kind: Device['kind']; large?: boolean }) {
   const Icon = kind === 'printer' ? Printer : ScanLine;
@@ -56,7 +56,7 @@ export function Modal({
           <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
-        <button className={s.iconButton} aria-label="Schließen" onClick={close}>
+        <button className={s.iconButton} aria-label="Close" onClick={close}>
           <X size={20} />
         </button>
       </div>
@@ -65,12 +65,12 @@ export function Modal({
   );
 }
 export const jobLabels: Record<JobStatus, string> = {
-  queued: 'In Warteschlange',
-  processing: 'In Bearbeitung',
-  completed: 'Abgeschlossen',
-  canceled: 'Abgebrochen',
-  failed: 'Fehlgeschlagen',
-  unknown: 'Status ungeklärt',
+  queued: 'Queued',
+  processing: 'Processing',
+  completed: 'Completed',
+  canceled: 'Canceled',
+  failed: 'Failed',
+  unknown: 'Unknown status',
 };
 export function JobBadge({ status }: { status: JobStatus }) {
   return (
@@ -91,10 +91,10 @@ export function DeviceBadge({ device }: { device: Device }) {
       <span className={s.dot} />
       {
         {
-          ready: 'Bereit',
-          busy: 'Beschäftigt',
-          offline: 'Angehalten / offline',
-          unknown: 'Ungeprüft',
+          ready: 'Ready',
+          busy: 'Busy',
+          offline: 'Stopped / offline',
+          unknown: 'Not checked',
         }[device.status]
       }
     </span>

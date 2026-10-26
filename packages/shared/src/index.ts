@@ -20,7 +20,7 @@ export const deviceInputSchema = z.object({
     .trim()
     .min(1)
     .max(512)
-    .refine((v) => !/[\x00-\x1f\x7f]/.test(v), 'Ungültige Geräteadresse'),
+    .refine((v) => !/[\x00-\x1f\x7f]/.test(v), 'Invalid device address'),
   location: z.string().trim().max(80).default(''),
 });
 export type Mode = 'demo' | 'hardware';
@@ -72,8 +72,14 @@ export interface Snapshot {
   warnings: string[];
 }
 export interface SessionInfo {
-  initialized: boolean;
+  authenticationRequired: boolean;
   authenticated: boolean;
-  username?: string;
+  user?: User;
   mode: Mode;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  createdAt: string;
 }

@@ -16,7 +16,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     if (response.status === 401 && path !== '/login')
       window.dispatchEvent(new Event('owp:unauthorized'));
-    throw new ApiError(response.status, data.error ?? 'Der Vorgang ist fehlgeschlagen.');
+    throw new ApiError(response.status, data.error ?? 'The operation failed.');
   }
   return data as T;
 }

@@ -34,7 +34,7 @@ export function cupsIpp(server: string): IppRequest {
         { 'operation-attributes-tag': { 'requesting-user-name': 'openwebprint', ...attributes } },
         (error: Error | null, response: { statusCode: string; [key: string]: unknown }) => {
           if (error || !response?.statusCode?.startsWith('successful')) {
-            reject(new AppError(502, 'CUPS hat keine gültige IPP-Antwort geliefert.'));
+            reject(new AppError(502, 'CUPS did not return a valid IPP response.'));
             return;
           }
           resolve(
@@ -48,7 +48,7 @@ export function cupsIpp(server: string): IppRequest {
 }
 const queuePattern = /^[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,126}$/;
 export function validateQueue(queue: string) {
-  if (!queuePattern.test(queue)) throw new AppError(400, 'Ungültiger CUPS-Warteschlangenname.');
+  if (!queuePattern.test(queue)) throw new AppError(400, 'Invalid CUPS queue name.');
   return queue;
 }
 export function validatePrinterUri(value: string) {
@@ -56,7 +56,7 @@ export function validatePrinterUri(value: string) {
   try {
     url = new URL(value);
   } catch {
-    throw new AppError(400, 'Eine gültige ipp://- oder ipps://-Adresse eingeben.');
+    throw new AppError(400, 'Enter a valid ipp:// or ipps:// address.');
   }
   if (
     !['ipp:', 'ipps:'].includes(url.protocol) ||
@@ -69,7 +69,7 @@ export function validatePrinterUri(value: string) {
   ) {
     throw new AppError(
       400,
-      'Nur IPP/IPPS-Adressen ohne Zugangsdaten, Query oder Fragment sind erlaubt.',
+      'Only IPP/IPPS addresses without credentials, query strings or fragments are allowed.',
     );
   }
   return url.href;
@@ -80,7 +80,7 @@ export function validateScanner(value: string) {
     /[\x00-\x1f\x7f]/.test(value) ||
     value.length > 512
   ) {
-    throw new AppError(400, 'Eine gültige SANE-Gerätekennung eingeben, z. B. airscan:e0:Brother.');
+    throw new AppError(400, 'Enter a valid SANE device ID, e.g. airscan:e0:Brother.');
   }
   return value;
 }
@@ -148,11 +148,7 @@ export class HardwareProvider implements Provider {
         .catch((e: Error) => warnings.push(`SANE: ${e.message}`)),
       this.networkPrinters()
         .then((found) => devices.push(...found))
-        .catch(() =>
-          warnings.push(
-            'mDNS-Erkennung nicht verfügbar. Geräte können manuell hinzugefügt werden.',
-          ),
-        ),
+        .catch(() => warnings.push('mDNS discovery is unavailable. Add devices manually.')),
     ]);
     return { devices: [...new Map(devices.map((d) => [d.address, d])).values()], warnings };
   }
@@ -208,7 +204,7 @@ export class HardwareProvider implements Provider {
         mode: 'hardware',
         provider: 'sane',
         status: 'unknown',
-        detail: 'SANE-Gerät eingerichtet. Verfügbarkeit wird beim Scan geprüft.',
+        detail: 'SANE device configured. Availability is checked when scanning.',
       };
     }
     let queue: string;
@@ -241,7 +237,7 @@ export class HardwareProvider implements Provider {
   }
   async inspect(device: Device): Promise<Device> {
     if (device.kind === 'scanner')
-      return { ...device, status: 'unknown', detail: 'Verfügbarkeit wird beim Scan geprüft.' };
+      return { ...device, status: 'unknown', detail: 'Availability is checked when scanning.' };
     try {
       const attrs = await this.request(validateQueue(device.target!), 'Get-Printer-Attributes');
       const reasons = list(attrs['printer-state-reasons']).join(', ');
@@ -261,7 +257,7 @@ export class HardwareProvider implements Provider {
               : state === 3
                 ? 'ready'
                 : 'unknown',
-        detail: reasons && reasons !== 'none' ? reasons : 'Status der CUPS-Warteschlange',
+        detail: reasons && reasons !== 'none' ? reasons : 'CUPS queue status',
         capabilities: {
           color:
             list(attrs['print-color-mode-supported']).includes('color') ||
@@ -275,7 +271,7 @@ export class HardwareProvider implements Provider {
         ...device,
         status: 'unknown',
         capabilities: undefined,
-        detail: 'CUPS-Warteschlange nicht erreichbar.',
+        detail: 'CUPS queue is unreachable.',
       };
     }
   }
@@ -303,7 +299,7 @@ export class HardwareProvider implements Provider {
     if (!match || match[1] !== queue)
       throw new AppError(
         502,
-        'CUPS hat keine Auftragskennung zurückgegeben. Vor erneutem Druck die Warteschlange prüfen.',
+        'CUPS did not return a job ID. Check the queue before printing again.',
       );
     return match[2];
   }
@@ -315,20 +311,17 @@ export class HardwareProvider implements Provider {
       const state = states[String(attrs['job-state'])] ?? 'unknown';
       return {
         status: state,
-        error:
-          state === 'failed'
-            ? 'CUPS hat den Auftrag abgebrochen. Bitte die CUPS-Protokolle prüfen.'
-            : undefined,
+        error: state === 'failed' ? 'CUPS aborted this job. Check the CUPS logs.' : undefined,
       };
     } catch {
       return {
         status: 'unknown' as const,
-        error: 'Auftragsstatus derzeit nicht über CUPS abrufbar.',
+        error: 'CUPS job status is currently unavailable.',
       };
     }
   }
   async cancel(job: StoredJob, device: Device) {
-    if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Ungültige Auftragskennung.');
+    if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Invalid job ID.');
     await this.cups('cancel', [`${validateQueue(device.target!)}-${job.externalId}`]);
   }
   async scan(device: Device, outputPath: string, options: ScanOptions) {
