@@ -94,6 +94,37 @@ test('open access → routes → print → scans → users → login → setting
   await page
     .getByLabel('Select document', { exact: true })
     .setInputFiles({ name: filename, mimeType: 'image/png', buffer: png });
+  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+    { timeout: 20000 },
+  );
+  expect(
+    await page.getByRole('img', { name: 'Document page 1', exact: true }).evaluate((element) => {
+      const canvas = element as HTMLCanvasElement;
+      return [
+        ...canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data,
+      ].some((value, index) => index % 4 !== 3 && value < 240);
+    }),
+  ).toBe(true);
+  const multiple = await PDFDocument.create();
+  multiple.addPage().drawText('First preview page');
+  multiple.addPage().drawText('Second preview page');
+  await page.getByLabel('Select document', { exact: true }).setInputFiles({
+    name: 'two-pages.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from(await multiple.save()),
+  });
+  await expect(page.getByText('Page 1 of 2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Next page', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Document page 2', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  );
+  await page
+    .getByLabel('Select document', { exact: true })
+    .setInputFiles({ name: filename, mimeType: 'image/png', buffer: png });
+  await expect(page.getByText('Page 1 of 1', { exact: true })).toBeVisible();
   await page.getByLabel('Copies', { exact: true }).fill('2');
   await accessible(page);
   await page.getByRole('button', { name: 'Start demo print', exact: true }).click();
@@ -103,9 +134,43 @@ test('open access → routes → print → scans → users → login → setting
   const row = page.getByRole('row').filter({ hasText: filename });
   await expect(row).toContainText('2 Copies');
   await expect(row).toContainText('Completed', { timeout: 20_000 });
+  await row.getByRole('button', { name: filename, exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Document preview', exact: true })).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.reload();
+  await page
+    .getByRole('row')
+    .filter({ hasText: filename })
+    .getByRole('button', { name: filename, exact: true })
+    .click();
+  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
+    'aria-busy',
+    'false',
+  );
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await noOverflow(page);
   await navigate(page, 'Scans');
   await expect(page).toHaveURL(/\/scans$/);
+  const scanner = (await (await page.request.get('/api/snapshot')).json()).devices.find(
+    (device: { kind: string }) => device.kind === 'scanner',
+  );
+  await page.request.delete(`/api/devices/${scanner.id}`, { headers: { 'x-openwebprint': '1' } });
+  await page.reload();
+  await page.getByRole('button', { name: 'New scan', exact: true }).click();
+  await page.getByRole('button', { name: 'Find and add a scanner', exact: true }).click();
+  await page.getByRole('button', { name: 'Search devices', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Brother MFC-L2750DW · Scanner', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Connected', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Scanner', exact: true })).not.toHaveValue('');
+  await page.getByRole('button', { name: 'Close', exact: true }).last().click();
   for (let index = 0; index < 2; index++) {
     await page.getByRole('button', { name: 'New scan', exact: true }).click();
     await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();

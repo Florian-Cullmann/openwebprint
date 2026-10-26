@@ -19,6 +19,10 @@ Check the [sane-airscan compatibility list](https://github.com/alexpevzner/sane-
 
 The Docker image includes the open-source `printer-driver-brlaser` package for some older monochrome Brother models. It is **not** automatically selected: automatic creation uses the CUPS `everywhere` model. For legacy devices, configure a queue with an installed suitable driver outside the app, then import it. Vendor Brother `brscan` packages are not bundled; install them on a native host only if your particular model needs them and you accept their licensing. Driverless devices need none of these packages.
 
+## Hardware validation
+
+Brother DCP-L2620DW: real Bonjour discovery and printing were confirmed during development, including a user-observed printed page. SANE successfully queried its eSCL scan options over both HTTP and HTTPS. Physical page scanning has not yet been confirmed for this model. These observations do not certify other models or firmware versions.
+
 ## Printers
 
 1. Choose **Start setup** on a fresh installation, or **Remove demo data** in the demo banner. Select discovered devices, or add their addresses manually. The Docker hardware profile provides Linux host networking; it does not bypass the browser setup choice.
@@ -81,9 +85,9 @@ The hardware Compose profile targets **Linux** and uses host networking so link-
 
 The container starts its own private D-Bus and Avahi processes without mounting the host's D-Bus socket. An existing host mDNS daemon or CUPS scheduler can conflict. If port 631 is in use, prefer a native application installation using the host's existing scheduler. You can also run the image in bridge networking and manually add reachable printer IPs, but automatic discovery may be incomplete. Docker Desktop host networking differs from native Linux networking; eSCL/WSD and mDNS may require a real Linux host.
 
-### Automatic printer discovery with Docker Desktop on macOS
+### Automatic device discovery with Docker Desktop on macOS
 
-Use the optional host helper when the container cannot receive Bonjour multicast. It uses Apple's **Network.framework** (`NWBrowser`, TXT records, and service resolution) to discover actual IPP/IPPS advertisements on the Mac. It does not import your installed printer list. A TCP connection resolves each advertised service to an IPv4 address usable inside Docker; no print data is sent. IPP/IPPS advertisements with the same device UUID appear once, preferring IPPS.
+Use the optional host helper when the container cannot receive Bonjour multicast. It uses Apple's **Network.framework** (`NWBrowser`, TXT records, and service resolution) to discover actual IPP/IPPS and eSCL advertisements on the Mac. It does not import your installed printer list. A TCP connection resolves each advertised printer or scanner service to an IPv4 address usable inside Docker; no print data is sent. IPP/IPPS advertisements with the same device UUID appear once, preferring IPPS.
 
 Requires Node 24/26 and Xcode Command Line Tools on the Mac (`xcode-select --install` if missing). From the repository root, keep this command running in a terminal:
 
@@ -97,11 +101,11 @@ In another terminal, start the bridge profile with the macOS override:
 docker compose -f compose.yaml -f compose.macos.yaml --profile demo up --build -d
 ```
 
-Open **Search again** in setup or Devices. A successful host search is labeled **Network discovery via macOS Bonjour.** The printer is a candidate for you to select; finding it does not configure a CUPS queue or send a print job. Existing instance data and CUPS volumes are retained.
+Open **Search again** in setup or Devices. A successful host search is labeled **Network discovery via macOS Bonjour.** Devices are candidates for you to select; finding them does not configure a CUPS queue, print or scan a document. Existing instance data and CUPS volumes are retained.
 
-The helper must keep running alongside Docker. It atomically refreshes `.local/discovery/devices.json` every 10 seconds; Docker mounts only that folder, read-only. No extra HTTP port, API key, host D-Bus socket, or Docker socket is used. The inventory contains printer names, addresses, and locations and is readable by local users so the container's unprivileged user can consume it. Do not put credentials or documents there. Results expire after 30 seconds if the helper stops; a clean Ctrl+C removes its snapshot immediately. The API rejects oversized, malformed, expired, future-dated, or unsafe snapshots. No addresses from your development network belong in the repository.
+The helper must keep running alongside Docker. It atomically refreshes `.local/discovery/devices.json` every 10 seconds; Docker mounts only that folder, read-only. No extra HTTP port, API key, host D-Bus socket, or Docker socket is used. The inventory contains device names, addresses, and locations and is readable by local users so the container's unprivileged user can consume it. Do not put credentials or documents there. Results expire after 30 seconds if the helper stops; a clean Ctrl+C removes its snapshot immediately. The API rejects oversized, malformed, expired, future-dated, or unsafe snapshots. No addresses from your development network belong in the repository.
 
-This bridge discovers **printers** only. Scanner discovery still runs through SANE/sane-airscan in the container and may require explicit SANE configuration when multicast is blocked. IPv6-only printer services are not currently exported because link-local interface scopes do not carry across the Docker boundary. For a Linux server, use the existing host-network profile without this helper.
+The bridge also browses `_uscan._tcp` / `_uscans._tcp`. Discovered scanners use sane-airscan’s direct `airscan:escl:NAME:URL` format so the container can probe and scan them without receiving the host’s multicast. Add a scanner separately under Devices, or use **Find and add a scanner** in the Scan dialog. The backend probes its actual options before accepting it. WSD-only scanners still need SANE discovery or explicit configuration; the Bonjour helper does not implement WS-Discovery. IPv6-only services are not currently exported because link-local interface scopes do not carry across the Docker boundary. For a Linux server, use the existing host-network profile without this helper.
 
 To stop using the helper, stop it with Ctrl+C and recreate the service with the base Compose file only. Keep using both `-f` arguments when restarting the bridged setup. Rebooting the Mac requires restarting the helper; it does not install a login item or system daemon.
 

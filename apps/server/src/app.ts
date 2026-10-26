@@ -15,7 +15,7 @@ import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
 import { AppError } from './errors.js';
-import { MAX_UPLOAD } from './documents.js';
+import { MAX_UPLOAD, normalizeDocument } from './documents.js';
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(80),
@@ -52,7 +52,8 @@ export async function createApp(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        workerSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'blob:', 'data:'],
         objectSrc: ["'none'"],
@@ -203,6 +204,18 @@ export async function createApp(
     );
     return reply.code(201).send(job);
   });
+  app.post('/api/documents/preview', async (req, reply) => {
+    let file: { data: Buffer; mime: string } | undefined;
+    for await (const part of req.parts()) {
+      if (part.type !== 'file' || part.fieldname !== 'file')
+        throw new AppError(400, 'Only a document upload is accepted.');
+      file = { data: await part.toBuffer(), mime: part.mimetype };
+      if (part.file.truncated) throw new AppError(413, 'The file exceeds 25 MB.');
+    }
+    if (!file) throw new AppError(400, 'Choose a file.');
+    const document = await workspace.run(() => normalizeDocument(file.data, file.mime));
+    return reply.type('application/pdf').send(document);
+  });
   app.post('/api/scans', async (req, reply) => {
     const input = z.object({ deviceId: z.uuid(), options: scanOptionsSchema }).parse(req.body);
     return reply
@@ -217,16 +230,25 @@ export async function createApp(
     return { ok: true };
   });
   app.get('/api/jobs/:id/:format', async (req, reply) => {
-    const { id, format } = idParam.extend({ format: z.enum(['pdf', 'preview']) }).parse(req.params);
+    const { id, format } = idParam
+      .extend({ format: z.enum(['pdf', 'preview', 'document']) })
+      .parse(req.params);
     const job = workspace.service.job(id);
-    if (job.kind !== 'scan' || !job.hasFile || job.status !== 'completed')
-      throw new AppError(404, 'No scan available. Scan files expire after 7 days.');
-    const path = format === 'pdf' ? job.filePath : job.previewPath;
+    if (
+      !job.hasFile ||
+      (job.kind === 'scan' && job.status !== 'completed') ||
+      (format === 'preview' && job.kind !== 'scan')
+    )
+      throw new AppError(
+        404,
+        'No document available. Files expire after 7 days; older print jobs may have no retained preview.',
+      );
+    const path = format === 'preview' ? job.previewPath : job.filePath;
     if (!path) throw new AppError(404, 'File unavailable.');
-    reply.type(format === 'pdf' ? 'application/pdf' : 'image/png');
+    reply.type(format === 'preview' ? 'image/png' : 'application/pdf');
     reply.header(
       'Content-Disposition',
-      `${format === 'pdf' ? 'attachment' : 'inline'}; filename="scan-${id}.${format === 'pdf' ? 'pdf' : 'png'}"`,
+      `${format === 'pdf' ? 'attachment' : 'inline'}; filename="${job.kind === 'scan' ? 'scan' : 'document'}-${id}.${format === 'preview' ? 'png' : 'pdf'}"`,
     );
     return reply.send(await readFile(path));
   });

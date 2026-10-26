@@ -3,7 +3,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { hostDiscovery } from '../src/providers/host-discovery.js';
-import { validatePrinterUri } from '../src/providers/hardware.js';
+import { validatePrinterUri, validateHostScanner } from '../src/providers/hardware.js';
+const validateAddress = (value: string, kind: 'printer' | 'scanner') =>
+  kind === 'printer' ? validatePrinterUri(value) : validateHostScanner(value);
 
 let directory: string;
 let path: string;
@@ -34,7 +36,7 @@ afterEach(async () => {
 describe('host discovery snapshot boundary (synthetic file fixtures)', () => {
   it('returns current, validated Bonjour candidates and their provenance without configuring them', async () => {
     await writeFile(path, snapshot());
-    const result = await hostDiscovery(path, validatePrinterUri, now);
+    const result = await hostDiscovery(path, validateAddress, now);
     expect(result.devices).toEqual([printer]);
     expect(result.warnings).toEqual([]);
     expect(result.hostDiscovery).toEqual({
@@ -42,16 +44,34 @@ describe('host discovery snapshot boundary (synthetic file fixtures)', () => {
       updatedAt: new Date(now).toISOString(),
     });
   });
+  it('accepts a directly usable eSCL device and rejects credential or file targets', async () => {
+    const scanner = {
+      name: 'Scanner fixture',
+      kind: 'scanner',
+      address: 'airscan:escl:Scanner fixture:https://192.0.2.50/eSCL',
+      location: '',
+    };
+    await writeFile(path, snapshot({ devices: [scanner] }));
+    expect((await hostDiscovery(path, validateAddress, now)).devices).toEqual([scanner]);
+    for (const address of [
+      'airscan:escl:X:file:///etc/passwd',
+      'airscan:escl:X:http://user:secret@scanner.local/eSCL',
+      'airscan:wsd:X:http://scanner.local/WSD',
+    ]) {
+      await writeFile(path, snapshot({ devices: [{ ...scanner, address }] }));
+      expect((await hostDiscovery(path, validateAddress, now)).devices).toEqual([]);
+    }
+  });
   it.each([
     { generatedAt: new Date(now - 31_000).toISOString() },
     { generatedAt: new Date(now + 6_000).toISOString() },
     { source: 'unknown' },
     { devices: [{ ...printer, address: 'file:///etc/passwd' }] },
     { devices: [{ ...printer, address: 'ipp://user:secret@printer.local/ipp/print' }] },
-    { devices: [{ ...printer, kind: 'scanner' }] },
+    { devices: [{ ...printer, kind: 'scanner', address: 'airscan:e0:untrusted' }] },
   ])('rejects stale, forged or unsafe inventory: %j', async (overrides) => {
     await writeFile(path, snapshot(overrides));
-    const result = await hostDiscovery(path, validatePrinterUri, now);
+    const result = await hostDiscovery(path, validateAddress, now);
     expect(result.devices).toEqual([]);
     expect(result.hostDiscovery).toBeUndefined();
     expect(result.warnings).toHaveLength(1);
@@ -60,7 +80,7 @@ describe('host discovery snapshot boundary (synthetic file fixtures)', () => {
   it('fails closed for a stopped helper, a partial write or oversized inventory', async () => {
     for (const contents of [undefined, '{"version":1,', ' '.repeat(128 * 1024 + 1)]) {
       if (contents !== undefined) await writeFile(path, contents);
-      const result = await hostDiscovery(path, validatePrinterUri, now);
+      const result = await hostDiscovery(path, validateAddress, now);
       expect(result.devices).toEqual([]);
       expect(result.warnings[0]).toContain('helper is unavailable');
     }

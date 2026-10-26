@@ -85,6 +85,26 @@ export function validateScanner(value: string) {
   }
   return value;
 }
+export function validateHostScanner(value: string) {
+  const match = /^airscan:escl:([^:\x00-\x1f\x7f]{1,80}):(https?:\/\/.+)$/.exec(value);
+  if (!match || value.length > 512) throw new AppError(400, 'Invalid AirScan discovery address.');
+  let url: URL;
+  try {
+    url = new URL(match[2]);
+  } catch {
+    throw new AppError(400, 'Invalid AirScan URL.');
+  }
+  if (
+    !url.hostname ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.search ||
+    /[\s\x00-\x1f\x7f]/.test(match[2])
+  )
+    throw new AppError(400, 'Invalid AirScan discovery address.');
+  return validateScanner(value);
+}
 const list = (v: unknown): unknown[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 const states: Record<string, JobStatus> = {
   3: 'queued',
@@ -156,7 +176,9 @@ export class HardwareProvider implements Provider {
         .then((found) => devices.push(...found))
         .catch(() => warnings.push('mDNS discovery is unavailable. Add devices manually.')),
       this.hostDiscoveryFile
-        ? hostDiscovery(this.hostDiscoveryFile, validatePrinterUri).then((result) => {
+        ? hostDiscovery(this.hostDiscoveryFile, (address, kind) =>
+            kind === 'printer' ? validatePrinterUri(address) : validateHostScanner(address),
+          ).then((result) => {
             devices.push(...result.devices);
             warnings.push(...result.warnings);
             host = result.hostDiscovery;

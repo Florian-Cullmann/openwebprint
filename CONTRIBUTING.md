@@ -19,7 +19,7 @@ The browser tests start separate temporary servers for desktop and mobile, exerc
 
 ## macOS discovery helper
 
-The optional macOS Bonjour bridge lives in `scripts/macos/Discovery.swift`; `npm run build:discovery:macos` compiles it with the installed Apple SDK. CI compiles it on macOS and exercises its snapshot trust boundary in the backend tests on Linux. A compiler check or synthetic snapshot is not a physical discovery test. See [hardware.md](docs/hardware.md#automatic-printer-discovery-with-docker-desktop-on-macos) to validate a live Bonjour advertisement through Docker and the UI.
+The optional macOS Bonjour bridge lives in `scripts/macos/Discovery.swift`; `npm run build:discovery:macos` compiles it with the installed Apple SDK. CI compiles it on macOS and exercises its snapshot trust boundary in the backend tests on Linux. A compiler check or synthetic snapshot is not a physical discovery test. See [hardware.md](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) to validate a live Bonjour advertisement through Docker and the UI.
 
 ## README screenshots
 

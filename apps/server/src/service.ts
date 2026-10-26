@@ -33,8 +33,14 @@ export class Service {
         job.error =
           'The server restarted during this operation. Check the device before trying again.';
         this.store.putJob(job);
-        await remove(job.filePath);
-        await remove(job.previewPath);
+        if (job.kind === 'scan' || !job.hasFile) {
+          await remove(job.filePath);
+          await remove(job.previewPath);
+          job.filePath = undefined;
+          job.previewPath = undefined;
+          job.hasFile = false;
+          this.store.putJob(job);
+        }
       }
     }
     await this.expireFiles();
@@ -50,8 +56,7 @@ export class Service {
   async expireFiles() {
     for (const job of [...this.store.jobs('demo'), ...this.store.jobs('hardware')]) {
       if (
-        job.kind === 'scan' &&
-        terminal.has(job.status) &&
+        (job.kind === 'print' || terminal.has(job.status)) &&
         Date.now() - new Date(job.createdAt).getTime() > 7 * 86400_000 &&
         job.hasFile
       ) {
@@ -146,6 +151,7 @@ export class Service {
     const job = this.createJob(device, 'print', title, options);
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
     await writeFile(job.filePath, normalized, { mode: 0o600 });
+    job.hasFile = true;
     this.store.putJob(job);
     try {
       job.externalId = await this.provider.print(device, job.filePath, title, options);
@@ -154,8 +160,6 @@ export class Service {
       job.status = 'unknown';
       job.error = e instanceof Error ? e.message : 'Print submission failed.';
     } finally {
-      await remove(job.filePath);
-      job.filePath = undefined;
       job.updatedAt = new Date().toISOString();
       this.store.putJob(job);
     }

@@ -17,12 +17,12 @@ Open source, self-hosted, and built around open standards.
 
 ## A calmer way to work with paper
 
-openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, third-party fonts, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
+openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, remote font requests, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
 This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
-- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, and supported paper sizes.
+- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
 - **Scan a page:** 150/300/600 dpi, color or grayscale, image preview, and a real downloadable PDF.
 - **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
 - **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
@@ -120,7 +120,7 @@ The Compose profile controls **networking**, while the browser choice controls t
 
 Docker Desktop on macOS/Windows does not reliably forward link-local discovery. On macOS, enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
 
-For **automatic printer discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-printer-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
+For **automatic printer and eSCL scanner discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
 
 ### Configuration
 
@@ -140,10 +140,10 @@ For Docker, export those two variables or put them in the root `.env`; Compose f
 
 ### Storage, backups, and access recovery
 
-- Uploaded print files are removed immediately after the CUPS submission attempt. CUPS has its own spool/history policy; the bundled configuration disables retained job files.
+- Original uploads are normalized to private PDFs. Print PDFs are retained for **7 days** for job previews, including unconfirmed submissions, or until you delete the job. Draft previews are processed in memory and create no jobs or stored documents. CUPS has its own spool/history policy; the bundled configuration disables retained job files.
 - Real scan storage defaults to `DATA_DIR/scans`. Choose an absolute server path during setup or change it under **Settings → General**. The app creates the folder and checks write access. Existing scans remain in their original location. Demo scans always use temporary instance storage.
 - In Docker, paths refer to the container. `/data/scans` is covered by the named data volume. For another location, configure a bind mount and grant the `node` user write access; entering a host path alone does not mount it. Back up any external scan folders as well as `DATA_DIR`.
-- Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry.
+- Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry. Click a document title in Jobs to reopen its preview. Older print jobs created before this feature may have no retained document; already deleted files cannot be recovered.
 - The UI shows the most recent **200** jobs. History is local SQLite data; it is not an analytics service.
 - Back up `DATA_DIR` and your CUPS configuration while the app is stopped. For Docker, back up the named volumes. Keep backups private; scans and personal metadata are not encrypted at rest.
 - Multiple users are supported, all with the same administrator permissions. To reset access, stop the server and run `node --env-file-if-exists=.env scripts/reset-access.mjs --confirm`. This removes all users and sessions, preserving devices/documents. Restart to use the instance without signing in, then add users again in Settings. With Docker, stop the service first, then run `docker compose --profile demo run --rm --entrypoint node demo scripts/reset-access.mjs --confirm` (replace `demo` with `hardware` as appropriate).
