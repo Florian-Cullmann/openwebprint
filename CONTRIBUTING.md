@@ -16,7 +16,7 @@ Routine dependency-bot PRs can proceed without a separate issue. Report vulnerab
 
 ## Local setup
 
-Use Node 24 LTS or 26, then follow the [README](README.md#quick-start). Choose **Try demo** on the first-run screen to develop without hardware. The React frontend is in `apps/client`, Fastify in `apps/server`, and shared types/Zod schemas in `packages/shared`.
+Use Node 24 LTS or 26, then follow the [source setup](README.md#run-from-source-development). Choose **Try demo** on the first-run screen to develop without hardware. The React frontend is in `apps/client`, Fastify in `apps/server`, and shared types/Zod schemas in `packages/shared`.
 
 ```sh
 npm ci
@@ -32,6 +32,10 @@ The browser tests start separate temporary servers for desktop and mobile, exerc
 ## macOS discovery helper
 
 The optional macOS Bonjour bridge lives in `scripts/macos/Discovery.swift`; `npm run build:discovery:macos` compiles it with the installed Apple SDK. CI compiles it on macOS and exercises its snapshot trust boundary in the backend tests on Linux. A compiler check or synthetic snapshot is not a physical discovery test. See [hardware.md](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) to validate a live Bonjour advertisement through Docker and the UI.
+
+## End-user packages
+
+After `npm run build`, run `npm run package:release` and `npm run test:install` to build and exercise a release package for your OS/CPU. The smoke test installs into a disposable directory, starts real production servers on a temporary port, verifies native image processing and persistent data across updates, then stops/removes the installation. It does not change your launchers or login startup. The installer CI additionally creates/removes OS shortcuts in its disposable runner account and builds all six targets. See [installation and releases](docs/installation.md#maintainer-release-process) for the supported platform boundary, runtime pin, and tag-based publishing process.
 
 ## README screenshots
 

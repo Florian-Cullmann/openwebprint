@@ -59,6 +59,30 @@ Review the scanned page, download its PDF, or scan another page. The sample docu
 
 ## Quick start
 
+### Install for everyday use
+
+Download and run the installer for your computer. The package includes the production web application, a private Node.js runtime, and application dependencies. It sets up a browser launcher, local data storage, and startup at login. **No Git, npm, system Node.js, Docker, VM, or Electron is required.**
+
+**Linux / macOS** — paste into Terminal, without `sudo`:
+
+```sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/latest/download/install.sh -o install-openwebprint.sh
+sh install-openwebprint.sh
+```
+
+**Windows** — paste into Windows PowerShell:
+
+```powershell
+Invoke-WebRequest -UseBasicParsing https://github.com/Florian-Cullmann/openwebprint/releases/latest/download/install.ps1 -OutFile install-openwebprint.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install-openwebprint.ps1
+```
+
+The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, on Linux/macOS with CUPS/SANE installed, **Start setup**. Windows currently supports the web application and demo; native printing/scanning is tracked in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14). OS hardware tools and vendor drivers are separate from the web package.
+
+Installer downloads require a published release with installer assets. See the [installation guide](docs/installation.md) for supported systems, hardware requirements, updates, backups, logs, uninstall, offline packages, and the maintainer release process.
+
+### Run from source (development)
+
 Requires Node.js **24 LTS** (recommended) or 26 and npm. SQLite is provided by Node's built-in `node:sqlite`; no database service is required. Node 24 may print an experimental SQLite warning.
 
 ```sh
