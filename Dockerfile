@@ -8,6 +8,7 @@ RUN npm ci
 COPY tsconfig.json ./
 COPY packages/shared packages/shared
 COPY apps apps
+COPY scripts/install scripts/install
 RUN npm run build && npm prune --omit=dev
 
 FROM node:26-bookworm-slim AS runtime

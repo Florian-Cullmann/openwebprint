@@ -12,7 +12,7 @@ This records software setup evidence separately from physical device compatibili
 
 ## Local verification
 
-Development host: macOS Apple Silicon. Production build and automated checks run locally. The 12 installer fixture checks also pass in a disposable Linux Node 24 container; this does not exercise a real systemd installation. A read-only system CUPS check reproduced localized output despite `LANG=C`; setting `SOFTWARE=openwebprint` makes macOS CUPS honor the fixed locale. No host packages, CUPS queues, service configuration or permissions were changed.
+Development host: macOS Apple Silicon. Production build and automated checks run locally. The 12 installer fixture checks also pass in a disposable Linux Node 24 container; this does not exercise a real systemd installation. A read-only system CUPS check reproduced localized output despite `LANG=C`; setting `SOFTWARE=openwebprint` makes macOS CUPS honor the fixed locale. No host packages, CUPS queues, service configuration or permissions were changed. A disposable Linux container also passed the production Docker build, real CUPS/SANE prerequisite API, hardware API smoke test and CUPS PDF-to-PWG-Raster filter check; this performs no physical printing.
 
 The screenshot below shows the actual onboarding UI with controlled missing-software API results, not a physical discovery result:
 
