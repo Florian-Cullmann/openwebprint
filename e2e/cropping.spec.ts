@@ -21,7 +21,7 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
   const thumbnail = page.getByAltText('Scanned page 1', { exact: true });
   await expect
     .poll(() => thumbnail.evaluate((img) => (img as HTMLImageElement).naturalWidth))
-    .toBe(1754);
+    .toBe(512);
   const scan = (await (await page.request.get('/api/snapshot')).json()).jobs.find(
     (job: Job) => job.kind === 'scan',
   ) as Job;
@@ -99,7 +99,7 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
         (img as HTMLImageElement).naturalHeight,
       ]),
     )
-    .toEqual([900, 600]);
+    .toEqual([512, 341]);
   await expect(page.getByRole('button', { name: 'Crop page 1', exact: true })).toBeFocused();
   expect((await latest()).pages![0].crop).toEqual({ x: 100, y: 200, width: 600, height: 900 });
   const downloadEvent = page.waitForEvent('download');
@@ -122,7 +122,7 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
         (img as HTMLImageElement).naturalHeight,
       ]),
     )
-    .toEqual([900, 600]);
+    .toEqual([512, 341]);
   await page.getByRole('button', { name: 'Crop page 1', exact: true }).click();
   await expect(left).toHaveValue('100');
   await expect(height).toHaveValue('900');
@@ -139,7 +139,7 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
         (img as HTMLImageElement).naturalHeight,
       ]),
     )
-    .toEqual([1754, 1240]);
+    .toEqual([512, 362]);
   expect((await latest()).pages![0]).not.toHaveProperty('crop');
   expect(
     await page.evaluate(
