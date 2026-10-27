@@ -2,7 +2,7 @@
 
 The end-user package runs the production web application in your browser. It includes its own Node.js runtime and application libraries, including the native image-processing library. You do not install Node.js, npm, Git, Docker, a virtual machine, or a desktop web wrapper. Installation takes place in your user account and does not change your system Node.js or PATH.
 
-**Current release:** [v0.1.0-beta.1](releases/v0.1.0-beta.1.md), the first public beta. The commands below pin this prerelease explicitly because GitHub’s `latest` endpoint selects stable releases. Downloads require the published installer assets; a source checkout alone is not an installer release.
+**Current release:** [v0.1.0-beta.2](releases/v0.1.0-beta.2.md), the second public beta. The commands below pin this prerelease explicitly because GitHub’s `latest` endpoint selects stable releases. Downloads require the published installer assets; a source checkout alone is not an installer release.
 
 ## Supported systems
 
@@ -22,8 +22,8 @@ The package is a private application directory, not an operating-system sandbox.
 Open Terminal and paste these two lines. Run as your normal user, **without sudo**:
 
 ```sh
-curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.1/install.sh -o install-openwebprint.sh
-OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.2/install.sh -o install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh
 ```
 
 The installer downloads a release matching your computer, verifies its SHA-256 checksum before extracting/running it, configures local access, creates a launcher, enables startup at login, starts the application, and opens **http://127.0.0.1:3001**. The two downloads resolve to the same versioned release. You can inspect `install-openwebprint.sh` before running it.
@@ -31,13 +31,13 @@ The installer downloads a release matching your computer, verifies its SHA-256 c
 - **Linux:** find **openwebprint** in your desktop's application menu. Login startup uses the standard XDG autostart directory.
 - **macOS:** open **openwebprint** from your home folder's **Applications** directory. This small launcher opens your browser; it does not embed a browser. Login startup uses a per-user LaunchAgent.
 
-To opt out of login startup, use `OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh --no-autostart`. For a headless Linux machine or SSH session add `--no-open --no-shortcuts` to the version-pinned install command; start it yourself after a reboot. The default login hooks do not start a system service before login or automatically restart a crashed process.
+To opt out of login startup, use `OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh --no-autostart`. For a headless Linux machine or SSH session add `--no-open --no-shortcuts` to the version-pinned install command; start it yourself after a reboot. The default login hooks do not start a system service before login or automatically restart a crashed process.
 
 ## First launch
 
 Choose **Try demo** to explore without hardware. On Linux/macOS with hardware prerequisites installed, choose **Start setup** to connect real devices. Nothing is simulated in hardware mode. The default installation is accessible only from your computer. Closing the browser leaves the local server running. Clicking the application shortcut opens it again and starts the server if needed.
 
-The URL uses `127.0.0.1` consistently for its origin and cookies. If port 3001 is already occupied, the installer explains the conflict instead of taking over another service. Choose another port with `OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh --port 3002`. Use the URL printed by the installer afterward.
+The URL uses `127.0.0.1` consistently for its origin and cookies. If port 3001 is already occupied, the installer explains the conflict instead of taking over another service. Choose another port with `OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh --port 3002`. Use the URL printed by the installer afterward.
 
 ## Hardware on Linux and macOS
 
@@ -96,13 +96,13 @@ Startup writes the private controller state completely before publishing `runnin
 Use a specific release when needed:
 
 ```sh
-OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh
 ```
 
 To uninstall, use the downloaded installer:
 
 ```sh
-OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh uninstall
+OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh uninstall
 ```
 
 This stops the server and removes the application, launcher, and login startup entry. **Configuration, documents, and logs remain.** To permanently remove them, delete the installation directory afterward; delete external scan folders separately only if you no longer need their contents. Reinstalling reuses the retained configuration and data.
@@ -115,4 +115,4 @@ For an installation without internet access, transfer the matching release `.tar
 
 CI builds and smoke-tests all four Linux/macOS OS/CPU combinations, including a path containing spaces. The package test verifies real production assets, first-run demo setup, native image-to-PDF conversion, authenticated process control, port conflicts, restart, update with persistent data, reinstall, and uninstall. CI also creates/removes the native shortcuts in its disposable runner account. These are application/installation checks, not physical hardware tests or a reboot/login certification.
 
-To publish, prepare the root/workspace versions, lockfile, install commands, and release notes on a dedicated release branch. Merge its PR after checks pass, then push a matching version tag (for example, `v0.1.0-beta.1`) pointing to that tested `main` commit. The release workflow rebuilds and tests the four packages and publishes them with SHA-256 files and the shell installer. Tag/package versions must match. Publishing a prerelease does not replace GitHub's latest stable release: prerelease install commands must pin both the installer download URL and `OPENWEBPRINT_VERSION`. After the workflow publishes the assets, replace the generated release notes with the reviewed file under `docs/releases/`. Node runtime updates require changing the pinned version in `scripts/package-release.mjs`; rebuild every target and rerun the package checks.
+To publish, prepare the root/workspace versions, lockfile, install commands, and release notes on a dedicated release branch. Merge its PR after checks pass, then push a matching version tag (for example, `v0.1.0-beta.2`) pointing to that tested `main` commit. The release workflow rebuilds and tests the four packages and publishes them with SHA-256 files and the shell installer. Tag/package versions must match. Publishing a prerelease does not replace GitHub's latest stable release: prerelease install commands must pin both the installer download URL and `OPENWEBPRINT_VERSION`. After the workflow publishes the assets, replace the generated release notes with the reviewed file under `docs/releases/`. Node runtime updates require changing the pinned version in `scripts/package-release.mjs`; rebuild every target and rerun the package checks.
