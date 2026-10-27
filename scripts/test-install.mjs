@@ -3,9 +3,10 @@ import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'node:net';
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runtime, shortcuts as synchronizeShortcuts } from './install/platform.mjs';
 
 // This exercises the actual release package, private runtime, SQLite, browser
@@ -56,9 +57,10 @@ const menuEntry =
         'applications',
         'openwebprint.desktop',
       );
-async function run(action, extra = [], success = true) {
+async function run(action, extra = [], success = true, env = process.env) {
   const child = spawn(node, [manager, ...common, action, ...extra], {
     stdio: ['ignore', 'pipe', 'pipe'],
+    env,
   });
   let output = '';
   child.stdout.on('data', (chunk) => {
@@ -73,6 +75,78 @@ async function run(action, extra = [], success = true) {
   });
   assert.equal(code === 0, success, output);
   return output;
+}
+
+async function atomicStartupState() {
+  await run('stop');
+  const statePath = join(root, 'running.json');
+  const paused = join(temporary, 'state-write-paused');
+  const resume = join(temporary, 'resume-state-write');
+  const hook = pathToFileURL(resolve(import.meta.dirname, 'fixtures/pause-state-write.mjs'));
+  let startupFailure;
+  const starting = run('start', [], true, {
+    ...process.env,
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import=${hook.href}`.trim(),
+    OWP_TEST_STATE_PATH: statePath,
+    OWP_TEST_STATE_PAUSED: paused,
+    OWP_TEST_STATE_RESUME: resume,
+  }).then(
+    () => null,
+    (error) => {
+      startupFailure = error;
+      return error;
+    },
+  );
+  try {
+    const deadline = Date.now() + 10_000;
+    while (!(await stat(paused).catch(() => null))) {
+      assert.ok(Date.now() < deadline, 'The startup fixture must reach the state write.');
+      await new Promise((done) => setTimeout(done, 20));
+    }
+    // Give the launcher's readiness loop time to read the incomplete file in
+    // the old implementation. No partially written state may be published.
+    await new Promise((done) => setTimeout(done, 1200));
+    if (startupFailure) throw startupFailure;
+    await assert.rejects(readFile(statePath), { code: 'ENOENT' });
+    await writeFile(resume, '');
+    const failure = await starting;
+    if (failure) throw failure;
+    assert.equal((await fetch(`${base}/api/health`)).status, 200);
+    const state = await readFile(statePath, 'utf8');
+    assert.ok(JSON.parse(state).pid > 0);
+    assert.equal((await stat(statePath)).mode & 0o777, 0o600);
+    // A competing server must neither overwrite state nor open the database.
+    assert.match(
+      await run('serve', [`--instance=${'a'.repeat(64)}`], false),
+      /Another instance is starting/,
+    );
+    assert.equal(await readFile(statePath, 'utf8'), state);
+    assert.deepEqual(
+      (await readdir(root)).filter((name) => name.startsWith('running.json.')),
+      [],
+    );
+    assert.match(await run('status'), /running/);
+  } finally {
+    await writeFile(resume, '');
+    await starting;
+  }
+}
+
+async function corruptStartupState() {
+  await run('stop');
+  const statePath = join(root, 'running.json');
+  for (const contents of ['', '{', JSON.stringify({ port: 'invalid' })]) {
+    await writeFile(statePath, contents);
+    try {
+      for (const action of ['status', 'start', 'stop']) {
+        assert.match(await run(action, [], false), /JSON|Invalid running.json/);
+        assert.equal(await readFile(statePath, 'utf8'), contents);
+      }
+    } finally {
+      await rm(statePath, { force: true });
+    }
+  }
+  await run('start');
 }
 
 async function reusedControlPort(action, kind) {
@@ -224,6 +298,8 @@ try {
   assert.match(await run('status'), /running/);
   await writeFile(join(root, 'data', 'keep.txt'), 'preserve documents');
   const savedConfig = await readFile(join(root, 'config.json'), 'utf8');
+  await atomicStartupState();
+  await corruptStartupState();
   await pausedInstance();
   await reusedControlPort('start', 'forbidden');
   await reusedControlPort('start', 'silent');
@@ -267,7 +343,7 @@ try {
   assert.equal(JSON.parse(await readFile(join(root, 'config.json'))).autostart, false);
   await reusedControlPort('uninstall', 'ssh');
   console.log(
-    'Packaged installation, HTTP/TCP/SSH port reuse, paused-instance preservation, production web/assets, native image conversion, control authentication, restart, update/data preservation, shortcut opt-out, reinstall, and uninstall passed.',
+    'Packaged installation, atomic startup state, corrupt-state preservation, HTTP/TCP/SSH port reuse, paused-instance preservation, production web/assets, native image conversion, control authentication, restart, update/data preservation, shortcut opt-out, reinstall, and uninstall passed.',
   );
 } catch (error) {
   console.error(
