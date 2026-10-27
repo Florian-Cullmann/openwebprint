@@ -12,6 +12,10 @@ export const mediaLabels: Record<PrintOptions['media'], string> = {
   'na_letter_8.5x11in': 'Letter · 8.5 × 11 in',
   iso_a5_148x210mm: 'A5 · 148 × 210 mm',
 };
+const colorLabels: Record<PrintOptions['color'], string> = {
+  monochrome: 'Black and white',
+  color: 'Color',
+};
 const sidesLabels: Record<PrintOptions['sides'], string> = {
   'one-sided': 'Single-sided',
   'two-sided-long-edge': 'Duplex · long edge',
@@ -46,6 +50,7 @@ export function PrintDialog({
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const device = printers.find((d) => d.id === deviceId);
+  const supportedColorModes = device?.capabilities?.colorModes;
   const supportedSides = device?.capabilities?.sides;
   const [options, setOptions] = useState<PrintOptions>({
     copies: 1,
@@ -53,6 +58,7 @@ export function PrintDialog({
     sides: 'one-sided',
     media: 'iso_a4_210x297mm',
   });
+  const validColor = !!supportedColorModes?.includes(options.color);
   const validSides = !!supportedSides?.includes(options.sides);
   const hasDocument = !!source || !!file;
   let selectedPages: number[] = [];
@@ -93,10 +99,17 @@ export function PrintDialog({
   useEffect(() => {
     setOptions((o) => ({
       ...o,
-      color: 'monochrome',
       media: device?.capabilities?.media[0] ?? 'iso_a4_210x297mm',
     }));
-  }, [deviceId, device?.capabilities?.media.join(','), device?.capabilities?.color]);
+  }, [deviceId, device?.capabilities?.media.join(',')]);
+  useEffect(() => {
+    setOptions((o) => ({
+      ...o,
+      color: supportedColorModes?.includes(o.color)
+        ? o.color
+        : (supportedColorModes?.[0] ?? 'monochrome'),
+    }));
+  }, [deviceId, supportedColorModes?.join(',')]);
   useEffect(() => {
     setOptions((o) => ({
       ...o,
@@ -127,6 +140,7 @@ export function PrintDialog({
       !device ||
       !preview ||
       previewing ||
+      !validColor ||
       !validSides ||
       !selectedPages.length ||
       device.status === 'offline'
@@ -381,12 +395,15 @@ export function PrintDialog({
               )}
               <div className={s.formGrid}>
                 <ColorModeControl
-                  modes={[
-                    { value: 'monochrome', label: 'Black and white' },
-                    ...(device?.capabilities?.color ? [{ value: 'color', label: 'Color' }] : []),
-                  ]}
+                  modes={(supportedColorModes ?? []).map((mode) => ({
+                    value: mode,
+                    label: colorLabels[mode],
+                  }))}
+                  emptyLabel={
+                    supportedColorModes ? 'No supported color modes' : 'Color modes unavailable'
+                  }
                   value={options.color}
-                  disabled={busy}
+                  disabled={busy || !supportedColorModes?.length}
                   onChange={(color) =>
                     setOptions({ ...options, color: color as PrintOptions['color'] })
                   }
@@ -457,6 +474,14 @@ export function PrintDialog({
               {device && !device.capabilities && (
                 <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
               )}
+              {device?.capabilities && !supportedColorModes && (
+                <p className={s.error}>
+                  Print color modes are unavailable. Check the CUPS connection.
+                </p>
+              )}
+              {supportedColorModes?.length === 0 && (
+                <p className={s.error}>This printer reports no supported print color modes.</p>
+              )}
               {device?.capabilities && !supportedSides && (
                 <p className={s.error}>Print sides are unavailable. Check the CUPS connection.</p>
               )}
@@ -483,6 +508,7 @@ export function PrintDialog({
                 device?.status === 'offline' ||
                 !preview ||
                 previewing ||
+                !validColor ||
                 !validSides ||
                 !selectedPages.length ||
                 !device?.capabilities?.media.length

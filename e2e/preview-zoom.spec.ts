@@ -43,7 +43,12 @@ async function fixture(page: Page) {
         mode: 'demo',
         provider: 'demo',
         status: 'ready',
-        capabilities: { color: true, sides: ['one-sided'], media: ['iso_a4_210x297mm'] },
+        capabilities: {
+          color: true,
+          colorModes: ['monochrome', 'color'],
+          sides: ['one-sided'],
+          media: ['iso_a4_210x297mm'],
+        },
       },
     ],
   };
