@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Job, JobFilter, JobPage } from '@openwebprint/shared';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from './api';
 import { Spinner } from './ui';
 import s from './App.module.css';
@@ -21,13 +22,14 @@ export function JobHistory({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  const pageSize = kind === 'scan' ? 30 : 50;
   useEffect(() => {
     const controller = new AbortController();
     let pending = false;
     const load = async () => {
       if (pending) return;
       pending = true;
-      const query = new URLSearchParams({ limit: '50', filter });
+      const query = new URLSearchParams({ limit: String(pageSize), filter });
       if (kind) query.set('kind', kind);
       if (cursor) query.set('cursor', cursor);
       try {
@@ -51,7 +53,15 @@ export function JobHistory({
       controller.abort();
       clearInterval(timer);
     };
-  }, [cursor, kind, filter, revision, retry]);
+  }, [cursor, kind, filter, revision, retry, pageSize]);
+  useEffect(() => {
+    // Deleting the final record on an older page returns to the preceding page.
+    if (cursor && page && !page.jobs.length) {
+      setPage(undefined);
+      setLoading(true);
+      setCursors((values) => values.slice(0, -1));
+    }
+  }, [cursor, page]);
   function move(next: (string | undefined)[]) {
     setPage(undefined);
     setError('');
@@ -79,24 +89,35 @@ export function JobHistory({
         className={s.pagination}
         aria-label={kind === 'scan' ? 'Scan history pages' : 'Job history pages'}
       >
-        <button
-          className={s.secondary}
-          disabled={loading || cursors.length === 1}
-          onClick={() => move(cursors.slice(0, -1))}
-        >
-          Previous
-        </button>
-        <span role="status">
-          Page {cursors.length}
-          {page ? ` · ${page.jobs.length} ${kind === 'scan' ? 'scans' : 'jobs'}` : ''}
-        </span>
-        <button
-          className={s.secondary}
-          disabled={loading || !page?.nextCursor}
-          onClick={() => move([...cursors, page!.nextCursor])}
-        >
-          Next
-        </button>
+        <div role="status" className={s.paginationSummary}>
+          {page && (
+            <span>
+              {page.jobs.length ? page.offset + 1 : 0}–
+              {page.jobs.length ? page.offset + page.jobs.length : 0} of {page.total}{' '}
+              {kind === 'scan' ? 'scans' : 'jobs'}
+            </span>
+          )}{' '}
+          <span className={s.paginationPage}>
+            Page {page ? Math.floor(page.offset / pageSize) + 1 : cursors.length}
+            {page ? ` of ${Math.max(1, Math.ceil(page.total / pageSize))}` : ''}
+          </span>
+        </div>
+        <div className={s.paginationControls}>
+          <button
+            className={s.secondary}
+            disabled={loading || cursors.length === 1}
+            onClick={() => move(cursors.slice(0, -1))}
+          >
+            <ChevronLeft size={16} /> Previous
+          </button>
+          <button
+            className={s.secondary}
+            disabled={loading || !page?.nextCursor}
+            onClick={() => move([...cursors, page!.nextCursor])}
+          >
+            Next <ChevronRight size={16} />
+          </button>
+        </div>
       </nav>
     </>
   );

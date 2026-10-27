@@ -49,16 +49,22 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     const pageRead = vi.spyOn(f.store, 'jobPage');
     const first = await listing('limit=37');
     expect(first.jobs).toHaveLength(37);
+    expect(first.total).toBe(305);
+    expect(first.offset).toBe(0);
     expect(first.jobs[0].id).toBe(job(305).id);
     expect(pageRead.mock.results[0].value).toHaveLength(38);
     const seen = first.jobs.map((job) => job.id);
     f.store.putJob(job(999, { createdAt: '2026-01-02T00:00:00.000Z' }));
+    const shifted = await listing(`limit=37&cursor=${first.nextCursor}`);
+    expect(shifted.total).toBe(306);
+    expect(shifted.offset).toBe(38);
     const anchor = first.jobs.at(-1)!;
     f.store.deleteJob(anchor.id, 'demo');
     let cursor = first.nextCursor;
     while (cursor) {
       const next = await listing(`limit=37&cursor=${cursor}`);
       expect(next.jobs.length).toBeLessThanOrEqual(37);
+      expect(next.total).toBe(305);
       seen.push(...next.jobs.map((job) => job.id));
       cursor = next.nextCursor;
     }
@@ -91,6 +97,7 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     f.store.putJob(job(242, { status: 'unknown' }));
     f.store.putJob(job(243, { status: 'processing' }));
     const scans = await listing('kind=scan&limit=1');
+    expect(scans.total).toBe(3);
     expect(scans.jobs[0].id).toBe(retained.id);
     expect(scans.jobs[0].hasFile).toBe(true);
     for (const key of ['filePath', 'previewPath', 'externalId'])
@@ -99,8 +106,11 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
       job(243).id,
     );
     const active = await listing('filter=active');
+    expect(active.total).toBe(2);
     expect(active.jobs.map((job) => job.status)).toEqual(['processing', 'unknown']);
-    expect((await listing('kind=print&filter=completed&limit=100')).jobs).toHaveLength(100);
+    const completed = await listing('kind=print&filter=completed&limit=100');
+    expect(completed.jobs).toHaveLength(100);
+    expect(completed.total).toBe(240);
     const expiredInfo = await f.app.inject({ url: `/api/jobs/${expired.id}`, headers: f.headers });
     expect(expiredInfo.json().hasFile).toBe(false);
     expect(

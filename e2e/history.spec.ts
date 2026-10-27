@@ -70,11 +70,11 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/jobs');
   const pages = page.getByRole('navigation', { name: 'Job history pages' });
-  await expect(pages.getByRole('status')).toHaveText('Page 1 · 50 jobs');
+  await expect(pages.getByRole('status')).toHaveText('1–50 of 302 jobs Page 1 of 7');
   for (let number = 2; number <= 7; number++) {
     await pages.getByRole('button', { name: 'Next', exact: true }).click();
     await expect(pages.getByRole('status')).toHaveText(
-      `Page ${number} · ${number === 7 ? 2 : 50} jobs`,
+      `${(number - 1) * 50 + 1}–${Math.min(number * 50, 302)} of 302 jobs Page ${number} of 7`,
     );
   }
   await expect(pages.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
@@ -85,41 +85,94 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   );
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-  await expect(pages.getByRole('status')).toHaveText('Page 7 · 2 jobs');
+  await expect(pages.getByRole('status')).toHaveText('301–302 of 302 jobs Page 7 of 7');
   await page.getByRole('button', { name: 'Dismiss notification', exact: true }).click();
   await pages.getByRole('button', { name: 'Previous', exact: true }).click();
-  await expect(pages.getByRole('status')).toHaveText('Page 6 · 50 jobs');
+  await expect(pages.getByRole('status')).toHaveText('251–300 of 302 jobs Page 6 of 7');
   await page.getByRole('button', { name: 'Active', exact: true }).click();
-  await expect(pages.getByRole('status')).toHaveText('Page 1 · 0 jobs');
+  await expect(pages.getByRole('status')).toHaveText('0–0 of 0 jobs Page 1 of 1');
   await page.getByRole('button', { name: 'Completed', exact: true }).click();
-  await expect(pages.getByRole('status')).toHaveText('Page 1 · 50 jobs');
+  await expect(pages.getByRole('status')).toHaveText('1–50 of 302 jobs Page 1 of 7');
   await page
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: 'Scans', exact: true })
     .click();
   const scans = page.getByRole('navigation', { name: 'Scan history pages' });
-  await expect(scans.getByRole('status')).toHaveText('Page 1 · 50 scans');
+  const scanRows = page.getByRole('table').locator('tbody').getByRole('row');
+  const listView = page.getByRole('button', { name: 'List view', exact: true });
+  const gridView = page.getByRole('button', { name: 'Grid view', exact: true });
+  async function checkLayout() {
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+      ),
+    ).toBe(true);
+    const result = await new AxeBuilder({ page }).analyze();
+    expect(
+      result.violations.filter((violation) =>
+        ['serious', 'critical'].includes(violation.impact ?? ''),
+      ),
+    ).toEqual([]);
+  }
+  await expect(scans.getByRole('status')).toHaveText('1–30 of 61 scans Page 1 of 3');
+  await expect(page.getByRole('article')).toHaveCount(30);
   await expect(page.getByRole('heading', { name: 'Archive scan 241', exact: true })).toBeVisible();
+  await listView.click();
+  await expect(listView).toHaveAttribute('aria-pressed', 'true');
+  await expect(scanRows).toHaveCount(30);
+  await checkLayout();
+  await page.reload();
+  await expect(listView).toHaveAttribute('aria-pressed', 'true');
+  await expect(scans.getByRole('status')).toHaveText('1–30 of 61 scans Page 1 of 3');
+  await expect(scanRows).toHaveCount(30);
+  await gridView.click();
+  await expect(gridView).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('article')).toHaveCount(30);
   await scans.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(scans.getByRole('status')).toHaveText('Page 2 · 11 scans');
+  await expect(scans.getByRole('status')).toHaveText('31–60 of 61 scans Page 2 of 3');
   const retained = page
     .getByRole('article')
     .filter({ has: page.getByRole('heading', { name: 'Archive scan 300', exact: true }) });
   const downloadEvent = page.waitForEvent('download');
   await retained.getByRole('link', { name: 'Save PDF', exact: true }).click();
-  const download = await downloadEvent;
-  expect(await download.failure()).toBeNull();
+  expect(await (await downloadEvent).failure()).toBeNull();
   await retained
     .getByRole('button', { name: 'Open scan preview: Archive scan 300', exact: true })
     .click();
   await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible();
   await expect(page.getByAltText('Scanned page 1')).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
-  const expired = page
-    .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Expired archive scan', exact: true }) });
-  await expect(expired.getByText('File already deleted', { exact: true })).toBeVisible();
-  await expect(expired.getByRole('link', { name: 'Save PDF' })).toHaveCount(0);
+  await listView.click();
+  // Changing the layout keeps the current page and all of its document actions.
+  await expect(scans.getByRole('status')).toHaveText('31–60 of 61 scans Page 2 of 3');
+  await expect(scanRows).toHaveCount(30);
+  const retainedRow = page.getByRole('row').filter({ hasText: 'Archive scan 300' });
+  const listDownload = page.waitForEvent('download');
+  await retainedRow.getByRole('link', { name: 'Save PDF: Archive scan 300', exact: true }).click();
+  expect(await (await listDownload).failure()).toBeNull();
+  await retainedRow.getByRole('button', { name: 'Archive scan 300', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible();
+  await expect(page.getByAltText('Scanned page 1')).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await checkLayout();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: `test-results/${info.project.name}-history-list.png`,
+    fullPage: false,
+  });
+  await scans.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(scans.getByRole('status')).toHaveText('61–61 of 61 scans Page 3 of 3');
+  const expired = page.getByRole('row').filter({ hasText: 'Expired archive scan' });
+  await expect(expired).toContainText('File already deleted');
+  await expect(expired.getByRole('link', { name: /Save PDF/ })).toHaveCount(0);
+  await expired
+    .getByRole('button', { name: 'Delete scan: Expired archive scan', exact: true })
+    .click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Keep', exact: true }).click();
+  await gridView.click();
+  await expect(scans.getByRole('status')).toHaveText('61–61 of 61 scans Page 3 of 3');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByText('File already deleted', { exact: true })).toBeVisible();
   await expect(scans.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   // Simulate a temporary proxy failure only for page requests, then exercise Retry.
   await page.route('**/api/jobs?**', (route) =>
@@ -129,23 +182,21 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   await expect(page.getByRole('alert')).toContainText('History temporarily unavailable.');
   await page.unroute('**/api/jobs?**');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
-  await expect(scans.getByRole('status')).toHaveText('Page 1 · 50 scans');
+  await expect(scans.getByRole('status')).toHaveText('31–60 of 61 scans Page 2 of 3');
   await scans.getByRole('button', { name: 'Next', exact: true }).click();
-  await expect(scans.getByRole('status')).toHaveText('Page 2 · 11 scans');
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
-    ),
-  ).toBe(true);
-  const accessibility = await new AxeBuilder({ page }).analyze();
-  expect(
-    accessibility.violations.filter((violation) =>
-      ['serious', 'critical'].includes(violation.impact ?? ''),
-    ),
-  ).toEqual([]);
+  await expect(scans.getByRole('status')).toHaveText('61–61 of 61 scans Page 3 of 3');
+  await checkLayout();
   await page.screenshot({
     path: `test-results/${info.project.name}-history-pagination.png`,
     fullPage: true,
   });
+  await listView.click();
+  await page
+    .getByRole('button', { name: 'Delete scan: Expired archive scan', exact: true })
+    .click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(scans.getByRole('status')).toHaveText('31–60 of 60 scans Page 2 of 2');
+  await expect(scanRows).toHaveCount(30);
+  await expect(scans.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   expect(errors).toEqual([]);
 });

@@ -103,7 +103,7 @@ export class Store {
       .all(mode)
       .map((r) => JSON.parse(String(r.data)));
   }
-  jobPage(mode: Mode, { limit, kind, filter, before }: JobPageOptions): StoredJob[] {
+  private jobWhere(mode: Mode, { kind, filter }: Pick<JobPageOptions, 'kind' | 'filter'>) {
     const where = ['mode=?'];
     const params: (string | number)[] = [mode];
     if (kind) {
@@ -113,6 +113,20 @@ export class Store {
     if (filter === 'active')
       where.push("json_extract(data, '$.status') NOT IN ('completed', 'canceled', 'failed')");
     if (filter === 'completed') where.push("json_extract(data, '$.status')='completed'");
+    return { where, params };
+  }
+  jobStats(mode: Mode, { before, ...options }: Omit<JobPageOptions, 'limit'>) {
+    const { where, params } = this.jobWhere(mode, options);
+    const position = before ? 'COUNT(*) FILTER (WHERE (created, id) >= (?, ?))' : '0';
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total, ${position} AS offset FROM jobs WHERE ${where.join(' AND ')}`,
+      )
+      .get(...(before ? [before.createdAt, before.id, ...params] : params))!;
+    return { total: Number(row.total), offset: Number(row.offset) };
+  }
+  jobPage(mode: Mode, { limit, kind, filter, before }: JobPageOptions): StoredJob[] {
+    const { where, params } = this.jobWhere(mode, { kind, filter });
     if (before) {
       where.push('(created, id) < (?, ?)');
       params.push(before.createdAt, before.id);

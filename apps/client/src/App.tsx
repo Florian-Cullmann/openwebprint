@@ -6,6 +6,8 @@ import {
   FileText,
   Github,
   LayoutDashboard,
+  LayoutGrid,
+  List,
   ListOrdered,
   LogOut,
   Moon,
@@ -77,6 +79,9 @@ export function App() {
   const [query, setQuery] = useState('');
   const [jobFilter, setJobFilter] = useState<JobFilter>('all');
   const [historyRevision, setHistoryRevision] = useState(0);
+  const [scanLayout, setScanLayout] = useState<'grid' | 'list'>(() =>
+    localStorage.getItem('owp-scan-layout') === 'list' ? 'list' : 'grid',
+  );
   const [deleting, setDeleting] = useState<{ device?: Device; job?: Job }>();
   const [theme, setTheme] = useState(() => localStorage.getItem('owp-theme') ?? 'system');
   const [dark, setDark] = useState(
@@ -85,6 +90,9 @@ export function App() {
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches),
   );
   const refreshing = useRef(false);
+  useEffect(() => {
+    localStorage.setItem('owp-scan-layout', scanLayout);
+  }, [scanLayout]);
   useEffect(() => {
     setDialog(undefined);
     setQuery('');
@@ -526,80 +534,110 @@ export function App() {
               </>
             )}
             {view === 'scans' && (
-              <JobHistory kind="scan" revision={historyRevision}>
-                {(scans) => (
-                  <>
-                    {scans.length ? (
-                      <div className={s.scanGrid}>
-                        {scans.map((job) => (
-                          <article className={s.scanCard} key={job.id}>
-                            <button
-                              className={s.scanThumb}
-                              disabled={!job.hasFile}
-                              onClick={() => openScan(job.deviceId, job)}
-                              aria-label={`Open scan preview: ${job.title}`}
-                            >
-                              {job.hasFile ? (
-                                <img
-                                  src={`/api/jobs/${job.id}/preview`}
-                                  alt="Scanned page"
-                                  loading="lazy"
-                                />
-                              ) : (
-                                <ScanLine size={44} strokeWidth={1} />
-                              )}
-                            </button>
-                            <div className={s.scanCardBody}>
-                              <JobBadge status={job.status} />
-                              <h3>{job.title}</h3>
-                              <p>{job.deviceName}</p>
-                              <span className={s.small}>{formatDate(job.createdAt)}</span>
-                              {job.error && <p className={s.error}>{job.error}</p>}
-                              <div className={s.scanCardActions}>
-                                {job.hasFile ? (
-                                  <a
-                                    className={s.secondary}
-                                    href={`/api/jobs/${job.id}/pdf`}
-                                    download
-                                  >
-                                    <ArrowDownToLine size={16} /> Save PDF
-                                  </a>
-                                ) : (
-                                  <span className={s.small}>
-                                    {job.status === 'completed'
-                                      ? 'File already deleted'
-                                      : 'No file yet'}
-                                  </span>
-                                )}
-                                <button
-                                  className={s.iconButton}
-                                  disabled={!completed.has(job.status)}
-                                  aria-label={`Delete scan: ${job.title}`}
-                                  onClick={() => setDeleting({ job })}
-                                >
-                                  <Trash2 size={17} />
-                                </button>
-                              </div>
-                            </div>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <Empty
-                        icon={<ScanLine />}
-                        title="No scans yet"
-                        action={
-                          <button className={s.primary} onClick={() => openScan()}>
-                            <ScanLine size={17} /> Start first scan
-                          </button>
-                        }
+              <>
+                <div className={s.toolbar}>
+                  <div className={s.tabs} role="group" aria-label="Scan view">
+                    {(
+                      [
+                        ['grid', 'Grid view', LayoutGrid],
+                        ['list', 'List view', List],
+                      ] as const
+                    ).map(([layout, label, Icon]) => (
+                      <button
+                        key={layout}
+                        aria-pressed={scanLayout === layout}
+                        className={scanLayout === layout ? s.activeTab : ''}
+                        onClick={() => setScanLayout(layout)}
                       >
-                        Scan a page and download it as a PDF.
-                      </Empty>
-                    )}
-                  </>
-                )}
-              </JobHistory>
+                        <Icon size={16} /> {label}
+                      </button>
+                    ))}
+                  </div>
+                  <span className={s.small}>30 scans per page</span>
+                </div>
+                <JobHistory kind="scan" revision={historyRevision}>
+                  {(scans) => (
+                    <>
+                      {scans.length && scanLayout === 'list' ? (
+                        <JobList
+                          jobs={scans}
+                          busy={busy}
+                          scanList
+                          preview={openPreview}
+                          remove={(job) => setDeleting({ job })}
+                        />
+                      ) : scans.length ? (
+                        <div className={s.scanGrid}>
+                          {scans.map((job) => (
+                            <article className={s.scanCard} key={job.id}>
+                              <button
+                                className={s.scanThumb}
+                                disabled={!job.hasFile}
+                                onClick={() => openScan(job.deviceId, job)}
+                                aria-label={`Open scan preview: ${job.title}`}
+                              >
+                                {job.hasFile ? (
+                                  <img
+                                    src={`/api/jobs/${job.id}/preview`}
+                                    alt="Scanned page"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <ScanLine size={44} strokeWidth={1} />
+                                )}
+                              </button>
+                              <div className={s.scanCardBody}>
+                                <JobBadge status={job.status} />
+                                <h3>{job.title}</h3>
+                                <p>{job.deviceName}</p>
+                                <span className={s.small}>{formatDate(job.createdAt)}</span>
+                                {job.error && <p className={s.error}>{job.error}</p>}
+                                <div className={s.scanCardActions}>
+                                  {job.hasFile ? (
+                                    <a
+                                      className={s.secondary}
+                                      href={`/api/jobs/${job.id}/pdf`}
+                                      download
+                                    >
+                                      <ArrowDownToLine size={16} /> Save PDF
+                                    </a>
+                                  ) : (
+                                    <span className={s.small}>
+                                      {job.status === 'completed'
+                                        ? 'File already deleted'
+                                        : 'No file yet'}
+                                    </span>
+                                  )}
+                                  <button
+                                    className={s.iconButton}
+                                    disabled={!completed.has(job.status)}
+                                    aria-label={`Delete scan: ${job.title}`}
+                                    onClick={() => setDeleting({ job })}
+                                  >
+                                    <Trash2 size={17} />
+                                  </button>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <Empty
+                          icon={<ScanLine />}
+                          title="No scans yet"
+                          action={
+                            <button className={s.primary} onClick={() => openScan()}>
+                              <ScanLine size={17} /> Start first scan
+                            </button>
+                          }
+                        >
+                          Scan a page and download it as a PDF.
+                        </Empty>
+                      )}
+                    </>
+                  )}
+                </JobHistory>
+              </>
             )}
             {view === 'settings' && (
               <div className={s.settingsGrid}>
@@ -878,12 +916,14 @@ function JobList({
   preview,
   remove,
   busy,
+  scanList = false,
 }: {
   jobs: Job[];
-  cancel: (id: string) => void;
+  cancel?: (id: string) => void;
   preview: (job: Job) => void;
   remove?: (job: Job) => void;
   busy: boolean;
+  scanList?: boolean;
 }) {
   if (!jobs.length)
     return (
@@ -923,6 +963,11 @@ function JobList({
                       {job.kind === 'print' && 'copies' in job.options
                         ? ` · ${job.options.copies} ${job.options.copies === 1 ? 'Copy' : 'Copies'}`
                         : ''}
+                      {scanList && !job.hasFile
+                        ? job.status === 'completed'
+                          ? ' · File already deleted'
+                          : ' · No file yet'
+                        : ''}
                     </span>
                     {job.error && <p className={s.jobError}>{job.error}</p>}
                   </div>
@@ -935,7 +980,7 @@ function JobList({
               <td className={s.jobDate}>{formatDate(job.createdAt)}</td>
               <td>
                 <div className={s.rowActions}>
-                  {job.kind === 'print' && !completed.has(job.status) && (
+                  {cancel && job.kind === 'print' && !completed.has(job.status) && (
                     <button
                       className={s.iconButton}
                       disabled={busy}
@@ -955,11 +1000,22 @@ function JobList({
                       <Search size={17} />
                     </button>
                   )}
+                  {scanList && job.hasFile && (
+                    <a
+                      className={s.iconButton}
+                      href={`/api/jobs/${job.id}/pdf`}
+                      download
+                      title="Save PDF"
+                      aria-label={`Save PDF: ${job.title}`}
+                    >
+                      <ArrowDownToLine size={17} />
+                    </a>
+                  )}
                   {remove && (completed.has(job.status) || job.status === 'unknown') && (
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      aria-label={`Delete job: ${job.title}`}
+                      aria-label={`Delete ${scanList ? 'scan' : 'job'}: ${job.title}`}
                       onClick={() => remove(job)}
                     >
                       <Trash2 size={16} />

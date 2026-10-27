@@ -115,6 +115,8 @@ export interface Job {
 export type JobFilter = 'all' | 'active' | 'completed';
 export interface JobPage {
   jobs: Job[];
+  total: number;
+  offset: number;
   nextCursor?: string;
 }
 export interface DiscoveryResult {

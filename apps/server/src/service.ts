@@ -167,6 +167,7 @@ export class Service {
     const last = jobs.at(-1);
     return {
       jobs,
+      ...this.store.jobStats(this.mode, options),
       ...(rows.length > options.limit && last
         ? {
             nextCursor: Buffer.from(
