@@ -178,6 +178,7 @@ it.each(['offline', 'unavailable capabilities', 'changed capabilities'])(
           ? undefined
           : {
               color: false,
+              colorModes: ['monochrome'],
               sides: ['one-sided'],
               media: ['iso_a5_148x210mm'],
             },

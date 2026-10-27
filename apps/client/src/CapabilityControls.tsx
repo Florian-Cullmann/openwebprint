@@ -7,11 +7,13 @@ export function ColorModeControl({
   value,
   onChange,
   disabled,
+  emptyLabel = 'No supported color modes',
 }: {
   modes: { value: string; label: string }[];
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
+  emptyLabel?: string;
 }) {
   const name = useId();
   if (modes.length > 2)
@@ -46,7 +48,7 @@ export function ColorModeControl({
           ))}
         </div>
       ) : (
-        <p className={s.fixedValue}>{modes[0]?.label ?? 'No supported color modes'}</p>
+        <p className={s.fixedValue}>{modes[0]?.label ?? emptyLabel}</p>
       )}
     </fieldset>
   );

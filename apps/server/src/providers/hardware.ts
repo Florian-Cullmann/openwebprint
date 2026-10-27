@@ -11,6 +11,7 @@ import type {
 import {
   MAX_SCAN_PAGES,
   PRINT_SIDES,
+  PRINT_COLOR_MODES,
   scanSettingsError,
   type ScanSources,
 } from '@openwebprint/shared';
@@ -298,6 +299,12 @@ export class HardwareProvider implements Provider {
           String(attrs['printer-state'])
         ] ?? Number(attrs['printer-state']);
       const media = ['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'] as const;
+      const colorModes =
+        attrs['print-color-mode-supported'] == null
+          ? undefined
+          : PRINT_COLOR_MODES.filter((mode) =>
+              list(attrs['print-color-mode-supported']).includes(mode),
+            );
       return {
         ...device,
         status:
@@ -310,9 +317,8 @@ export class HardwareProvider implements Provider {
                 : 'unknown',
         detail: reasons && reasons !== 'none' ? reasons : 'CUPS queue status',
         capabilities: {
-          color:
-            list(attrs['print-color-mode-supported']).includes('color') ||
-            attrs['color-supported'] === true,
+          color: colorModes?.includes('color') ?? false,
+          colorModes,
           sides:
             attrs['sides-supported'] == null
               ? undefined

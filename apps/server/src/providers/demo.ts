@@ -3,6 +3,7 @@ import sharp from 'sharp';
 import type { Device, DeviceInput, PrintOptions, ScanOptions } from '@openwebprint/shared';
 import {
   PRINT_SIDES,
+  PRINT_COLOR_MODES,
   FALLBACK_SCAN_RESOLUTIONS,
   FALLBACK_SCAN_COLOR_MODES,
   scanSettingsError,
@@ -45,6 +46,7 @@ export class DemoProvider implements Provider {
         input.kind === 'printer'
           ? {
               color: !input.name.includes('L2750'),
+              colorModes: input.name.includes('L2750') ? ['monochrome'] : [...PRINT_COLOR_MODES],
               sides: [...PRINT_SIDES],
               media: ['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'],
             }
@@ -52,7 +54,7 @@ export class DemoProvider implements Provider {
     };
   }
   async inspect(device: Device) {
-    // Rebuild capabilities so devices saved before sides discovery are refreshed too.
+    // Rebuild capabilities so devices saved before individual print capability discovery are refreshed too.
     return this.add(device, device.id);
   }
   async print(_device: Device, _path: string, _title: string, _options: PrintOptions) {
