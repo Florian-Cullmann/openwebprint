@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Crop,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
@@ -60,6 +61,7 @@ export function ScanDialog({
   const [cropping, setCropping] = useState<string>();
   const cropButtons = useRef(new Map<string, HTMLButtonElement>());
   const returnToPage = useRef<string | undefined>(undefined);
+  const focusAfterRemoval = useRef<string | undefined>(undefined);
   const requestActive = useRef(false);
   const [addingScanner, setAddingScanner] = useState(false);
   const changedRef = useRef(changed);
@@ -75,6 +77,12 @@ export function ScanDialog({
   const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
   const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
   const invalidSettings = !!scanSettingsError(sources, { resolution, color });
+  useEffect(() => {
+    if (!locked && focusAfterRemoval.current) {
+      cropButtons.current.get(focusAfterRemoval.current)?.focus();
+      focusAfterRemoval.current = undefined;
+    }
+  }, [pages, locked]);
   useEffect(() => {
     if (!cropping && returnToPage.current) {
       cropButtons.current.get(returnToPage.current)?.focus();
@@ -197,15 +205,18 @@ export function ScanDialog({
       requestActive.current = false;
     }
   }
-  async function edit(updated: ScanPage[]) {
+  async function edit(updated: ScanPage[], focusPage?: string) {
     if (!job || requestActive.current || running) return;
     requestActive.current = true;
     setBusy(true);
     setError('');
     try {
-      setJob(
-        await post<Job>(`/scans/${job.id}/pages`, { revision: job.scanRevision, pages: updated }),
-      );
+      const saved = await post<Job>(`/scans/${job.id}/pages`, {
+        revision: job.scanRevision,
+        pages: updated,
+      });
+      focusAfterRemoval.current = focusPage;
+      setJob(saved);
       changed();
       return true;
     } catch (e) {
@@ -214,6 +225,12 @@ export function ScanDialog({
       setBusy(false);
       requestActive.current = false;
     }
+  }
+  async function removePage(id: string) {
+    if (pages.length <= 1) return;
+    const index = pages.findIndex((page) => page.id === id);
+    const updated = pages.filter((page) => page.id !== id);
+    await edit(updated, updated[Math.min(index, updated.length - 1)].id);
   }
   function move(id: string, to: number) {
     const from = pages.findIndex((page) => page.id === id);
@@ -365,6 +382,20 @@ export function ScanDialog({
                         >
                           <ArrowRight size={16} />
                         </button>
+                        <button
+                          type="button"
+                          className={s.iconButton}
+                          disabled={locked || pages.length <= 1}
+                          aria-label={`Remove page ${index + 1}`}
+                          title={
+                            pages.length <= 1
+                              ? 'A scan must keep at least one page.'
+                              : `Remove page ${index + 1}`
+                          }
+                          onClick={() => void removePage(page.id)}
+                        >
+                          <Trash2 size={16} />
+                        </button>
                       </div>
                     </li>
                   ))}
@@ -392,19 +423,27 @@ export function ScanDialog({
           </div>
           <div className={s.scanControls}>
             {complete && (
-              <div className={s.scanDocumentSummary}>
-                <span className={`${s.badge} ${s.positive}`}>
-                  <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
-                </span>
-                <a
-                  className={s.primary}
-                  href={locked ? undefined : `/api/jobs/${job!.id}/pdf`}
-                  aria-disabled={locked}
-                  download
-                >
-                  <Download size={17} /> Download PDF
-                </a>
-              </div>
+              <>
+                <div className={s.scanDocumentSummary}>
+                  <span className={`${s.badge} ${s.positive}`}>
+                    <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
+                  </span>
+                  <a
+                    className={s.primary}
+                    href={locked ? undefined : `/api/jobs/${job!.id}/pdf`}
+                    aria-disabled={locked}
+                    download
+                  >
+                    <Download size={17} /> Download PDF
+                  </a>
+                </div>
+                {pages.length === 1 && (
+                  <p className={s.small}>
+                    A scan must keep at least one page. To remove the document, close this preview
+                    and delete the scan.
+                  </p>
+                )}
+              </>
             )}
             {!scanners.length && !complete && (
               <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>

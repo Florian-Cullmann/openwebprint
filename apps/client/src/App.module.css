@@ -1663,6 +1663,7 @@
 }
 .scanPageTools {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 8px;

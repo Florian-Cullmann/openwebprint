@@ -55,7 +55,7 @@ Review a PDF or image before printing, browse its pages, zoom in to inspect smal
 
 ![Completed demo scan with a document preview and Download PDF action](docs/images/scanning.png)
 
-Review the scanned page, download its PDF, or scan another page. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
+Review, crop, rotate, reorder, or remove scanned pages, download the PDF, or scan another page. A scan must keep at least one page; delete the scan from Scans to remove the entire document. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
 
 ## Quick start
 
