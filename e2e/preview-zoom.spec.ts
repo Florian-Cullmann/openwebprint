@@ -111,10 +111,10 @@ test('inspect small text with zoom, pan, reset, retained previews and invalid PD
   await ready(page);
   await expect(zoom).toHaveText('400%');
   await expect(zoomIn).toBeDisabled();
-  await page.getByRole('combobox', { name: 'Color mode', exact: true }).selectOption('color');
+  await page.getByRole('radio', { name: 'Color', exact: true }).check();
   await expect(canvas).toHaveCSS('filter', 'none');
   await expect(zoom).toHaveText('400%');
-  await page.getByRole('combobox', { name: 'Color mode', exact: true }).selectOption('monochrome');
+  await page.getByRole('radio', { name: 'Black and white', exact: true }).check();
   await expect(canvas).toHaveCSS('filter', 'grayscale(1)');
   const enlarged = await dimensions(canvas);
   expect(enlarged.cssWidth).toBeGreaterThan(fit.cssWidth * 3.8);

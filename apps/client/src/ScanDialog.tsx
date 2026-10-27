@@ -26,6 +26,7 @@ import { Modal, Spinner } from './ui';
 import { DeviceDialog } from './DeviceDialog';
 import { useScanPageDrag } from './useScanPageDrag';
 import { ScanCropEditor } from './ScanCropEditor';
+import { ColorModeControl, ResolutionControl } from './CapabilityControls';
 import s from './App.module.css';
 export function ScanDialog({
   devices,
@@ -435,59 +436,21 @@ export function ScanDialog({
                   ))}
                 </select>
               </label>
-              <div className={s.formGrid}>
-                <label>
-                  Resolution
-                  {Array.isArray(resolutions) ? (
-                    <select
-                      value={resolution}
-                      disabled={settingsLoading || !resolutions.length}
-                      onChange={(e) => setResolution(Number(e.target.value))}
-                    >
-                      {!resolutions.length && (
-                        <option value={resolution}>No supported resolutions</option>
-                      )}
-                      {resolutions.map((dpi) => (
-                        <option key={dpi} value={dpi}>
-                          {dpi} dpi
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="number"
-                      required
-                      min={resolutions.min}
-                      max={resolutions.max}
-                      step={resolutions.step ?? 'any'}
-                      value={Number.isFinite(resolution) ? resolution : ''}
-                      disabled={settingsLoading}
-                      onChange={(e) => setResolution(e.target.valueAsNumber)}
-                    />
-                  )}
-                  {!Array.isArray(resolutions) && (
-                    <span className={s.small}>
-                      {resolutions.min}–{resolutions.max} dpi
-                      {resolutions.step ? ` · steps of ${resolutions.step}` : ''}
-                    </span>
-                  )}
-                </label>
-                <label>
-                  Color mode
-                  <select
-                    value={color}
-                    disabled={settingsLoading || !colorModes.length}
-                    onChange={(e) => setColor(e.target.value)}
-                  >
-                    {!colorModes.length && <option value={color}>No supported color modes</option>}
-                    {colorModes.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode === 'Gray' ? 'Grayscale' : mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+              <ResolutionControl
+                resolutions={resolutions}
+                value={resolution}
+                onChange={setResolution}
+                disabled={settingsLoading}
+              />
+              <ColorModeControl
+                modes={colorModes.map((mode) => ({
+                  value: mode,
+                  label: mode === 'Gray' ? 'Grayscale' : mode,
+                }))}
+                value={color}
+                onChange={setColor}
+                disabled={settingsLoading}
+              />
               <label>
                 Paper source
                 <select
