@@ -53,6 +53,8 @@ Review a PDF or image before printing, browse its pages, zoom in to inspect smal
 
 Choose **Print** in a saved scan or retained document preview to select a printer and review its current options without downloading and uploading the PDF. Each confirmed submission creates an independent job; changing or deleting the source does not change that job. Files are available for seven days. If the original print outcome is unknown, check Jobs and the printer first: reprinting may produce duplicate output. See [printing a saved scan](docs/images/saved-document-print.png).
 
+Print all pages by default, or choose **Custom range** (for example, `1-3, 7`) and optionally filter to odd or even original page numbers. The filter applies within the range; overlapping entries print once in document order. The summary lists the pages per copy before submission. Both the browser and server reject invalid, out-of-bounds, or empty selections. The preview shows the full source document; the retained print PDF contains only the submitted pages. Duplex pairs consecutive selected pages without gaps for skipped pages, leaving a blank back for an unpaired final page. Odd/even filtering is not a manual duplex workflow. See [page selection](docs/images/print-page-selection.png).
+
 ### Preview and download a scan
 
 ![Completed demo scan with a document preview and Download PDF action](docs/images/scanning.png)

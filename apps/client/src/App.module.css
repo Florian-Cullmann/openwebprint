@@ -1497,6 +1497,20 @@
   gap: 20px;
   min-width: 0;
 }
+.pageSelection {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.pageSelectionSummary {
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.5;
+}
 .compactDropzone {
   padding: 14px;
 }
