@@ -1,11 +1,11 @@
 {
   "name": "@openwebprint/server",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch --env-file-if-exists=../../.env src/index.ts",
-    "build": "tsup src/index.ts --format esm --platform node --target node24 --out-dir dist --no-splitting"
+    "dev": "cd ../.. && tsx watch --env-file-if-exists=.env apps/server/src/index.ts",
+    "build": "tsup"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

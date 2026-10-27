@@ -9,18 +9,20 @@ export function DeviceDialog({
   demo,
   close,
   changed,
+  onlyKind,
 }: {
   devices: Device[];
   demo: boolean;
   close: () => void;
   changed: () => void;
+  onlyKind?: DeviceInput['kind'];
 }) {
   const [tab, setTab] = useState<'discover' | 'manual'>('discover');
   const [result, setResult] = useState<DiscoveryResult>();
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState('');
   const [error, setError] = useState('');
-  const [kind, setKind] = useState<DeviceInput['kind']>('printer');
+  const [kind, setKind] = useState<DeviceInput['kind']>(onlyKind ?? 'printer');
   const [added, setAdded] = useState<string[]>([]);
   async function discover() {
     setBusy(true);
@@ -59,11 +61,11 @@ export function DeviceDialog({
   }
   return (
     <Modal
-      title="Ein neuer Teil deines Workflows."
+      title="Add device"
       subtitle={
         demo
-          ? 'Hier verwaltest du ausschließlich simulierte Geräte.'
-          : 'Brother, HP, Canon, Epson und weitere kompatible Geräte.'
+          ? 'Only simulated devices are available in demo mode.'
+          : 'Printers and scanners compatible with CUPS or SANE.'
       }
       close={() => {
         if (!adding) close();
@@ -75,10 +77,10 @@ export function DeviceDialog({
             className={tab === 'discover' ? s.activeTab : ''}
             onClick={() => setTab('discover')}
           >
-            <Radar size={16} /> Automatisch finden
+            <Radar size={16} /> Discover devices
           </button>
           <button className={tab === 'manual' ? s.activeTab : ''} onClick={() => setTab('manual')}>
-            <Plus size={16} /> Manuell hinzufügen
+            <Plus size={16} /> Add manually
           </button>
         </div>
         {error && (
@@ -92,15 +94,11 @@ export function DeviceDialog({
               <span className={s.radar}>
                 <Radar size={36} strokeWidth={1.4} />
               </span>
-              <h3>
-                {busy
-                  ? 'Wir sehen uns im Netzwerk um …'
-                  : 'Deine Geräte sind näher, als du denkst.'}
-              </h3>
+              <h3>{busy ? 'Searching for devices…' : 'Find devices on your network'}</h3>
               <p>
                 {demo
-                  ? 'Suche die vorbereiteten Demo-Geräte.'
-                  : 'Wir suchen über mDNS, CUPS und SANE. Das kann bis zu 35 Sekunden dauern.'}
+                  ? 'Find the prepared demo devices.'
+                  : 'Searches mDNS, CUPS and SANE. This can take up to 35 seconds.'}
               </p>
               <button
                 className={s.primary}
@@ -108,45 +106,51 @@ export function DeviceDialog({
                 onClick={() => void discover()}
               >
                 {busy ? <Spinner /> : <Radar size={17} />}{' '}
-                {result ? 'Erneut suchen' : 'Geräte suchen'}
+                {result ? 'Search again' : 'Search devices'}
               </button>
             </div>
             {result && (
               <div className={s.discoveryResults}>
-                <span className={s.eyebrow}>{result.devices.length} GERÄTE GEFUNDEN</span>
-                {result.devices.map((d) => {
-                  const exists =
-                    devices.some((existing) => existing.address === d.address) ||
-                    added.includes(d.address);
-                  const Icon = d.kind === 'printer' ? Printer : ScanLine;
-                  return (
-                    <div className={s.discoveryRow} key={`${d.kind}-${d.address}`}>
-                      <Icon size={23} />
-                      <div>
-                        <h3>{d.name}</h3>
-                        <p>{d.address}</p>
+                <span className={s.eyebrow}>
+                  {result.devices.filter((d) => !onlyKind || d.kind === onlyKind).length} DEVICES
+                  FOUND
+                </span>
+                {result.hostDiscovery && (
+                  <p className={s.small}>Network discovery via macOS Bonjour.</p>
+                )}
+                {result.devices
+                  .filter((d) => !onlyKind || d.kind === onlyKind)
+                  .map((d) => {
+                    const exists =
+                      devices.some((existing) => existing.address === d.address) ||
+                      added.includes(d.address);
+                    const Icon = d.kind === 'printer' ? Printer : ScanLine;
+                    return (
+                      <div className={s.discoveryRow} key={`${d.kind}-${d.address}`}>
+                        <Icon size={23} />
+                        <div>
+                          <h3>{d.name}</h3>
+                          <p>{d.address}</p>
+                        </div>
+                        <button
+                          className={s.secondary}
+                          disabled={exists || !!adding}
+                          onClick={() => void add(d)}
+                        >
+                          {adding === d.address ? (
+                            <Spinner />
+                          ) : exists ? (
+                            <Check size={16} />
+                          ) : (
+                            <Plus size={16} />
+                          )}{' '}
+                          {exists ? 'Connected' : 'Add'}
+                        </button>
                       </div>
-                      <button
-                        className={s.secondary}
-                        disabled={exists || !!adding}
-                        onClick={() => void add(d)}
-                      >
-                        {adding === d.address ? (
-                          <Spinner />
-                        ) : exists ? (
-                          <Check size={16} />
-                        ) : (
-                          <Plus size={16} />
-                        )}{' '}
-                        {exists ? 'Verbunden' : 'Hinzufügen'}
-                      </button>
-                    </div>
-                  );
-                })}
-                {!result.devices.length && (
-                  <p>
-                    Kein Gerät gefunden. Prüfe das Netzwerk oder füge eine Adresse manuell hinzu.
-                  </p>
+                    );
+                  })}
+                {!result.devices.some((d) => !onlyKind || d.kind === onlyKind) && (
+                  <p>No devices found. Check the network or add an address manually.</p>
                 )}
                 {result.warnings.map((w) => (
                   <p className={s.warning} key={w}>
@@ -161,26 +165,27 @@ export function DeviceDialog({
           <form className={s.form} onSubmit={manual}>
             <div className={s.formGrid}>
               <label>
-                Gerätetyp
+                Device type
                 <select
                   value={kind}
+                  disabled={!!onlyKind}
                   onChange={(e) => setKind(e.target.value as DeviceInput['kind'])}
                 >
-                  <option value="printer">Drucker</option>
+                  <option value="printer">Printer</option>
                   <option value="scanner">Scanner</option>
                 </select>
               </label>
               <label>
                 Name
-                <input name="name" required maxLength={80} placeholder="Brother im Arbeitszimmer" />
+                <input name="name" required maxLength={80} placeholder="Brother in the study" />
               </label>
             </div>
             <label>
               {demo
-                ? 'Demo-Adresse'
+                ? 'Demo address'
                 : kind === 'printer'
-                  ? 'IPP-Adresse oder CUPS-Warteschlange'
-                  : 'SANE-Gerätekennung'}
+                  ? 'IPP address or CUPS queue'
+                  : 'SANE device ID'}
               <input
                 name="address"
                 required
@@ -195,22 +200,22 @@ export function DeviceDialog({
               />
             </label>
             <label>
-              Standort <span className={s.optional}>optional</span>
-              <input name="location" maxLength={80} placeholder="z. B. Arbeitszimmer" />
+              Location <span className={s.optional}>optional</span>
+              <input name="location" maxLength={80} placeholder="e.g. Study" />
             </label>
             <p className={s.small}>
               {demo
-                ? 'Demo-Geräte stellen keine Verbindung zu Hardware her.'
+                ? 'Demo devices do not connect to hardware.'
                 : kind === 'printer'
-                  ? 'IPP Everywhere / AirPrint oder eine bestehende CUPS-Queue als cups://WARTESCHLANGE. Ältere Brother-Modelle zuerst mit geeignetem Treiber in CUPS einrichten.'
-                  : 'Die vollständige Kennung findest du mit scanimage -L. Brother-Scanner nutzen je nach Modell eSCL, WSD oder einen installierten SANE-Treiber.'}
+                  ? 'Use IPP Everywhere / AirPrint, or an existing CUPS queue as cups://QUEUE. Configure models that require a driver in CUPS first.'
+                  : 'Find the complete ID with scanimage -L. Depending on the model, scanners use eSCL, WSD or another installed SANE backend.'}
             </p>
             <div className={s.modalActions}>
               <button type="button" className={s.secondary} onClick={() => setTab('discover')}>
-                <ArrowLeft size={16} /> Zurück
+                <ArrowLeft size={16} /> Back
               </button>
               <button className={s.primary} disabled={!!adding}>
-                {adding ? <Spinner /> : <Plus size={16} />} Gerät hinzufügen
+                {adding ? <Spinner /> : <Plus size={16} />} Add device
               </button>
             </div>
           </form>

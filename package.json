@@ -1,6 +1,6 @@
 {
   "name": "openwebprint",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -12,14 +12,19 @@
     "node": "^24.0.0 || ^26.0.0"
   },
   "scripts": {
-    "dev": "concurrently -k -n api,web 'npm run dev -w @openwebprint/server' 'npm run dev -w @openwebprint/client'",
+    "dev": "concurrently -k -n api,web \"npm run dev -w @openwebprint/server\" \"npm run dev -w @openwebprint/client\"",
     "build": "npm run typecheck && npm run build -w @openwebprint/client && npm run build -w @openwebprint/server",
     "typecheck": "tsc --noEmit -p apps/server && tsc --noEmit -p apps/client",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "check": "npm run build && npm test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "screenshots": "npm run build && node scripts/capture-screenshots.mjs",
+    "discovery:macos": "node scripts/discovery-macos.mjs",
+    "build:discovery:macos": "node scripts/discovery-macos.mjs --build",
+    "package:release": "node scripts/package-release.mjs",
+    "test:install": "node scripts/test-bootstrap.mjs && node scripts/test-install.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

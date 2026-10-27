@@ -1,16 +1,27 @@
 import { z } from 'zod';
 
+export const PRINT_SIDES = ['one-sided', 'two-sided-long-edge', 'two-sided-short-edge'] as const;
 export const printOptionsSchema = z.object({
   copies: z.number().int().min(1).max(99).default(1),
   color: z.enum(['color', 'monochrome']).default('monochrome'),
-  sides: z.enum(['one-sided', 'two-sided-long-edge', 'two-sided-short-edge']).default('one-sided'),
+  sides: z.enum(PRINT_SIDES).default('one-sided'),
   media: z
     .enum(['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'])
     .default('iso_a4_210x297mm'),
 });
+export const MAX_SCAN_PAGES = 100;
 export const scanOptionsSchema = z.object({
   resolution: z.union([z.literal(150), z.literal(300), z.literal(600)]).default(300),
   color: z.enum(['Color', 'Gray']).default('Color'),
+  source: z
+    .string()
+    .trim()
+    .min(1)
+    .max(200)
+    .refine((v) => !/[\x00-\x1f\x7f]/.test(v))
+    .optional(),
+  batch: z.boolean().optional(),
+  duplex: z.boolean().optional(),
 });
 export const deviceInputSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -20,7 +31,7 @@ export const deviceInputSchema = z.object({
     .trim()
     .min(1)
     .max(512)
-    .refine((v) => !/[\x00-\x1f\x7f]/.test(v), 'Ungültige Geräteadresse'),
+    .refine((v) => !/[\x00-\x1f\x7f]/.test(v), 'Invalid device address'),
   location: z.string().trim().max(80).default(''),
 });
 export type Mode = 'demo' | 'hardware';
@@ -31,7 +42,8 @@ export type DeviceStatus = 'ready' | 'busy' | 'offline' | 'unknown';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'canceled' | 'failed' | 'unknown';
 export interface Capabilities {
   color: boolean;
-  duplex: boolean;
+  // Undefined means unavailable; an empty array means no supported application sides.
+  sides?: PrintOptions['sides'][];
   media: PrintOptions['media'][];
 }
 export interface Device {
@@ -47,6 +59,43 @@ export interface Device {
   capabilities?: Capabilities;
   detail?: string;
 }
+// Integer pixels in the original, unrotated image, measured from its top-left corner.
+// Crop before rotating; omitting crop restores the complete original image.
+export interface ScanCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+export interface ScanPage {
+  id: string;
+  rotation: 0 | 90 | 180 | 270;
+  crop?: ScanCrop;
+}
+export interface ScanSources {
+  sources: { name: string; feeder: boolean }[];
+  duplex: boolean;
+}
+export const scanPagesSchema = z.object({
+  revision: z.string().min(1).max(80),
+  pages: z
+    .array(
+      z.object({
+        id: z.uuid(),
+        rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+        crop: z
+          .object({
+            x: z.int().nonnegative(),
+            y: z.int().nonnegative(),
+            width: z.int().positive(),
+            height: z.int().positive(),
+          })
+          .optional(),
+      }),
+    )
+    .min(1)
+    .max(MAX_SCAN_PAGES),
+});
 export interface Job {
   id: string;
   deviceId: string;
@@ -60,20 +109,44 @@ export interface Job {
   options: PrintOptions | ScanOptions;
   error?: string;
   hasFile: boolean;
+  pages?: ScanPage[];
+  scanRevision?: string;
+}
+export type JobFilter = 'all' | 'active' | 'completed';
+export interface JobPage {
+  jobs: Job[];
+  total: number;
+  offset: number;
+  nextCursor?: string;
 }
 export interface DiscoveryResult {
   devices: DeviceInput[];
   warnings: string[];
+  hostDiscovery?: { source: 'macos-bonjour'; updatedAt: string };
 }
 export interface Snapshot {
   devices: Device[];
+  devicesCheckedAt: string;
   jobs: Job[];
   mode: Mode;
   warnings: string[];
 }
-export interface SessionInfo {
-  initialized: boolean;
-  authenticated: boolean;
-  username?: string;
+export interface OnboardingState {
+  phase: 'welcome' | 'devices' | 'storage' | 'complete';
   mode: Mode;
+  scanRoot: string;
+  devices: Device[];
+}
+export interface SessionInfo {
+  onboardingRequired: boolean;
+  authenticationRequired: boolean;
+  authenticated: boolean;
+  user?: User;
+  mode: Mode;
+}
+
+export interface User {
+  id: string;
+  username: string;
+  createdAt: string;
 }

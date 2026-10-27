@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { access, readdir } from 'node:fs/promises';
-import { PDFDocument, PDFName, PDFString } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, PDFDict } from 'pdf-lib';
 import sharp from 'sharp';
-import { fixture, multipart, pdf, credentials, secret } from './helpers.js';
+import { fixture, multipart, pdf, credentials } from './helpers.js';
 import { normalizeDocument, MAX_UPLOAD } from '../src/documents.js';
 import { DemoProvider } from '../src/providers/demo.js';
 import type { Device, Job } from '@openwebprint/shared';
@@ -22,6 +22,65 @@ async function upload(data: Buffer, mime = 'application/pdf', options: unknown =
   });
 }
 describe('authenticated API and ownership', () => {
+  it('prepares normalized previews without submitting a job or retaining a draft', async () => {
+    f = await fixture();
+    const form = new FormData();
+    form.set(
+      'file',
+      new Blob([new Uint8Array(await pdf())], { type: 'application/pdf' }),
+      'preview.pdf',
+    );
+    const request = new Request('http://localhost', { method: 'POST', body: form });
+    const upload = {
+      method: 'POST' as const,
+      url: '/api/documents/preview',
+      payload: Buffer.from(await request.arrayBuffer()),
+      headers: { ...f.headers, 'content-type': request.headers.get('content-type')! },
+    };
+    expect(
+      (
+        await f.app.inject({
+          ...upload,
+          headers: { 'x-openwebprint': '1', 'content-type': upload.headers['content-type'] },
+        })
+      ).statusCode,
+    ).toBe(401);
+    const preview = await f.app.inject(upload);
+    expect(preview.statusCode, preview.body).toBe(200);
+    expect(preview.headers['content-type']).toContain('application/pdf');
+    expect(preview.headers['cache-control']).toBe('no-store');
+    expect((await PDFDocument.load(preview.rawPayload)).getPageCount()).toBe(1);
+    expect(f.store.jobs('demo')).toEqual([]);
+    expect(await readdir(f.service.filesDir)).toEqual([]);
+  });
+  it('retains private previews for uncertain submissions, expires them and supports explicit deletion', async () => {
+    class Uncertain extends DemoProvider {
+      override async print(): Promise<string> {
+        throw new Error('Interrupted submission');
+      }
+    }
+    f = await fixture({ provider: new Uncertain() });
+    const job = (await upload(await pdf())).json<Job>();
+    const endpoint = `/api/jobs/${job.id}/document`;
+    expect((await f.app.inject(endpoint)).statusCode).toBe(401);
+    const preview = await f.app.inject({ url: endpoint, headers: f.headers });
+    expect(preview.statusCode).toBe(200);
+    expect((await PDFDocument.load(preview.rawPayload)).getPageCount()).toBe(1);
+    expect(f.service.job(job.id).status).toBe('unknown');
+    const stored = f.service.job(job.id);
+    stored.createdAt = new Date(Date.now() - 8 * 86400_000).toISOString();
+    f.store.putJob(stored);
+    await f.service.expireFiles();
+    expect((await f.app.inject({ url: endpoint, headers: f.headers })).statusCode).toBe(404);
+    expect(await readdir(f.service.filesDir)).toEqual([]);
+    const second = (await upload(await pdf())).json<Job>();
+    await f.app.inject({ method: 'DELETE', url: `/api/jobs/${second.id}`, headers: f.headers });
+    expect(
+      (await f.app.inject({ url: `/api/jobs/${second.id}/document`, headers: f.headers }))
+        .statusCode,
+    ).toBe(404);
+    expect(await readdir(f.service.filesDir)).toEqual([]);
+  });
   it('protects device, document and mutation endpoints and rejects cross-origin writes', async () => {
     f = await fixture();
     for (const url of ['/api/snapshot', '/api/jobs/00000000-0000-4000-8000-000000000000/pdf'])
@@ -57,25 +116,17 @@ describe('authenticated API and ownership', () => {
       ).statusCode,
     ).toBe(200);
   });
-  it('hashes sessions, sets defensive cookies, disallows setup twice and invalidates logout', async () => {
+  it('hashes sessions, sets defensive cookies, invalidates logout', async () => {
     f = await fixture();
-    const cookieHeader = String(f.setup.headers['set-cookie']);
+    const cookieHeader = String(f.login!.headers['set-cookie']);
     expect(cookieHeader).toContain('HttpOnly');
     expect(cookieHeader).toContain('SameSite=Strict');
     expect(cookieHeader).toContain('Secure');
     const stored = f.store.db.prepare('SELECT hash FROM sessions').get()!;
     expect(f.cookie).not.toContain(stored.hash);
-    expect(f.store.setting('password')).not.toContain(credentials.password);
-    expect(
-      (
-        await f.app.inject({
-          method: 'POST',
-          url: '/api/setup',
-          headers: f.headers,
-          payload: { ...credentials, token: secret },
-        })
-      ).statusCode,
-    ).toBe(409);
+    expect(String(f.store.db.prepare('SELECT password FROM users').get()!.password)).not.toContain(
+      credentials.password,
+    );
     await f.app.inject({ method: 'POST', url: '/api/logout', headers: f.headers });
     expect((await f.app.inject({ url: '/api/snapshot', headers: f.headers })).statusCode).toBe(401);
     expect(
@@ -91,7 +142,7 @@ describe('authenticated API and ownership', () => {
   });
   it('rate limits credential guessing', async () => {
     f = await fixture();
-    for (let i = 0; i < 5; i++)
+    for (let i = 0; i < 4; i++)
       expect(
         (
           await f.app.inject({
@@ -155,7 +206,7 @@ describe('devices and print pipeline', () => {
     ).toBe(200);
     expect(f.store.devices('demo')).toHaveLength(2);
   });
-  it('submits a real PDF, removes upload bytes, polls and cancels jobs', async () => {
+  it('submits a real PDF, keeps a private normalized preview, polls and cancels jobs', async () => {
     f = await fixture();
     const response = await upload(await pdf());
     expect(response.statusCode, response.body).toBe(201);
@@ -163,7 +214,8 @@ describe('devices and print pipeline', () => {
     expect(job.status).toBe('queued');
     expect(job).not.toHaveProperty('externalId');
     expect(job).not.toHaveProperty('filePath');
-    expect(await readdir(f.service.filesDir)).toEqual([]);
+    expect(job.hasFile).toBe(true);
+    expect(await readdir(f.service.filesDir)).toEqual([`${job.id}.pdf`]);
     await f.service.tick();
     expect(f.service.job(job.id).status).toBe('queued');
     const cancel = await f.app.inject({
@@ -205,7 +257,7 @@ describe('devices and print pipeline', () => {
       .toBuffer();
     const converted = await normalizeDocument(png, 'image/png');
     expect((await PDFDocument.load(converted)).getPageCount()).toBe(1);
-    await expect(normalizeDocument(png, 'application/pdf')).rejects.toThrow('Erlaubt');
+    await expect(normalizeDocument(png, 'application/pdf')).rejects.toThrow('Only valid');
     const source = await PDFDocument.create();
     source.addPage();
     source.catalog.set(
@@ -219,6 +271,22 @@ describe('devices and print pipeline', () => {
     expect(clean.catalog.has(PDFName.of('OpenAction'))).toBe(false);
     expect(clean.getPage(0).node.has(PDFName.of('Annots'))).toBe(false);
   });
+  it('keeps filled form appearances visible when stripping interactive annotations', async () => {
+    const source = await PDFDocument.create();
+    const page = source.addPage();
+    const field = source.getForm().createTextField('name');
+    field.setText('Print this value');
+    field.addToPage(page);
+    const normalized = await PDFDocument.load(
+      await normalizeDocument(Buffer.from(await source.save()), 'application/pdf'),
+    );
+    expect(normalized.getForm().getFields()).toHaveLength(0);
+    const appearances = normalized
+      .getPage(0)
+      .node.Resources()!
+      .lookup(PDFName.of('XObject'), PDFDict);
+    expect(appearances.keys().length).toBeGreaterThan(0);
+  });
   it('preserves uncertain submissions and prevents accidental device removal or retry', async () => {
     class Uncertain extends DemoProvider {
       override async print(): Promise<string> {
@@ -229,7 +297,8 @@ describe('devices and print pipeline', () => {
     const response = await upload(await pdf());
     const job = response.json<Job>();
     expect(job.status).toBe('unknown');
-    expect(await readdir(f.service.filesDir)).toEqual([]);
+    expect(job.hasFile).toBe(true);
+    expect(await readdir(f.service.filesDir)).toEqual([`${job.id}.pdf`]);
     expect(
       (
         await f.app.inject({

@@ -9,7 +9,6 @@ x-app: &app
   environment: &environment
     APP_ORIGIN: ${APP_ORIGIN:-http://localhost:3001}
     COOKIE_SECURE: ${COOKIE_SECURE:-false}
-    # Empty means generate a first-run token; do not set an empty SETUP_TOKEN.
   stop_grace_period: 150s
 services:
   demo:
@@ -17,11 +16,12 @@ services:
     profiles: [demo]
     environment:
       <<: *environment
-      MODE: demo
     ports:
       - '127.0.0.1:3001:3001'
     volumes:
       - demo-data:/data
+      - demo-cups-config:/etc/cups
+      - demo-cups-spool:/var/spool/cups
   hardware:
     <<: *app
     profiles: [hardware]
@@ -29,7 +29,6 @@ services:
     network_mode: host
     environment:
       <<: *environment
-      MODE: hardware
       HOST: 127.0.0.1
     volumes:
       - hardware-data:/data
@@ -37,6 +36,8 @@ services:
       - cups-spool:/var/spool/cups
 volumes:
   demo-data:
+  demo-cups-config:
+  demo-cups-spool:
   hardware-data:
   cups-config:
   cups-spool:

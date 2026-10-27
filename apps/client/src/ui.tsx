@@ -3,7 +3,7 @@ import { X, LoaderCircle, Printer, ScanLine } from 'lucide-react';
 import type { Device, JobStatus } from '@openwebprint/shared';
 import s from './App.module.css';
 export function Spinner() {
-  return <LoaderCircle className={s.spinner} size={18} aria-label="Wird geladen" />;
+  return <LoaderCircle className={s.spinner} size={18} aria-label="Loading" />;
 }
 export function DeviceIcon({ kind, large = false }: { kind: Device['kind']; large?: boolean }) {
   const Icon = kind === 'printer' ? Printer : ScanLine;
@@ -19,12 +19,16 @@ export function Modal({
   close,
   children,
   wide = false,
+  className = '',
+  headerContent,
 }: {
   title: string;
   subtitle?: string;
   close: () => void;
   children: ReactNode;
   wide?: boolean;
+  className?: string;
+  headerContent?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -42,7 +46,7 @@ export function Modal({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={`${s.dialog} ${wide ? s.wide : ''}`}
+      className={`${s.dialog} ${wide ? s.wide : ''} ${className}`}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -56,26 +60,29 @@ export function Modal({
           <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
-        <button className={s.iconButton} aria-label="Schließen" onClick={close}>
-          <X size={20} />
-        </button>
+        <div className={s.modalHeaderActions}>
+          {headerContent}
+          <button className={s.iconButton} aria-label="Close" onClick={close}>
+            <X size={20} />
+          </button>
+        </div>
       </div>
       {children}
     </dialog>
   );
 }
 export const jobLabels: Record<JobStatus, string> = {
-  queued: 'In Warteschlange',
-  processing: 'In Bearbeitung',
-  completed: 'Abgeschlossen',
-  canceled: 'Abgebrochen',
-  failed: 'Fehlgeschlagen',
-  unknown: 'Status ungeklärt',
+  queued: 'Queued',
+  processing: 'Processing',
+  completed: 'Completed',
+  canceled: 'Canceled',
+  failed: 'Failed',
+  unknown: 'Unknown status',
 };
 export function JobBadge({ status }: { status: JobStatus }) {
   return (
     <span
-      className={`${s.badge} ${status === 'completed' ? s.green : status === 'failed' || status === 'unknown' ? s.red : status === 'processing' || status === 'queued' ? s.amber : ''}`}
+      className={`${s.badge} ${status === 'completed' ? s.positive : status === 'failed' || status === 'unknown' ? s.red : status === 'processing' || status === 'queued' ? s.amber : ''}`}
     >
       <span className={s.dot} />
       {jobLabels[status]}
@@ -85,16 +92,16 @@ export function JobBadge({ status }: { status: JobStatus }) {
 export function DeviceBadge({ device }: { device: Device }) {
   return (
     <span
-      className={`${s.badge} ${device.status === 'ready' ? s.green : device.status === 'offline' ? s.red : device.status === 'busy' ? s.amber : ''}`}
+      className={`${s.badge} ${device.status === 'ready' ? s.positive : device.status === 'offline' ? s.red : device.status === 'busy' ? s.amber : ''}`}
       title={device.detail}
     >
       <span className={s.dot} />
       {
         {
-          ready: 'Bereit',
-          busy: 'Beschäftigt',
-          offline: 'Angehalten / offline',
-          unknown: 'Ungeprüft',
+          ready: 'Ready',
+          busy: 'Busy',
+          offline: 'Stopped / offline',
+          unknown: 'Not checked',
         }[device.status]
       }
     </span>

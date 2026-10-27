@@ -5,6 +5,7 @@ import type {
   JobStatus,
   PrintOptions,
   ScanOptions,
+  ScanSources,
 } from '@openwebprint/shared';
 import type { StoredJob } from '../store.js';
 export interface JobUpdate {
@@ -18,5 +19,6 @@ export interface Provider {
   print(device: Device, filePath: string, title: string, options: PrintOptions): Promise<string>;
   poll(job: StoredJob, device: Device): Promise<JobUpdate>;
   cancel(job: StoredJob, device: Device): Promise<void>;
-  scan(device: Device, outputPath: string, options: ScanOptions): Promise<void>;
+  scanSources(device: Device): Promise<ScanSources>;
+  scan(device: Device, outputPath: string, options: ScanOptions, pageLimit?: number): Promise<void>;
 }

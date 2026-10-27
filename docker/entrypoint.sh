@@ -15,7 +15,7 @@ stop() {
   if [ -n "$avahi_pid" ]; then kill -TERM "$avahi_pid" 2>/dev/null || true; fi
 }
 trap stop TERM INT EXIT
-if [ "${MODE:-demo}" = 'hardware' ]; then
+if [ "${HARDWARE_SERVICES:-true}" = 'true' ]; then
   mkdir -p /run/dbus /run/cups /run/avahi-daemon
   chmod 755 /run/dbus /run/cups /run/avahi-daemon
   rm -f /run/dbus/pid /run/avahi-daemon/pid

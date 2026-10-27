@@ -12,7 +12,7 @@ RUN npm run build && npm prune --omit=dev
 
 FROM node:24-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    cups-daemon cups-client cups-filters printer-driver-brlaser sane-utils sane-airscan \
+    cups cups-filters printer-driver-brlaser sane-utils sane-airscan \
     avahi-daemon avahi-utils dbus util-linux tini ca-certificates procps \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
@@ -25,7 +25,7 @@ COPY scripts ./scripts
 COPY docker/cupsd.conf /etc/cups/cupsd.conf
 COPY docker/entrypoint.sh /usr/local/bin/openwebprint-entrypoint
 RUN chmod +x /usr/local/bin/openwebprint-entrypoint && mkdir -p /data && chown node:node /data
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3001 DATA_DIR=/data APP_ORIGIN=http://localhost:3001 MODE=demo
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3001 DATA_DIR=/data APP_ORIGIN=http://localhost:3001
 EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD ["node", "-e", "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]

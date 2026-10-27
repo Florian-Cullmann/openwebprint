@@ -1,11 +1,15 @@
-import { resolve } from 'node:path';
+import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 
 const envSchema = z.object({
-  MODE: z.enum(['demo', 'hardware']).default('demo'),
+  MODE: z.enum(['demo', 'hardware']).optional(),
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   DATA_DIR: z.string().default('./data'),
+  HOST_DISCOVERY_FILE: z
+    .string()
+    .refine(isAbsolute, 'HOST_DISCOVERY_FILE must be an absolute server path')
+    .optional(),
   APP_ORIGIN: z
     .url()
     .refine(
@@ -14,7 +18,6 @@ const envSchema = z.object({
     )
     .default('http://localhost:5173'),
   COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
-  SETUP_TOKEN: z.string().min(24).optional(),
   CUPS_SERVER: z
     .string()
     .regex(/^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/)
@@ -27,9 +30,9 @@ export function readConfig(env = process.env) {
     host: e.HOST,
     port: e.PORT,
     dataDir: resolve(e.DATA_DIR),
+    hostDiscoveryFile: e.HOST_DISCOVERY_FILE,
     origin: new URL(e.APP_ORIGIN).origin,
     secureCookie: e.COOKIE_SECURE === 'true',
-    setupToken: e.SETUP_TOKEN,
     cupsServer: e.CUPS_SERVER,
   };
 }

@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 process.umask(0o077);
 if (process.argv[2] !== '--confirm') {
   console.error(
-    'Stop openwebprint first. Pass --confirm to clear admin credentials and sessions. Documents and devices are preserved.',
+    'Stop openwebprint first. Pass --confirm to remove all users and sessions. Documents and devices are preserved.',
   );
   process.exit(1);
 }
@@ -15,10 +15,13 @@ if (!existsSync(path)) {
 }
 const db = new DatabaseSync(path);
 try {
-  db.exec(
-    "BEGIN IMMEDIATE; DELETE FROM sessions; DELETE FROM settings WHERE key IN ('username', 'password'); COMMIT;",
+  db.exec('BEGIN IMMEDIATE; DELETE FROM sessions;');
+  if (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get())
+    db.exec('DELETE FROM users;');
+  db.exec("DELETE FROM settings WHERE key IN ('username', 'password'); COMMIT;");
+  console.log(
+    'All users removed. Restart openwebprint to use it without signing in. Add a user in Settings to enable login.',
   );
-  console.log('Administrator access reset. Restart openwebprint and use the new setup token.');
 } finally {
   db.close();
 }

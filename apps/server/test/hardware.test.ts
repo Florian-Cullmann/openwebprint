@@ -10,8 +10,27 @@ import {
 import type { Device, PrintOptions } from '@openwebprint/shared';
 import type { StoredJob } from '../src/store.js';
 import { fixture } from './helpers.js';
-import { command } from '../src/providers/command.js';
+import { command, CommandError } from '../src/providers/command.js';
 import { randomUUID } from 'node:crypto';
+const discoveryTypes = vi.hoisted(() => [] as string[]);
+const advertisements = vi.hoisted(() => ({ enabled: true }));
+vi.mock('bonjour-service', () => ({
+  Bonjour: class {
+    find({ type }: { type: string }, callback: (service: unknown) => void) {
+      discoveryTypes.push(type);
+      if (advertisements.enabled && ['ipp', 'ipps'].includes(type))
+        callback({
+          name: `Brother ${type}`,
+          host: 'brother.local',
+          port: 631,
+          addresses: ['192.168.1.50'],
+          txt: { rp: 'ipp/print' },
+        });
+      return { stop() {} };
+    }
+    destroy() {}
+  },
+}));
 const device: Device = {
   id: randomUUID(),
   name: 'Brother',
@@ -44,22 +63,89 @@ const job: StoredJob = {
   hasFile: false,
 };
 describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', () => {
-  it('maps the actual IPP library enum strings and unknown states honestly', async () => {
-    const request = vi
-      .fn()
-      .mockResolvedValue({
-        'printer-state': 'idle',
-        'printer-state-reasons': 'none',
-        'sides-supported': ['one-sided', 'two-sided-long-edge'],
-        'print-color-mode-supported': ['monochrome'],
-        'media-supported': ['iso_a4_210x297mm'],
+  it.each([
+    [new CommandError('No printers have been configured in CUPS.', 'empty-destinations'), false],
+    [new CommandError('Scheduler unavailable.'), true],
+  ])(
+    'keeps network discovery working when local queue enumeration returns %s',
+    async (failure, warning) => {
+      vi.useFakeTimers();
+      try {
+        const run = vi.fn(async (tool: string) => {
+          if (tool === 'lpstat') throw failure;
+          return '';
+        });
+        const pending = new HardwareProvider('localhost:631', run).discover();
+        await vi.advanceTimersByTimeAsync(4001);
+        const result = await pending;
+        expect(result.devices).toHaveLength(2);
+        expect(result.warnings.some((message) => message.startsWith('CUPS:'))).toBe(warning);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('explains network permission and multicast limitations when no devices respond', async () => {
+    vi.useFakeTimers();
+    advertisements.enabled = false;
+    try {
+      const run = vi.fn(async (tool: string) => {
+        if (tool === 'lpstat')
+          throw new CommandError('No printers configured.', 'empty-destinations');
+        return '';
       });
+      const pending = new HardwareProvider('localhost:631', run).discover();
+      await vi.advanceTimersByTimeAsync(4001);
+      const result = await pending;
+      expect(result.devices).toEqual([]);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('Local Network');
+      expect(result.warnings[0]).toContain('IP address');
+    } finally {
+      advertisements.enabled = true;
+      vi.useRealTimers();
+    }
+  });
+  it('discovers standard IPP/IPPS advertisements, local queues and SANE identifiers', async () => {
+    vi.useFakeTimers();
+    discoveryTypes.length = 0;
+    try {
+      const run = vi.fn(async (tool: string) =>
+        tool === 'lpstat'
+          ? 'device for Brother_Office: ipp://192.168.1.50/ipp/print\n'
+          : 'airscan:e0:Brother\tBrother scanner\n',
+      );
+      const pending = new HardwareProvider('localhost:631', run).discover();
+      await vi.advanceTimersByTimeAsync(4001);
+      const found = await pending;
+      expect(discoveryTypes).toEqual(['ipp', 'ipps']);
+      expect(found.devices.map((d) => d.address)).toEqual(
+        expect.arrayContaining([
+          'cups://Brother_Office',
+          'airscan:e0:Brother',
+          'ipp://192.168.1.50:631/ipp/print',
+          'ipps://192.168.1.50:631/ipp/print',
+        ]),
+      );
+      expect(found.warnings).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('maps the actual IPP library enum strings and unknown states honestly', async () => {
+    const request = vi.fn().mockResolvedValue({
+      'printer-state': 'idle',
+      'printer-state-reasons': 'none',
+      'sides-supported': ['one-sided', 'two-sided-long-edge'],
+      'print-color-mode-supported': ['monochrome'],
+      'media-supported': ['iso_a4_210x297mm'],
+    });
     const provider = new HardwareProvider('localhost:631', vi.fn(), request);
     const inspected = await provider.inspect(device);
     expect(inspected.status).toBe('ready');
     expect(inspected.capabilities).toEqual({
       color: false,
-      duplex: true,
+      sides: ['one-sided', 'two-sided-long-edge'],
       media: ['iso_a4_210x297mm'],
     });
     request.mockResolvedValue({ 'job-state': 'completed' });
@@ -93,6 +179,8 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
       'sides=two-sided-long-edge',
       '-o',
       'media=iso_a4_210x297mm',
+      '-o',
+      'fit-to-page',
       '--',
       '/safe/id.pdf',
     ]);
@@ -100,7 +188,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     expect(run).toHaveBeenLastCalledWith('cancel', ['-h', 'localhost:631', 'Brother-42']);
     run.mockResolvedValue('request id is Another-42');
     await expect(provider.print(device, '/safe/id.pdf', 'Test', printOptions)).rejects.toThrow(
-      'Auftragskennung',
+      'job ID',
     );
   });
   it('rejects unsafe protocols, credentials and command-like identifiers before invoking tools', async () => {
@@ -126,6 +214,97 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
       ),
     ).rejects.toThrow();
     expect(run).not.toHaveBeenCalled();
+  });
+  it('uses advertised SANE feeder and duplex options for bounded batches (stubbed command)', async () => {
+    const scanner: Device = {
+      ...device,
+      kind: 'scanner',
+      provider: 'sane',
+      target: 'airscan:e0:Brother',
+    };
+    const run = vi.fn(async (_tool: string, args: string[]) => {
+      if (args.includes('--all-options'))
+        return '  --source Flatbed|ADF|ADF Duplex [Flatbed]\n    Selects the scan source.\n  --duplex[=(yes|no)] [no]\n';
+      throw new CommandError('The document feeder is empty.', 'no-documents');
+    });
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'ADF', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: true,
+    });
+    await provider.scan(
+      scanner,
+      '/private/100%/page-%d.png',
+      { resolution: 300, color: 'Gray', source: 'ADF', batch: true, duplex: true },
+      12,
+    );
+    expect(run).toHaveBeenLastCalledWith(
+      'scanimage',
+      [
+        '--device-name',
+        scanner.target,
+        '--format=png',
+        '--batch=/private/100%%/page-%d.png',
+        '--batch-count=12',
+        '--source',
+        'ADF',
+        '--duplex=yes',
+        '--resolution',
+        '300',
+        '--mode',
+        'Gray',
+      ],
+      600_000,
+    );
+    await expect(
+      provider.scan(scanner, '/private/page.png', { resolution: 300, color: 'Gray' }),
+    ).rejects.toThrow('empty');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Flatbed',
+      }),
+    ).rejects.toThrow('document feeder');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Unadvertised ADF',
+      }),
+    ).rejects.toThrow('selected source');
+    run.mockRejectedValue(new CommandError('Disconnected'));
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'ADF',
+      }),
+    ).rejects.toThrow('Disconnected');
+  });
+  it('reads wrapped source lists without inventing duplex support (stubbed command)', async () => {
+    const scanner = { ...device, kind: 'scanner' as const, target: 'airscan:e0:Brother' };
+    const run = vi
+      .fn()
+      .mockResolvedValue(
+        '  --source Flatbed|Automatic Document Feeder|\n    ADF Duplex [Flatbed]\n    Selects the scan source.\n',
+      );
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'Automatic Document Feeder', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: false,
+    });
   });
   it('calls SANE with explicit bounded options and surfaces failures', async () => {
     const run = vi.fn().mockResolvedValue('');
@@ -156,9 +335,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     await expect(
       provider.scan(scanner, '/safe/output.png', { resolution: 300, color: 'Color' }),
     ).rejects.toThrow('Disconnected');
-    await expect(command('/nonexistent/openwebprint-command', [])).rejects.toThrow(
-      'nicht installiert',
-    );
+    await expect(command('/nonexistent/openwebprint-command', [])).rejects.toThrow('not installed');
   });
   it('round-trips actual IPP bytes through the library against a local protocol fixture', async () => {
     const { default: ipp } = await import('@sealsystems/ipp');
@@ -207,17 +384,13 @@ describe('durability and mode isolation', () => {
     await f?.close();
     f = undefined;
   });
-  it('never seeds demo devices in hardware mode, even when sharing a database', async () => {
-    f = await fixture();
-    const dir = f.dataDir;
-    await f.close(false);
-    f = undefined;
-    f = await fixture({ mode: 'hardware', dataDir: dir });
+  it('never seeds demo devices during hardware setup', async () => {
+    f = await fixture({ mode: 'hardware' });
     expect(f.store.devices('hardware')).toEqual([]);
     expect((await f.service.snapshot()).devices).toEqual([]);
-    expect(f.store.devices('demo')).toHaveLength(3);
+    expect(f.store.devices('demo')).toEqual([]);
   });
-  it('recovers interrupted scan state after restart and keeps setup and device removals', async () => {
+  it('recovers interrupted scan state after restart and keeps users and device removals', async () => {
     f = await fixture();
     const dir = f.dataDir;
     const removed = f.store.devices('demo')[0];
@@ -234,9 +407,9 @@ describe('durability and mode isolation', () => {
     await f.close(false);
     f = undefined;
     f = await fixture({ dataDir: dir });
-    expect(f.auth.initialized()).toBe(true);
+    expect(f.auth.hasUsers()).toBe(true);
     expect(f.store.devices('demo')).toHaveLength(2);
     expect(f.store.jobs('demo')[0].status).toBe('failed');
-    expect(f.store.jobs('demo')[0].error).toContain('neu gestartet');
+    expect(f.store.jobs('demo')[0].error).toContain('restarted');
   });
 });

@@ -1,20 +1,22 @@
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees } from 'pdf-lib';
 import sharp from 'sharp';
-import { readFile, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
+import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 export async function normalizeDocument(buffer: Buffer, claimedType: string): Promise<Buffer> {
   if (buffer.length === 0 || buffer.length > MAX_UPLOAD)
-    throw new AppError(413, 'Die Datei muss zwischen 1 Byte und 25 MB groß sein.');
+    throw new AppError(413, 'The file must be between 1 byte and 25 MB.');
   if (buffer.subarray(0, 5).toString() === '%PDF-') {
     if (claimedType !== 'application/pdf')
-      throw new AppError(415, 'Dateityp und Dateiinhalt stimmen nicht überein.');
+      throw new AppError(415, 'The file type does not match its contents.');
     try {
       const source = await PDFDocument.load(buffer, { updateMetadata: false });
       if (source.isEncrypted || source.getPageCount() === 0 || source.getPageCount() > 500)
         throw new Error('Unsupported PDF');
       // Copy only pages: do not carry document-level scripts, attachments or open actions.
+      source.getForm().flatten({ updateFieldAppearances: false });
       const clean = await PDFDocument.create();
       const pages = await clean.copyPages(source, source.getPageIndices());
       pages.forEach((page) => {
@@ -26,14 +28,14 @@ export async function normalizeDocument(buffer: Buffer, claimedType: string): Pr
     } catch {
       throw new AppError(
         422,
-        'Das PDF ist beschädigt, verschlüsselt oder umfasst mehr als 500 Seiten.',
+        'The PDF is damaged, encrypted, has unsupported form fields or exceeds 500 pages.',
       );
     }
   }
   const png = buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
   const jpeg = buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
   if ((!png && !jpeg) || claimedType !== (png ? 'image/png' : 'image/jpeg'))
-    throw new AppError(415, 'Erlaubt sind echte PDF-, PNG- und JPEG-Dateien.');
+    throw new AppError(415, 'Only valid PDF, PNG and JPEG files are allowed.');
   try {
     const image = await sharp(buffer, { limitInputPixels: 40_000_000 })
       .rotate()
@@ -42,7 +44,7 @@ export async function normalizeDocument(buffer: Buffer, claimedType: string): Pr
       .toBuffer();
     return await imageToPdf(image);
   } catch {
-    throw new AppError(422, 'Das Bild ist beschädigt oder überschreitet 40 Megapixel.');
+    throw new AppError(422, 'The image is damaged or exceeds 40 megapixels.');
   }
 }
 export async function imageToPdf(image: Buffer): Promise<Buffer> {
@@ -55,9 +57,81 @@ export async function imageToPdf(image: Buffer): Promise<Buffer> {
   page.drawImage(png, { x: (595.28 - width) / 2, y: (841.89 - height) / 2, width, height });
   return Buffer.from(await pdf.save());
 }
-export async function exportScan(pngPath: string, pdfPath: string) {
-  const png = await sharp(await readFile(pngPath), { limitInputPixels: 80_000_000 })
-    .png()
-    .toBuffer();
-  await writeFile(pdfPath, await imageToPdf(png), { mode: 0o600 });
+export async function exportScanPages(
+  pages: StoredScanPage[],
+  pdfPath: string,
+  previewPath: string,
+) {
+  try {
+    const pdf = await PDFDocument.create();
+    for (const [index, source] of pages.entries()) {
+      const { image, originalWidth, originalHeight, resolution } = await renderScanPage(
+        source,
+        false,
+      );
+      const png = await pdf.embedPng(image);
+      // PDF points are 1/72 inch. Unknown legacy DPI retains the old A4 fit;
+      // never infer it from job options, which may describe a later append.
+      const scale = resolution
+        ? 72 / resolution
+        : Math.min(595.28 / originalWidth, 841.89 / originalHeight);
+      const width = png.width * scale;
+      const height = png.height * scale;
+      const page = pdf.addPage([width, height]);
+      page.drawImage(png, { x: 0, y: 0, width, height });
+      page.setRotation(degrees(source.rotation));
+      if (index === 0) await sharp(image).rotate(source.rotation).png().toFile(previewPath);
+    }
+    await writeFile(pdfPath, await pdf.save(), { mode: 0o600 });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      422,
+      'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+    );
+  }
+}
+
+function validResolution(value: number | undefined) {
+  return value !== undefined && Number.isFinite(value) && value >= 1 && value <= 9600
+    ? value
+    : undefined;
+}
+
+export async function renderScanPage(source: StoredScanPage, rotate = true) {
+  try {
+    const pipeline = sharp(source.path, { limitInputPixels: 80_000_000 });
+    const { width, height, density } = await pipeline.metadata();
+    if (!width || !height) throw new Error('Missing image dimensions');
+    if (source.crop) {
+      const crop = source.crop;
+      if (
+        !Object.values(crop).every(Number.isSafeInteger) ||
+        crop.x < 0 ||
+        crop.y < 0 ||
+        crop.width <= 0 ||
+        crop.height <= 0 ||
+        crop.x + crop.width > width ||
+        crop.y + crop.height > height
+      )
+        throw new AppError(400, 'The crop must be a non-empty rectangle within the original page.');
+      pipeline.extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height });
+    }
+    const image = await pipeline
+      .rotate(rotate ? source.rotation : 0)
+      .png()
+      .toBuffer();
+    return {
+      image,
+      originalWidth: width,
+      originalHeight: height,
+      resolution: validResolution(source.resolution) ?? validResolution(density),
+    };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      422,
+      'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+    );
+  }
 }

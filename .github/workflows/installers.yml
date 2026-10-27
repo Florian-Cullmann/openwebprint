@@ -1,0 +1,69 @@
+name: Installers
+on:
+  pull_request:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  package:
+    name: Package (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-22.04-arm, macos-15-intel, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          node --input-type=module -e 'import { readFileSync } from "node:fs"; if (process.env.GITHUB_REF_NAME !== `v${JSON.parse(readFileSync("package.json")).version}`) throw new Error("Tag and package versions must match");'
+          git merge-base --is-ancestor HEAD origin/main
+      - run: npm ci
+      - run: npm run build
+      - run: npm run package:release
+      - name: Test packaged application and native shortcuts
+        run: npm run test:install
+        env:
+          OWP_TEST_SHORTCUTS: '1'
+      - name: Check shell installer syntax
+        run: sh -n install.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-${{ runner.os }}-${{ runner.arch }}
+          path: |
+            .local/packages/*.tar.gz
+            .local/packages/*.sha256
+          if-no-files-found: error
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: release-assets
+          merge-multiple: true
+      - name: Publish versioned installers
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp install.sh release-assets/
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes --prerelease --title "openwebprint $GITHUB_REF_NAME"
+          else
+            gh release create "$GITHUB_REF_NAME" release-assets/* --verify-tag --generate-notes --title "openwebprint $GITHUB_REF_NAME"
+          fi
