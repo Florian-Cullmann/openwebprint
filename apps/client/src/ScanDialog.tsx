@@ -10,6 +10,7 @@ import {
   Crop,
   RefreshCw,
   Trash2,
+  AlertCircle,
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
@@ -78,7 +79,8 @@ export function ScanDialog({
   const complete = !!job?.hasFile;
   const pages = job?.pages ?? [];
   const cropIndex = pages.findIndex((page) => page.id === cropping);
-  const locked = busy || running;
+  const recovery = job?.recovery;
+  const locked = busy || running || !!recovery;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
   const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
   const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
@@ -188,7 +190,7 @@ export function ScanDialog({
     };
   }, [running, job?.id]);
   async function start(batch: boolean) {
-    if (requestActive.current || running || settingsLoading || invalidSettings) return;
+    if (requestActive.current || running || recovery || settingsLoading || invalidSettings) return;
     requestActive.current = true;
     setError('');
     setBusy(true);
@@ -230,8 +232,29 @@ export function ScanDialog({
       setCanceling(false);
     }
   }
+  async function resolveRecovery(action: 'keep' | 'discard') {
+    if (!job || !recovery || requestActive.current) return;
+    requestActive.current = true;
+    pollVersion.current++;
+    setBusy(true);
+    setError('');
+    try {
+      setJob(
+        await post<Job>(`/scans/${job.id}/recovery`, {
+          revision: recovery.revision,
+          action,
+        }),
+      );
+      changed();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      requestActive.current = false;
+    }
+  }
   async function edit(updated: ScanPage[], focusPage?: string) {
-    if (!job || requestActive.current || running) return;
+    if (!job || requestActive.current || running || recovery) return;
     requestActive.current = true;
     setBusy(true);
     setError('');
@@ -278,7 +301,9 @@ export function ScanDialog({
     );
   return (
     <Modal
-      title={complete && !running ? 'Scan complete' : 'Scan document'}
+      title={
+        recovery ? 'Scan incomplete' : complete && !running ? 'Scan complete' : 'Scan document'
+      }
       subtitle={demo ? 'Demo mode: the scan sample is simulated.' : 'Collect pages in one PDF.'}
       close={close}
       className={s.scanDialog}
@@ -289,9 +314,11 @@ export function ScanDialog({
             <span>
               {canceling
                 ? 'Canceling scan…'
-                : complete
-                  ? 'Adding pages…'
-                  : 'Scanning your document…'}
+                : recovery
+                  ? 'Saving recovered pages…'
+                  : complete
+                    ? 'Adding pages…'
+                    : 'Scanning your document…'}
             </span>
           </p>
         )
@@ -444,8 +471,12 @@ export function ScanDialog({
                 <ScanLine size={48} strokeWidth={1} />
                 {!running && (
                   <>
-                    <h3>Load your document</h3>
-                    <p>Place a page on the flatbed, or load the document feeder.</p>
+                    <h3>{recovery ? 'Review recovered pages' : 'Load your document'}</h3>
+                    <p>
+                      {recovery
+                        ? 'Review the batch page numbers and acquisition error, then keep or discard the complete pages.'
+                        : 'Place a page on the flatbed, or load the document feeder.'}
+                    </p>
                   </>
                 )}
               </div>
@@ -454,7 +485,7 @@ export function ScanDialog({
           <div className={s.scanControls}>
             {complete && (
               <>
-                <DocumentExpiry job={job!} />
+                {!recovery && <DocumentExpiry job={job!} />}
                 <div className={s.scanDocumentSummary}>
                   <span className={`${s.badge} ${s.positive}`}>
                     <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
@@ -468,198 +499,266 @@ export function ScanDialog({
                     <Download size={17} /> Download PDF
                   </a>
                 </div>
-                <button
-                  type="button"
-                  className={s.secondary}
-                  disabled={locked || job?.status !== 'completed'}
-                  onClick={() => print(job!)}
-                >
-                  <Printer size={17} /> Print
-                </button>
-                {pages.length === 1 && (
-                  <p className={s.small}>
-                    A scan must keep at least one page. To remove the document, close this preview
-                    and delete the scan.
-                  </p>
+                {!recovery && (
+                  <>
+                    <button
+                      type="button"
+                      className={s.secondary}
+                      disabled={locked || job?.status !== 'completed'}
+                      onClick={() => print(job!)}
+                    >
+                      <Printer size={17} /> Print
+                    </button>
+                    {pages.length === 1 && (
+                      <p className={s.small}>
+                        A scan must keep at least one page. To remove the document, close this
+                        preview and delete the scan.
+                      </p>
+                    )}
+                  </>
                 )}
               </>
             )}
-            {!scanners.length && !complete && (
+            {!scanners.length && !complete && !recovery && (
               <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>
                 Find and add a scanner
               </button>
             )}
-            <fieldset disabled={locked} className={s.scanSettings}>
-              <label>
-                Scanner
-                <select
-                  required
-                  value={deviceId}
-                  disabled={complete}
-                  onChange={(e) => {
-                    setDeviceId(e.target.value);
-                    setSource('');
-                    setSources({ sources: [], duplex: false });
-                    setDuplex(false);
-                  }}
-                >
-                  <option value="" disabled>
-                    Select scanner
-                  </option>
-                  {scanners.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <ResolutionControl
-                resolutions={resolutions}
-                value={resolution}
-                onChange={setResolution}
-                disabled={settingsLoading}
-              />
-              <ColorModeControl
-                modes={colorModes.map((mode) => ({
-                  value: mode,
-                  label:
-                    mode === 'Gray'
-                      ? 'Grayscale'
-                      : mode === 'Lineart'
-                        ? 'Black and white (1-bit)'
-                        : mode,
-                }))}
-                value={color}
-                onChange={setColor}
-                disabled={settingsLoading}
-              />
-              <label>
-                Paper source
-                <select
-                  value={source}
-                  disabled={settingsLoading || !sources.sources.length}
-                  onChange={(e) => {
-                    setSource(e.target.value);
-                    setDuplex(false);
-                  }}
-                >
-                  <option value="">Device default</option>
-                  {sources.sources.map((s) => (
-                    <option key={s.name} value={s.name}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {feeder && sources.duplex && (
-                <label className={s.scanDuplex}>
-                  <input
-                    type="checkbox"
-                    checked={duplex}
-                    onChange={(e) => setDuplex(e.target.checked)}
-                  />{' '}
-                  Scan both sides
-                </label>
-              )}
-            </fieldset>
-            {deviceId && (
-              <div className={s.scanCapabilityActions}>
-                <p className={s.small}>Scanner settings are saved per paper source.</p>
-                <button
-                  type="button"
-                  className={s.textButton}
-                  disabled={locked || settingsLoading}
-                  onClick={() => {
-                    refreshRequested.current = true;
-                    setRefreshSettings((value) => value + 1);
-                  }}
-                >
-                  <RefreshCw size={14} /> Refresh scanner settings
-                </button>
-              </div>
+            {!recovery && (
+              <>
+                <fieldset disabled={locked} className={s.scanSettings}>
+                  <label>
+                    Scanner
+                    <select
+                      required
+                      value={deviceId}
+                      disabled={complete}
+                      onChange={(e) => {
+                        setDeviceId(e.target.value);
+                        setSource('');
+                        setSources({ sources: [], duplex: false });
+                        setDuplex(false);
+                      }}
+                    >
+                      <option value="" disabled>
+                        Select scanner
+                      </option>
+                      {scanners.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <ResolutionControl
+                    resolutions={resolutions}
+                    value={resolution}
+                    onChange={setResolution}
+                    disabled={settingsLoading}
+                  />
+                  <ColorModeControl
+                    modes={colorModes.map((mode) => ({
+                      value: mode,
+                      label:
+                        mode === 'Gray'
+                          ? 'Grayscale'
+                          : mode === 'Lineart'
+                            ? 'Black and white (1-bit)'
+                            : mode,
+                    }))}
+                    value={color}
+                    onChange={setColor}
+                    disabled={settingsLoading}
+                  />
+                  <label>
+                    Paper source
+                    <select
+                      value={source}
+                      disabled={settingsLoading || !sources.sources.length}
+                      onChange={(e) => {
+                        setSource(e.target.value);
+                        setDuplex(false);
+                      }}
+                    >
+                      <option value="">Device default</option>
+                      {sources.sources.map((s) => (
+                        <option key={s.name} value={s.name}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {feeder && sources.duplex && (
+                    <label className={s.scanDuplex}>
+                      <input
+                        type="checkbox"
+                        checked={duplex}
+                        onChange={(e) => setDuplex(e.target.checked)}
+                      />{' '}
+                      Scan both sides
+                    </label>
+                  )}
+                </fieldset>
+                {deviceId && (
+                  <div className={s.scanCapabilityActions}>
+                    <p className={s.small}>Scanner settings are saved per paper source.</p>
+                    <button
+                      type="button"
+                      className={s.textButton}
+                      disabled={locked || settingsLoading}
+                      onClick={() => {
+                        refreshRequested.current = true;
+                        setRefreshSettings((value) => value + 1);
+                      }}
+                    >
+                      <RefreshCw size={14} /> Refresh scanner settings
+                    </button>
+                  </div>
+                )}
+                {settingsLoading && (
+                  <p role="status" className={s.small}>
+                    Loading scanner capabilities…
+                  </p>
+                )}
+                {!running &&
+                  !settingsLoading &&
+                  (sourceError ||
+                    sources.resolutions === undefined ||
+                    sources.colorModes === undefined) && (
+                    <p className={s.small}>
+                      {sourceError} Some scanner capabilities are unknown. Unverified fallback
+                      options:
+                      {sources.resolutions === undefined && ' 150/300/600 dpi.'}
+                      {sources.colorModes === undefined && ' Color/Grayscale.'} The scanner may
+                      reject them.
+                    </p>
+                  )}
+                {!running && !settingsLoading && invalidSettings && (
+                  <p role="alert" className={s.error}>
+                    Choose a supported resolution and color mode. This paper source may have no
+                    supported scan settings.
+                  </p>
+                )}
+              </>
             )}
-            {settingsLoading && (
-              <p role="status" className={s.small}>
-                Loading scanner capabilities…
-              </p>
-            )}
-            {!running &&
-              !settingsLoading &&
-              (sourceError ||
-                sources.resolutions === undefined ||
-                sources.colorModes === undefined) && (
-                <p className={s.small}>
-                  {sourceError} Some scanner capabilities are unknown. Unverified fallback options:
-                  {sources.resolutions === undefined && ' 150/300/600 dpi.'}
-                  {sources.colorModes === undefined && ' Color/Grayscale.'} The scanner may reject
-                  them.
-                </p>
-              )}
-            {!running && !settingsLoading && invalidSettings && (
-              <p role="alert" className={s.error}>
-                Choose a supported resolution and color mode. This paper source may have no
-                supported scan settings.
-              </p>
-            )}
-            {(error || job?.error) && (
+            {!recovery && (error || job?.error) && (
               <p role="alert" className={s.error}>
                 {error || job?.error}
               </p>
             )}
-            {running && (
-              <p className={s.small}>
-                Closing this dialog continues the scan in the background. Canceling discards all new
-                pages from this operation and keeps previously saved pages.
-              </p>
-            )}
-            <div className={s.modalActions}>
-              {running && (
-                <button
-                  type="button"
-                  className={s.secondary}
-                  disabled={canceling || busy}
-                  onClick={() => void cancel()}
-                >
-                  {canceling ? 'Canceling scan…' : 'Cancel scan'}
-                </button>
-              )}
-              {(!complete || running) && (
-                <button type="button" className={s.secondary} onClick={close}>
-                  {running ? 'Continue in background' : 'Close'}
-                </button>
-              )}
-              {!running && (
-                <>
+            {recovery && (
+              <section className={s.scanRecovery} aria-label="Recover scanned pages">
+                <div className={s.scanRecoveryHeading}>
+                  <AlertCircle size={19} aria-hidden="true" />
+                  <h3>{recovery.pageNumbers.length} pages ready to recover</h3>
+                </div>
+                <p role="alert">{error || job?.error || 'The scan could not finish.'}</p>
+                <dl className={s.scanRecoveryFacts}>
+                  <div>
+                    <dt>Batch pages</dt>
+                    <dd>{recovery.pageNumbers.join(', ')}</dd>
+                  </div>
+                  <div>
+                    <dt>Available until</dt>
+                    <dd>
+                      <time dateTime={recovery.expiresAt}>
+                        {new Date(recovery.expiresAt).toLocaleString(undefined, {
+                          dateStyle: 'medium',
+                          timeStyle: 'short',
+                        })}
+                      </time>
+                    </dd>
+                  </div>
+                </dl>
+                <details className={s.scanRecoveryDetails}>
+                  <summary>Recovery details</summary>
+                  <p>
+                    Only complete pages are included. Missing or incomplete pages were excluded.
+                    Previously saved pages stay unchanged. You can close this scan and decide later,
+                    even after a server restart.
+                  </p>
+                </details>
+                <div className={s.scanRecoveryActions}>
+                  <button type="button" className={s.textButton} onClick={close}>
+                    Decide later
+                  </button>
                   <button
                     type="button"
                     className={s.secondary}
-                    disabled={
-                      locked ||
-                      settingsLoading ||
-                      invalidSettings ||
-                      !feeder ||
-                      pages.length >= MAX_SCAN_PAGES
-                    }
-                    onClick={() => void start(true)}
+                    disabled={busy || running}
+                    aria-label="Discard recovered pages"
+                    onClick={() => void resolveRecovery('discard')}
                   >
-                    Scan multiple pages
+                    Discard
                   </button>
                   <button
+                    type="button"
                     className={s.primary}
-                    disabled={
-                      locked ||
-                      settingsLoading ||
-                      invalidSettings ||
-                      !scanners.some((d) => d.id === deviceId) ||
-                      pages.length >= MAX_SCAN_PAGES
-                    }
+                    disabled={busy || running}
+                    onClick={() => void resolveRecovery('keep')}
                   >
-                    {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
-                    {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
+                    {busy && <Spinner />} Keep {recovery.pageNumbers.length} pages
                   </button>
-                </>
-              )}
-            </div>
+                </div>
+              </section>
+            )}
+            {running && (
+              <p className={s.small}>
+                {recovery
+                  ? 'Saving recovered pages. Closing this dialog continues saving in the background.'
+                  : 'Closing this dialog continues the scan in the background. Canceling discards all new pages from this operation and keeps previously saved pages.'}
+              </p>
+            )}
+            {!recovery && (
+              <div className={s.modalActions}>
+                {running && !recovery && (
+                  <button
+                    type="button"
+                    className={s.secondary}
+                    disabled={canceling || busy}
+                    onClick={() => void cancel()}
+                  >
+                    {canceling ? 'Canceling scan…' : 'Cancel scan'}
+                  </button>
+                )}
+                {(!complete || running || recovery) && (
+                  <button type="button" className={s.secondary} onClick={close}>
+                    {running ? 'Continue in background' : 'Close'}
+                  </button>
+                )}
+                {!running && (
+                  <>
+                    <button
+                      type="button"
+                      className={s.secondary}
+                      disabled={
+                        locked ||
+                        settingsLoading ||
+                        invalidSettings ||
+                        !feeder ||
+                        pages.length >= MAX_SCAN_PAGES
+                      }
+                      onClick={() => void start(true)}
+                    >
+                      Scan multiple pages
+                    </button>
+                    <button
+                      className={s.primary}
+                      disabled={
+                        locked ||
+                        settingsLoading ||
+                        invalidSettings ||
+                        !scanners.some((d) => d.id === deviceId) ||
+                        pages.length >= MAX_SCAN_PAGES
+                      }
+                    >
+                      {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
+                      {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </form>
       )}

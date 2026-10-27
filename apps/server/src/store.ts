@@ -29,6 +29,13 @@ export interface StoredJob extends Job {
   scanPages?: StoredScanPage[];
   scanDirectory?: string;
   scanWorkPath?: string;
+  scanRecovery?: {
+    revision: string;
+    baseRevision?: string;
+    directory: string;
+    pages: (StoredScanPage & { number: number })[];
+    error: string;
+  };
   externalId?: string;
   filePath?: string;
   previewPath?: string;
@@ -174,10 +181,17 @@ export function publicJob(
     scanPages: _scanPages,
     scanDirectory: _scanDirectory,
     scanWorkPath: _scanWorkPath,
+    scanRecovery: _scanRecovery,
     ...job
   }: StoredJob,
   policy: RetentionPolicy = DEFAULT_RETENTION,
 ): Job {
+  if (_scanRecovery && Date.now() < expiry(job, policy))
+    job.recovery = {
+      revision: _scanRecovery.revision,
+      pageNumbers: _scanRecovery.pages.map((page) => page.number),
+      expiresAt: new Date(expiry(job, policy)).toISOString(),
+    };
   if (job.hasFile) job.expiresAt = new Date(expiry(job, policy)).toISOString();
   if (job.kind === 'scan' && job.hasFile) {
     job.pages = storedScanPages({ ...job, scanPages: _scanPages, previewPath: _previewPath }).map(

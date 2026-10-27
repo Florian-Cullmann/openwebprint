@@ -223,7 +223,7 @@ export class Workspace {
         job.kind === 'scan'
           ? policy.scanDays < previous.scanDays
           : policy.printDays < previous.printDays;
-      if (shorter && job.hasFile && expired(job, policy)) {
+      if (shorter && (job.hasFile || job.scanRecovery) && expired(job, policy)) {
         if (job.kind === 'scan') impact.scans++;
         else impact.prints++;
       }

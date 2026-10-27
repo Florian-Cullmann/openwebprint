@@ -168,6 +168,7 @@ export interface Job {
   expiresAt?: string;
   pages?: ScanPage[];
   scanRevision?: string;
+  recovery?: { revision: string; pageNumbers: number[]; expiresAt: string };
 }
 export type JobFilter = 'all' | 'active' | 'completed';
 export interface JobPage {
