@@ -151,28 +151,36 @@ export function DocumentPreview({
           <ChevronRight size={18} />
         </button>
       </div>
-      <div className={s.previewToolbar} role="group" aria-label="Preview zoom controls">
-        <button
-          type="button"
-          className={s.iconButton}
-          aria-label="Zoom out"
-          disabled={!pdf || zoom === ZOOM_LEVELS[0]}
-          onClick={() => setZoom([...ZOOM_LEVELS].reverse().find((level) => level < zoom) ?? zoom)}
-        >
-          <ZoomOut size={18} />
-        </button>
-        <span aria-live="polite" aria-label="Preview zoom">
-          {Math.round(zoom * 100)}%
-        </span>
-        <button
-          type="button"
-          className={s.iconButton}
-          aria-label="Zoom in"
-          disabled={!pdf || zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-          onClick={() => setZoom(ZOOM_LEVELS.find((level) => level > zoom) ?? zoom)}
-        >
-          <ZoomIn size={18} />
-        </button>
+      <div
+        className={`${s.previewToolbar} ${s.previewZoomToolbar}`}
+        role="group"
+        aria-label="Preview zoom controls"
+      >
+        <div className={s.previewZoomGroup}>
+          <button
+            type="button"
+            className={s.iconButton}
+            aria-label="Zoom out"
+            disabled={!pdf || zoom === ZOOM_LEVELS[0]}
+            onClick={() =>
+              setZoom([...ZOOM_LEVELS].reverse().find((level) => level < zoom) ?? zoom)
+            }
+          >
+            <ZoomOut size={18} />
+          </button>
+          <span className={s.previewZoomLevel} aria-live="polite" aria-label="Preview zoom">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className={s.iconButton}
+            aria-label="Zoom in"
+            disabled={!pdf || zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            onClick={() => setZoom(ZOOM_LEVELS.find((level) => level > zoom) ?? zoom)}
+          >
+            <ZoomIn size={18} />
+          </button>
+        </div>
         <button type="button" className={s.secondary} disabled={!pdf} onClick={resetView}>
           Fit page
         </button>
