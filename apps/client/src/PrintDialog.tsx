@@ -3,6 +3,7 @@ import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'luc
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
 import { api, documentData } from './api';
 import { DocumentPreview } from './DocumentPreview';
+import { ColorModeControl } from './CapabilityControls';
 import { Modal, Spinner } from './ui';
 import s from './App.module.css';
 export const mediaLabels: Record<PrintOptions['media'], string> = {
@@ -223,19 +224,17 @@ export function PrintDialog({
                 </select>
               </label>
               <div className={s.formGrid}>
-                <label>
-                  Color mode
-                  <select
-                    value={options.color}
-                    disabled={busy}
-                    onChange={(e) =>
-                      setOptions({ ...options, color: e.target.value as PrintOptions['color'] })
-                    }
-                  >
-                    <option value="monochrome">Black and white</option>
-                    {device?.capabilities?.color && <option value="color">Color</option>}
-                  </select>
-                </label>
+                <ColorModeControl
+                  modes={[
+                    { value: 'monochrome', label: 'Black and white' },
+                    ...(device?.capabilities?.color ? [{ value: 'color', label: 'Color' }] : []),
+                  ]}
+                  value={options.color}
+                  disabled={busy}
+                  onChange={(color) =>
+                    setOptions({ ...options, color: color as PrintOptions['color'] })
+                  }
+                />
                 <label>
                   Sides
                   <select

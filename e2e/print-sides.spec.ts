@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { PRINT_SIDES, type Device, type Job, type Snapshot } from '@openwebprint/shared';
 import { PDFDocument } from 'pdf-lib';
+import AxeBuilder from '@axe-core/playwright';
 
 async function setup(page: Page) {
   await page.clock.install();
@@ -18,6 +19,7 @@ async function setup(page: Page) {
     ['Missing sides fixture', { color: false, media: ['iso_a4_210x297mm'] }],
     ['Unsupported sides fixture', { color: false, sides: [], media: ['iso_a4_210x297mm'] }],
     ['Unreachable fixture', undefined],
+    ['Color printer fixture', { color: true, sides: ['one-sided'], media: ['iso_a4_210x297mm'] }],
   ];
   const snapshot: Snapshot = {
     mode: 'demo',
@@ -165,4 +167,53 @@ test('reconciles sides when capabilities change on the same printer (browser fix
   await page.clock.runFor(5100);
   await expect(sides).toHaveValue('two-sided-short-edge');
   await expect(submit).toBeEnabled();
+});
+
+test('selects print color with keyboard and pointer, resets on printer change and submits the chosen mode (browser fixtures)', async ({
+  page,
+}, info) => {
+  await setup(page);
+  const printer = page.getByRole('combobox', { name: 'Printer', exact: true });
+  const group = page.getByRole('group', { name: 'Color mode', exact: true });
+  await expect(group).toHaveText('Color modeBlack and white');
+  await expect(group.getByRole('radio')).toHaveCount(0);
+  await printer.selectOption({ label: 'Color printer fixture' });
+  const monochrome = page.getByRole('radio', { name: 'Black and white', exact: true });
+  const color = page.getByRole('radio', { name: 'Color', exact: true });
+  await expect(monochrome).toBeChecked();
+  await monochrome.focus();
+  await page.keyboard.press('ArrowRight');
+  await expect(color).toBeChecked();
+  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveCSS(
+    'filter',
+    'none',
+  );
+  await printer.selectOption({ label: 'Simplex fixture' });
+  await expect(group.getByRole('radio')).toHaveCount(0);
+  await printer.selectOption({ label: 'Color printer fixture' });
+  await expect(monochrome).toBeChecked();
+  if (info.project.name === 'mobile') await color.tap();
+  else await color.check();
+  await expect(color).toBeChecked();
+  await group.scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `test-results/${info.project.name}-51-print-controls.png`,
+    fullPage: true,
+  });
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(
+    accessibility.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+  ).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  let submitted = '';
+  await page.route('**/api/print', (route) => {
+    submitted = route.request().postData() ?? '';
+    return route.fulfill({
+      status: 409,
+      json: { error: 'Print submission captured by browser fixture.' },
+    });
+  });
+  await page.getByRole('button', { name: 'Start demo print', exact: true }).click();
+  await expect(page.getByRole('alert')).toHaveText('Print submission captured by browser fixture.');
+  expect(submitted).toContain('"color":"color"');
 });
