@@ -1,7 +1,8 @@
 ## Related issue (when applicable)
 
-<!-- Issues are required for features, bug fixes, and significant refactoring.
-They are optional for minor documentation, formatting, routine dependency updates, and trivial maintenance.
+<!-- Issues are required for features, larger bug fixes, and significant refactoring.
+They are optional for small, obvious bug fixes, minor documentation, formatting, routine dependency updates, and trivial maintenance.
+Small, obvious bug fixes may be submitted directly as a PR; describe the problem and fix below.
 Reference an existing issue when applicable using "Closes #123" if this PR resolves it.
 Remove this section if no issue applies; do not create an issue just to fill this template.
 Follow SECURITY.md for private vulnerability reports. -->

@@ -4,7 +4,7 @@ Useful, small contributions are welcome: a verified device report, a clearer err
 
 ## Required workflow
 
-Issues are **mandatory for features, bug fixes, and significant refactoring**. They are **optional for minor documentation changes, formatting, routine dependency updates, and trivial maintenance**. Reuse an applicable existing issue; do not create unnecessary issues solely to satisfy the workflow. Small contributions should be easy to submit.
+Issues are **mandatory for features, larger bug fixes, and significant refactoring**. They are **optional for small, obvious bug fixes, minor documentation changes, formatting, routine dependency updates, and trivial maintenance**. For a small, obvious bug fix, you can open a PR directly and describe the problem and fix there. Reuse an applicable existing issue; do not create unnecessary issues solely to satisfy the workflow. Small contributions should be easy to submit.
 
 1. Find an existing issue or open one before implementation when required. Describe the problem, scope, and intended outcome. Discuss large changes before starting them.
 2. Create a dedicated branch from `main`, including the issue number when applicable, such as `fix/42-scanner-discovery`. A descriptive branch name is sufficient when no issue applies.
