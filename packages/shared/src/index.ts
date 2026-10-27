@@ -208,3 +208,18 @@ export interface User {
   username: string;
   createdAt: string;
 }
+
+export interface HardwareReport {
+  checkedAt: string;
+  platform: string;
+  method: 'native' | 'container' | 'source';
+  ready: boolean;
+  checks: {
+    id: string;
+    label: string;
+    state: 'ok' | 'empty' | 'missing' | 'unavailable' | 'permission' | 'timeout';
+  }[];
+  guidance: string;
+  setupCommand?: string;
+  note: string;
+}

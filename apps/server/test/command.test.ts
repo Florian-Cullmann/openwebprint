@@ -25,7 +25,12 @@ describe('command failure classification (stubbed process boundary)', () => {
       ['-h', 'localhost:631', '-v'],
       expect.objectContaining({
         shell: false,
-        env: expect.objectContaining({ LANG: 'C', LC_ALL: 'C', LANGUAGE: 'C' }),
+        env: expect.objectContaining({
+          SOFTWARE: 'openwebprint',
+          LANG: 'C',
+          LC_ALL: 'C',
+          LANGUAGE: 'C',
+        }),
       }),
     );
 

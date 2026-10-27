@@ -35,6 +35,10 @@ jobs:
         run: npm run test:install
         env:
           OWP_TEST_SHORTCUTS: '1'
+      - name: Verify real hardware dependency setup (disposable runner only)
+        run: node scripts/test-hardware-platform.mjs
+        env:
+          OWP_TEST_ALLOW_OS_CHANGES: '1'
       - name: Check shell installer syntax
         run: sh -n install.sh
       - uses: actions/upload-artifact@v4

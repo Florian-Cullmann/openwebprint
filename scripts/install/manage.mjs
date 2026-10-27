@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { checkHardware, hardwarePath, setupHardware } from './hardware.mjs';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { connect } from 'node:net';
@@ -25,6 +26,7 @@ const { values, positionals } = parseArgs({
     'no-open': { type: 'boolean' },
     'no-autostart': { type: 'boolean' },
     'no-shortcuts': { type: 'boolean' },
+    'skip-hardware-setup': { type: 'boolean' },
   },
 });
 const root = resolve(values.root);
@@ -236,10 +238,9 @@ async function serve() {
     DATA_DIR: join(root, 'data'),
     COOKIE_SECURE: 'false',
     CUPS_SERVER: c.cupsServer || 'localhost:631',
+    OPENWEBPRINT_INSTALL_ROOT: root,
   });
-  if (process.platform === 'darwin') {
-    process.env.PATH = `/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:${process.env.PATH || ''}`;
-  }
+  process.env.PATH = hardwarePath();
   delete process.env.MODE;
   delete process.env.HOST_DISCOVERY_FILE;
   process.chdir(app);
@@ -341,15 +342,30 @@ async function install() {
   await writeFile(configPath, `${JSON.stringify(c, null, 2)}\n`, { mode: 0o600 });
   await commandLauncher(root);
   await shortcuts(root, { remove: !c.shortcuts, autostart: c.autostart });
+  if (values['skip-hardware-setup'])
+    console.log(
+      'Hardware prerequisites were not checked (--skip-hardware-setup). Run the openwebprint hardware command before connecting devices.',
+    );
+  else await hardware();
   await start();
   await rm(join(root, 'app.previous'), { recursive: true, force: true });
   console.log(
-    `openwebprint ${release.version} is ready at http://127.0.0.1:${c.port}\nInstalled in ${root}`,
-  );
-  console.log(
-    'Hardware mode uses the host CUPS and SANE tools. See the installation guide for hardware prerequisites.',
+    `openwebprint ${release.version} is running at http://127.0.0.1:${c.port}\nInstalled in ${root}`,
   );
   if (!values['no-open']) await browser(c.port);
+}
+
+async function hardware() {
+  const c = await config();
+  const launcher = join(root, 'openwebprint').replaceAll("'", "'\\''");
+  return setupHardware({
+    check: (options) =>
+      checkHardware({
+        ...options,
+        server: c.cupsServer || 'localhost:631',
+        setupCommand: `'${launcher}' hardware`,
+      }),
+  });
 }
 
 async function managedApplication(directory) {
@@ -388,9 +404,16 @@ async function main() {
     throw new Error('Supported operating systems: Linux and macOS.');
   const action = positionals[0] || 'install';
   if (positionals.length > 1)
-    throw new Error('Expected one command: install, open, start, stop, status, or uninstall.');
+    throw new Error(
+      'Expected one command: install, open, start, stop, status, hardware, or uninstall.',
+    );
   if (action === 'install') return install();
   if (action === 'serve') return serve();
+  if (action === 'hardware') {
+    const report = await hardware();
+    if (!report.ready) process.exitCode = 2;
+    return;
+  }
   if (action === 'stop') {
     await stop();
     return;
@@ -421,7 +444,9 @@ async function main() {
     if (action === 'open') await browser((await config()).port);
     return;
   }
-  throw new Error('Unknown command. Use install, open, start, stop, status, or uninstall.');
+  throw new Error(
+    'Unknown command. Use install, open, start, stop, status, hardware, or uninstall.',
+  );
 }
 
 let unlock;

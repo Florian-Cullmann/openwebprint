@@ -8,10 +8,10 @@ The end-user package runs the production web application in your browser. It inc
 
 Windows is currently unsupported. Complete Windows installation, distribution, printing, and scanning are tracked in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
 
-| System                    | Requirements                                                                                                                           | Real printers and scanners                                       |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| Linux x64 / arm64         | Desktop session; glibc 2.28+, kernel 4.18+; `curl`, `tar`, `ps`, `sha256sum` or `shasum`; `xdg-open` to open the browser automatically | Existing CUPS and SANE installation; see below                   |
-| macOS x64 / Apple Silicon | macOS 14 or newer                                                                                                                      | System CUPS for printing; separately installed SANE for scanning |
+| System                    | Requirements                                                                                                                           | Real printers and scanners                                           |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Linux x64 / arm64         | Desktop session; glibc 2.28+, kernel 4.18+; `curl`, `tar`, `ps`, `sha256sum` or `shasum`; `xdg-open` to open the browser automatically | CUPS/SANE; guided setup on Debian/Ubuntu (next release)              |
+| macOS x64 / Apple Silicon | macOS 14 or newer                                                                                                                      | System CUPS; guided SANE setup with existing Homebrew (next release) |
 
 Linux musl/Alpine and 32-bit systems are not supported by these packages. Linux x64 also requires SSE4.2. Platform requirements follow the bundled [Node.js runtime](https://github.com/nodejs/node/blob/v24.22.1/BUILDING.md#platform-list) and [sharp binaries](https://sharp.pixelplumbing.com/install/#prebuilt-binaries). The OS and CPU are selected automatically. Internet access is required to download the installer/package, but the application runs locally afterward. Allow room for the package, an installed copy, and an update staging copy, plus your documents. Updates temporarily keep the previous application files as well.
 
@@ -35,25 +35,42 @@ To opt out of login startup, use `OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-
 
 ## First launch
 
-Choose **Try demo** to explore without hardware. On Linux/macOS with hardware prerequisites installed, choose **Start setup** to connect real devices. Nothing is simulated in hardware mode. The default installation is accessible only from your computer. Closing the browser leaves the local server running. Clicking the application shortcut opens it again and starts the server if needed.
+Choose **Try demo** to explore without hardware, or **Start setup** to check hardware prerequisites and connect real devices. Nothing is simulated in hardware mode. The default installation is accessible only from your computer. Closing the browser leaves the local server running. Clicking the application shortcut opens it again and starts the server if needed.
 
 The URL uses `127.0.0.1` consistently for its origin and cookies. If port 3001 is already occupied, the installer explains the conflict instead of taking over another service. Choose another port with `OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh --port 3002`. Use the URL printed by the installer afterward.
 
 ## Hardware on Linux and macOS
 
-Hardware dependencies are separate OS components. The installer intentionally does not install a package manager, change CUPS policy, install vendor drivers, or grant administrative privileges to the web application.
+The guided hardware setup below is part of the **next release after v0.1.0-beta.2**. The currently published beta.2 installer still requires manual installation of hardware dependencies; rerunning that release does not add this new flow.
 
-On Debian/Ubuntu, the existing provider uses these packages:
+The new installer checks the CUPS print tools (`lp`, `lpadmin`, `lpstat`, `cancel`), scheduler access, configured printer search and SANE scanner search before opening the application. Missing software, unavailable services/backends, permission failures, timeouts and successful searches without devices have separate results. A successful check confirms software access, **not** physical compatibility or queue-creation permission. No print or scan is acquired during these checks.
+
+It displays an OS change plan and asks for consent before installing packages or running service commands. The package consent also covers standard distribution package scripts that may automatically enable/start CUPS or Avahi; this is stated before consent. Administrative commands may request your OS password; the application and its login startup continue to run as your normal user. Refusing a change or canceling authentication leaves an explicit unresolved requirement. Noninteractive installs never imply consent. The application can still open for demo mode or unaffected hardware functions; “running” does not mean hardware is ready.
+
+- **Debian/Ubuntu with apt-get and systemd:** offers CUPS client/server, print filters, SANE utilities, sane-airscan and Avahi from configured OS repositories. A separate consent step enables/starts CUPS and Avahi. The package manager may install their dependencies. Vendor drivers are not installed speculatively.
+- **macOS:** uses system CUPS and offers `brew install sane-backends` through an **existing** Homebrew installation. If CUPS is stopped, it offers enabling/starting the macOS CUPS service separately. Without Homebrew, it identifies that requirement and links to [Homebrew's official installation](https://brew.sh); no package manager is installed automatically. [sane-backends](https://formulae.brew.sh/formula/sane-backends) provides the SANE tools and available backends; installing it does not imply eSCL/WSD support for a particular device or compatibility with vendor-only macOS scanner drivers.
+- **Other Linux distributions:** the application package remains usable with existing CUPS/SANE, but automatic OS changes are not supported. The installer explains the required CUPS, filters, SANE and discovery components to install with the distribution's software manager.
+
+The onboarding screen shows live prerequisite results and the exact local **hardware** management command to reopen the guided flow in Terminal. After completing it, choose **Check prerequisites again** and **Search again**. The browser cannot install software or request administrator privileges. For example:
+
+```sh
+# Linux default installation
+~/.local/share/openwebprint/openwebprint hardware
+# macOS default installation
+"$HOME/Library/Application Support/openwebprint/openwebprint" hardware
+```
+
+`hardware` exits with status 2 while checks remain unresolved and 0 when software checks pass. `--skip-hardware-setup` explicitly skips the install-time checks and OS changes (useful for unattended/demo installations); output records the skip, and onboarding still checks prerequisites. The launcher includes standard Homebrew binary directories, so login startup does not depend on an interactive shell profile. CUPS command locale is fixed even on localized macOS systems.
+
+For the currently published beta.2, Debian/Ubuntu prerequisites can be installed manually:
 
 ```sh
 sudo apt-get update
-sudo apt-get install cups cups-client cups-filters sane-utils sane-airscan printer-driver-brlaser
-sudo systemctl enable --now cups
+sudo apt-get install cups cups-client cups-filters sane-utils sane-airscan avahi-daemon
+sudo systemctl enable --now cups avahi-daemon
 ```
 
-On other Linux distributions, install the equivalent CUPS client/server, filters, SANE `scanimage`, and sane-airscan packages using the OS package manager. On macOS, printing uses the system CUPS tools. Scanning requires `scanimage`, installed for example with `brew install sane-backends` if you already use Homebrew; the available scanner backends determine compatibility. Homebrew's SANE package does not imply sane-airscan support. The launcher includes the standard Homebrew binary directories in its hardware-tool search path so login startup does not depend on an interactive shell profile.
-
-If CUPS requires administrator permission to create a queue, add the printer in your OS printer settings and import its `cups://QUEUE_NAME` address in openwebprint. Device-specific drivers and USB permissions remain OS responsibilities. See [hardware support and troubleshooting](hardware.md) for discovery, supported protocols, and diagnostics. No additional physical device compatibility is certified by the installer tests.
+If CUPS denies queue creation, add the printer in the OS **Printers & Scanners** / printer settings, then import its `cups://QUEUE_NAME` address. A scanner backend, USB/udev access, vendor driver or OS Local Network permission may still be device-specific requirements. The onboarding guidance names these OS boundaries and shows container advice only for container installations. See [hardware support and troubleshooting](hardware.md). Installing packages does not grant the web application administrative privileges or change CUPS access policy.
 
 ## Files, settings, and logs
 
@@ -113,6 +130,6 @@ For an installation without internet access, transfer the matching release `.tar
 
 `npm run package:release` builds a package for the current OS/CPU after `npm run build`. It installs only production server dependencies using the committed npm lockfile, downloads the pinned Node.js runtime from nodejs.org, verifies its published SHA-256 checksum, and retains the Node/dependency licenses. It does not ship npm or build tools. Native dependencies are resolved on each target runner.
 
-CI builds and smoke-tests all four Linux/macOS OS/CPU combinations, including a path containing spaces. The package test verifies real production assets, first-run demo setup, native image-to-PDF conversion, authenticated process control, port conflicts, restart, update with persistent data, reinstall, and uninstall. CI also creates/removes the native shortcuts in its disposable runner account. These are application/installation checks, not physical hardware tests or a reboot/login certification.
+CI builds and smoke-tests all four Linux/macOS OS/CPU combinations, including a path containing spaces. The package test verifies real production assets, first-run demo setup, native image-to-PDF conversion, authenticated process control, port conflicts, restart, update with persistent data, reinstall, and uninstall. CI also creates/removes the native shortcuts in its disposable runner account. The initial packaged install also runs noninteractive prerequisite checks without OS changes; subsequent lifecycle checks explicitly skip them. Controlled OS fixtures exercise Linux/macOS missing/present software, consent refusal, package/service failures and recovery on all four CI runners. These are application/installation checks, not physical hardware tests or a reboot/login certification. Actual package-manager/service integration is exercised separately in disposable CI runners; see [hardware setup validation](validation/issue-72-hardware-setup.md).
 
 To publish, prepare the root/workspace versions, lockfile, install commands, and release notes on a dedicated release branch. Merge its PR after checks pass, then push a matching version tag (for example, `v0.1.0-beta.2`) pointing to that tested `main` commit. The release workflow rebuilds and tests the four packages and publishes them with SHA-256 files and the shell installer. Tag/package versions must match. Publishing a prerelease does not replace GitHub's latest stable release: prerelease install commands must pin both the installer download URL and `OPENWEBPRINT_VERSION`. After the workflow publishes the assets, replace the generated release notes with the reviewed file under `docs/releases/`. Node runtime updates require changing the pinned version in `scripts/package-release.mjs`; rebuild every target and rerun the package checks.

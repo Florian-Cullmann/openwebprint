@@ -196,7 +196,7 @@ export class HardwareProvider implements Provider {
     ]);
     if (!devices.length)
       warnings.push(
-        'No devices responded to discovery. If you use Docker Desktop on macOS, enable Docker in System Settings → Privacy & Security → Local Network. Docker bridge networking can also limit automatic discovery; use the optional macOS Bonjour helper, Linux host networking, or add a device by IP address.',
+        'No devices responded to discovery. Check that devices are powered on and connected to the same network, allow Local Network access if your OS requests it, or add a device by IP address.',
       );
     return {
       devices: [...new Map(devices.map((d) => [d.address, d])).values()],

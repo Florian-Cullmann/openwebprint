@@ -1,3 +1,4 @@
+import { checkHardware } from '../../../scripts/install/hardware.mjs';
 import Fastify, { LogController } from 'fastify';
 import cookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
@@ -153,6 +154,21 @@ export async function createApp(
   app.post('/api/logout', async (req, reply) => {
     auth.logout(req, reply);
     return { ok: true };
+  });
+  let hardwareCheck: ReturnType<typeof checkHardware> | undefined;
+  app.post('/api/hardware/prerequisites', async () => {
+    hardwareCheck ??= checkHardware({
+      server: config.cupsServer,
+      method: config.installRoot ? 'native' : existsSync('/.dockerenv') ? 'container' : 'source',
+      ...(config.installRoot
+        ? {
+            setupCommand: `'${resolve(config.installRoot, 'openwebprint').replaceAll("'", "'\\''")}' hardware`,
+          }
+        : {}),
+    }).finally(() => {
+      hardwareCheck = undefined;
+    });
+    return hardwareCheck;
   });
   app.get('/api/onboarding', async () => workspace.state());
   app.post('/api/onboarding/demo', async () => workspace.tryDemo());
@@ -412,6 +428,7 @@ export async function createApp(
   app.addHook('onClose', async () => {
     clearInterval(timer);
     clearInterval(retention);
+    await hardwareCheck;
     await workspace.close();
     store.close();
   });
