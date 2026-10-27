@@ -24,7 +24,7 @@ Open source, self-hosted, and built around open standards.
 
 openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, remote font requests, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
-This is the first public beta, **v0.1.0-beta.1**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
+This is the second public beta, **v0.1.0-beta.2**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, a two-position color toggle, duplex, supported paper sizes, and a paginated document preview.
@@ -67,13 +67,13 @@ Review, crop, rotate, reorder, or remove scanned pages, download or print the PD
 
 Download and run the installer for your computer. The package includes the production web application, a private Node.js runtime, and application dependencies. It sets up a browser launcher, local data storage, and startup at login. **No Git, npm, system Node.js, Docker, VM, or Electron is required.**
 
-The first release is a beta; both commands below explicitly select that version. See the [release notes](docs/releases/v0.1.0-beta.1.md) for scope and known limitations.
+The current release is a beta; both commands below explicitly select that version. See the [release notes](docs/releases/v0.1.0-beta.2.md) for scope and known limitations.
 
 **Linux / macOS** — paste into Terminal, without `sudo`:
 
 ```sh
-curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.1/install.sh -o install-openwebprint.sh
-OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.2/install.sh -o install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh
 ```
 
 The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, with CUPS/SANE installed, **Start setup**. OS hardware tools and vendor drivers are separate from the web package.
@@ -191,7 +191,7 @@ See the [model compatibility and troubleshooting guide](docs/hardware.md). There
 Current scope:
 
 - Collect up to 100 scanned pages in one PDF. **Scan another page** appends one page; select a scanner-advertised ADF or duplex ADF source and use **Scan multiple pages** to read a feeder batch. Rotate each page clockwise in 90° steps and reorder by dragging or with the arrow buttons; changes are saved automatically. Reopen the scan to add or edit pages. New scan PDFs preserve physical page dimensions, including crops and pages appended at different resolutions; see [legacy scan sizing](docs/hardware.md#scanners). Failed follow-up scans keep the previously saved document.
-- No OCR or scan cancellation. Closing the dialog leaves a scan running (up to 120 seconds for one page or 10 minutes for a batch).
+- No OCR. Closing the dialog leaves a scan running (up to 120 seconds for one page or 10 minutes for a batch); use **Cancel scan** to stop it explicitly.
 - PDF uploads are rebuilt and form fields flattened before printing; annotations and document-level active content are omitted. Digital signatures are not validated.
 - Standard A4, A5, and Letter print media, only when the CUPS queue reports support. Color/duplex capabilities come from IPP; scan options are backend-dependent and unsupported options fail explicitly.
 - No printer firmware management, ink-level estimates, cloud relay, per-user roles or document isolation, or remote CUPS authentication.
