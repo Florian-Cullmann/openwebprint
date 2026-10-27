@@ -41,6 +41,177 @@ async function download(job: Job) {
   expect(response.statusCode).toBe(200);
   return response.rawPayload;
 }
+// Small numbered images keep page-removal tests independent of physical hardware.
+class RemovalScanner extends DemoProvider {
+  override async scan(_device: Device, output: string) {
+    for (let i = 1; i <= 3; i++)
+      await sharp({
+        create: { width: 100 + i, height: 200, channels: 3, background: '#ffffff' },
+      })
+        .png()
+        .toFile(output.replace('%d', String(i)));
+  }
+}
+it('removes pages, publishes matching previews/PDFs, cleans obsolete files, and persists the remaining edits (stubbed scanner)', async () => {
+  f = await fixture({ provider: new RemovalScanner() });
+  const original = await start(undefined, { source: 'ADF', batch: true });
+  const previous = f.service.job(original.id);
+  const sources = storedScanPages(previous);
+  const retained = [
+    { ...original.pages![2], rotation: 90 as const, crop: { x: 2, y: 3, width: 70, height: 120 } },
+    original.pages![1],
+  ];
+  const response = await edit(original, retained);
+  expect(response.statusCode, response.body).toBe(200);
+  const saved = response.json<Job>();
+  expect(saved.pages).toEqual(retained);
+  expect(saved.scanRevision).not.toBe(original.scanRevision);
+  const pdf = await PDFDocument.load(await download(saved));
+  expect(pdf.getPageCount()).toBe(2);
+  expect(pdf.getPage(0).getRotation().angle).toBe(90);
+  expect(pdf.getPage(0).getWidth()).toBeCloseTo((70 * 72) / 300, 6);
+  expect(pdf.getPage(1).getWidth()).toBeCloseTo((102 * 72) / 300, 6);
+  const preview = await f.app.inject({ url: `/api/jobs/${saved.id}/preview`, headers: f.headers });
+  expect(await sharp(preview.rawPayload).metadata()).toMatchObject({ width: 120, height: 70 });
+  for (const path of [previous.filePath!, previous.previewPath!, sources[0].path])
+    await expect(access(path)).rejects.toThrow();
+  for (const source of sources.slice(1)) await access(source.path);
+  expect(
+    (
+      await f.app.inject({
+        url: `/api/scans/${saved.id}/pages/${sources[0].id}`,
+        headers: f.headers,
+      })
+    ).statusCode,
+  ).toBe(404);
+  // A stale edit must not resurrect removed pages or remove more pages.
+  expect((await edit(original, [original.pages![1]])).statusCode).toBe(409);
+  const last = await edit(saved, [retained[1]]);
+  expect(last.statusCode).toBe(200);
+  const final = last.json<Job>();
+  expect((await edit(final, [])).statusCode).toBe(400);
+  expect(() => f!.service.editScan(final.id, final.scanRevision!, [])).toThrow('at least one');
+  expect((await PDFDocument.load(await download(final))).getPageCount()).toBe(1);
+  const directory = f.dataDir;
+  await f.close(false);
+  f = await fixture({ dataDir: directory });
+  expect(publicJob(f.service.job(final.id)).pages).toEqual(final.pages);
+  expect((await PDFDocument.load(await download(final))).getPageCount()).toBe(1);
+  expect((await start(final.id)).pages).toHaveLength(2);
+});
+
+it.each(['conversion', 'storage'])(
+  'preserves every original file on page-removal %s failure and locks concurrent operations',
+  async (failure) => {
+    f = await fixture({ provider: new RemovalScanner() });
+    const job = await start(undefined, { source: 'ADF', batch: true });
+    const stored = f.service.job(job.id);
+    const paths = [
+      stored.filePath!,
+      stored.previewPath!,
+      ...storedScanPages(stored).map((p) => p.path),
+    ];
+    const before = await Promise.all(paths.map((path) => readFile(path)));
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let staged!: () => void;
+    const started = new Promise<void>((resolve) => {
+      staged = resolve;
+    });
+    const exportPages = documents.exportScanPages;
+    const exporter = vi
+      .spyOn(documents, 'exportScanPages')
+      .mockImplementationOnce(async (...args) => {
+        await exportPages(...args);
+        staged();
+        await gate;
+        if (failure === 'conversion') throw new AppError(422, 'Could not rebuild the document.');
+      });
+    const putJob = f.store.putJob.bind(f.store);
+    let rejectPublication = failure === 'storage';
+    const persistence = vi.spyOn(f.store, 'putJob').mockImplementation((next) => {
+      if (
+        rejectPublication &&
+        next.status === 'completed' &&
+        next.scanRevision !== job.scanRevision
+      ) {
+        rejectPublication = false;
+        throw new AppError(500, 'Could not save the document.');
+      }
+      putJob(next);
+    });
+    const pending = edit(job, job.pages!.slice(1));
+    try {
+      await started;
+      expect((await edit(job, job.pages!.slice(1))).statusCode).toBe(409);
+      expect(
+        (await f.app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: f.headers }))
+          .statusCode,
+      ).toBe(409);
+      expect(
+        (
+          await f.app.inject({
+            method: 'POST',
+            url: '/api/scans',
+            headers: f.headers,
+            payload: { deviceId: job.deviceId, jobId: job.id, options: {} },
+          })
+        ).statusCode,
+      ).toBe(409);
+      release();
+      expect((await pending).statusCode).toBe(failure === 'conversion' ? 422 : 500);
+      expect(publicJob(f.service.job(job.id))).toMatchObject({
+        status: 'completed',
+        pages: job.pages,
+        scanRevision: job.scanRevision,
+      });
+      expect(await Promise.all(paths.map((path) => readFile(path)))).toEqual(before);
+      expect(await readdir(stored.scanDirectory!)).toHaveLength(1);
+    } finally {
+      release();
+      await pending;
+      exporter.mockRestore();
+      persistence.mockRestore();
+    }
+  },
+);
+
+it('keeps a retained page source when removed pages share the same image (legacy fixture)', async () => {
+  f = await fixture({ provider: new RemovalScanner() });
+  const job = await start(undefined, { source: 'ADF', batch: true });
+  const stored = f.service.job(job.id);
+  const pages = storedScanPages(stored);
+  stored.scanPages = [pages[0], { ...pages[0], id: pages[1].id }, pages[2]];
+  f.store.putJob(stored);
+  expect((await edit(job, job.pages!.slice(1))).statusCode).toBe(200);
+  await access(pages[0].path);
+  expect((await PDFDocument.load(await download(job))).getPageCount()).toBe(2);
+});
+it('keeps a successfully published deletion when an obsolete file cannot be unlinked (storage fixture)', async () => {
+  f = await fixture({ provider: new RemovalScanner() });
+  const job = await start(undefined, { source: 'ADF', batch: true });
+  const stored = f.service.job(job.id);
+  // An unexpected directory at the previous preview path simulates a cleanup error.
+  const previousPreview = stored.previewPath!;
+  await unlink(previousPreview);
+  await mkdir(previousPreview);
+  await writeFile(join(previousPreview, 'blocked'), 'cleanup fixture');
+  const response = await edit(job, job.pages!.slice(1));
+  expect(response.statusCode, response.body).toBe(200);
+  const saved = response.json<Job>();
+  expect(saved.pages).toEqual(job.pages!.slice(1));
+  expect(saved.error).toContain('document was saved');
+  expect(saved.error).not.toContain(f.dataDir);
+  expect((await PDFDocument.load(await download(saved))).getPageCount()).toBe(2);
+  expect(publicJob(f.service.job(job.id))).toMatchObject({
+    pages: saved.pages,
+    scanRevision: saved.scanRevision,
+  });
+  await f.service.deleteJob(job.id);
+  expect(await readdir(f.service.filesDir)).toEqual([]);
+});
 it('keeps per-page physical dimensions across mixed-resolution appends, edits, and restart (stubbed scanner)', async () => {
   const sizes = [
     { widthMm: 148, heightMm: 210 },
@@ -151,7 +322,7 @@ it('appends flatbed and feeder pages to one PDF and persists the actual page ord
   expect((await edit(job, reordered)).statusCode).toBe(409);
   const latest = saved.json<Job>();
   for (const pages of [
-    reordered.slice(1),
+    [],
     [...reordered.slice(1), reordered[1]],
     [{ ...reordered[0], id: randomUUID() }, ...reordered.slice(1)],
   ])
@@ -251,10 +422,14 @@ it('opens and edits legacy single-page scans and removes their original files wi
   expect(legacy.pages).toEqual([{ id: job.id, rotation: 0 }]);
   expect((await edit(legacy, [{ id: job.id, rotation: 90 }])).statusCode).toBe(200);
   const legacySize = (await PDFDocument.load(await download(legacy))).getPage(0).getSize();
-  expect((await start(job.id, { resolution: 150 })).pages).toHaveLength(2);
+  const appended = await start(job.id, { resolution: 150 });
+  expect(appended.pages).toHaveLength(2);
   expect((await PDFDocument.load(await download(legacy))).getPage(0).getSize()).toEqual(legacySize);
   expect(storedScanPages(f.service.job(job.id))[0].path).toBe(legacyPreview);
   expect(storedScanPages(f.service.job(job.id))[0].resolution).toBeUndefined();
+  expect((await edit(appended, appended.pages!.slice(1))).statusCode).toBe(200);
+  await expect(access(legacyPreview)).rejects.toThrow();
+  expect((await PDFDocument.load(await download(appended))).getPageCount()).toBe(1);
   await f.workspace.removeDemo();
   expect(await readdir(f.service.filesDir)).toEqual([]);
 });
@@ -306,7 +481,7 @@ it('rejects concurrent edits/deletion during an append and rejects empty batches
     }
   }
   f = await fixture({ provider: new EmptyScanner() });
-  const job = await start();
+  const job = await start((await start()).id);
   block = true;
   try {
     expect(
@@ -323,14 +498,7 @@ it('rejects concurrent edits/deletion during an append and rejects empty batches
         })
       ).statusCode,
     ).toBe(202);
-    expect(
-      (
-        await edit(
-          job,
-          job.pages!.map((page) => ({ ...page, crop: { x: 0, y: 0, width: 1, height: 1 } })),
-        )
-      ).statusCode,
-    ).toBe(409);
+    expect((await edit(job, job.pages!.slice(1))).statusCode).toBe(409);
     expect(
       (await f.app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: f.headers }))
         .statusCode,
@@ -353,7 +521,7 @@ it('rejects concurrent edits/deletion during an append and rejects empty batches
       scanRevision: job.scanRevision,
     });
     expect(f.service.job(job.id).error).toContain('No pages');
-    expect((await PDFDocument.load(await download(job))).getPageCount()).toBe(1);
+    expect((await PDFDocument.load(await download(job))).getPageCount()).toBe(2);
   } finally {
     release();
   }

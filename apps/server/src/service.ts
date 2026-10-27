@@ -316,20 +316,35 @@ export class Service {
     // Publication is synchronous from this check through putJob. Cancellation
     // either discards the whole new operation or observes the committed result.
     signal?.throwIfAborted();
-    const previousPdf = job.filePath;
-    const previousPreview = job.previewPath;
-    job.filePath = filePath;
-    job.previewPath = previewPath;
-    job.scanPages = pages;
-    job.scanRevision = randomUUID();
-    job.hasFile = true;
-    job.status = 'completed';
-    job.scanWorkPath = undefined;
-    job.updatedAt = new Date().toISOString();
-    this.store.putJob(job);
-    await remove(previousPdf);
-    // A legacy scan uses its original preview as the page image.
-    if (!pages.some((page) => page.path === previousPreview)) await remove(previousPreview);
+    const previousFiles = new Set([
+      job.filePath,
+      job.previewPath,
+      ...storedScanPages(job).map((page) => page.path),
+    ]);
+    const published: StoredJob = {
+      ...job,
+      filePath,
+      previewPath,
+      scanPages: pages,
+      scanRevision: randomUUID(),
+      hasFile: true,
+      status: 'completed',
+      scanWorkPath: undefined,
+      updatedAt: new Date().toISOString(),
+    };
+    // Keep the previous revision intact until its replacement is durably stored.
+    this.store.putJob(published);
+    Object.assign(job, published);
+    const retainedFiles = new Set([filePath, previewPath, ...pages.map((page) => page.path)]);
+    const cleanup = await Promise.allSettled(
+      [...previousFiles].filter((path) => path && !retainedFiles.has(path)).map(remove),
+    );
+    // A cleanup failure must not turn a successfully saved edit into a failed request.
+    if (cleanup.some((result) => result.status === 'rejected')) {
+      job.error =
+        'The document was saved, but obsolete files could not be removed. Check scan storage permissions.';
+      this.store.putJob(job);
+    }
   }
   private async failScan(job: StoredJob, error: unknown, signal?: AbortSignal) {
     if (job.scanWorkPath) await rm(job.scanWorkPath, { recursive: true, force: true });
@@ -390,11 +405,11 @@ export class Service {
     if (revision !== (job.scanRevision ?? job.updatedAt))
       throw new AppError(409, 'This scan changed. Reopen it before editing.');
     if (
-      pages.length !== originals.length ||
-      new Set(pages.map((page) => page.id)).size !== originals.length ||
+      pages.length === 0 ||
+      new Set(pages.map((page) => page.id)).size !== pages.length ||
       pages.some((page) => !originals.some((original) => original.id === page.id))
     )
-      throw new AppError(400, 'Include each scanned page exactly once.');
+      throw new AppError(400, 'Keep at least one scanned page and include each page at most once.');
     const updated = pages.map((page) => ({
       ...originals.find((original) => original.id === page.id)!,
       rotation: page.rotation,
