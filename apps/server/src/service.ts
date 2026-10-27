@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import type {
   Device,
   DeviceInput,
+  JobPage,
   Mode,
   PrintOptions,
   ScanOptions,
@@ -12,7 +13,14 @@ import type {
 } from '@openwebprint/shared';
 import { MAX_SCAN_PAGES } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
-import { Store, publicJob, storedScanPages, type StoredJob, type StoredScanPage } from './store.js';
+import {
+  Store,
+  publicJob,
+  storedScanPages,
+  type JobPageOptions,
+  type StoredJob,
+  type StoredScanPage,
+} from './store.js';
 import type { Provider } from './providers/types.js';
 import { demoDevices } from './providers/demo.js';
 import { normalizeDocument, exportScanPages } from './documents.js';
@@ -149,8 +157,29 @@ export class Service {
   async snapshot(): Promise<Snapshot> {
     return {
       ...(await this.deviceState()),
-      jobs: this.store.jobs(this.mode).slice(0, 200).map(publicJob),
+      jobs: this.store.jobPage(this.mode, { limit: 200 }).map(publicJob),
       mode: this.mode,
+    };
+  }
+  listJobs(options: JobPageOptions): JobPage {
+    const rows = this.store.jobPage(this.mode, { ...options, limit: options.limit + 1 });
+    const jobs = rows.slice(0, options.limit).map(publicJob);
+    const last = jobs.at(-1);
+    return {
+      jobs,
+      ...(rows.length > options.limit && last
+        ? {
+            nextCursor: Buffer.from(
+              JSON.stringify({
+                createdAt: last.createdAt,
+                id: last.id,
+                mode: this.mode,
+                kind: options.kind,
+                filter: options.filter ?? 'all',
+              }),
+            ).toString('base64url'),
+          }
+        : {}),
     };
   }
   private createJob(

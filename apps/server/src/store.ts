@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Device, Job, Mode, ScanPage } from '@openwebprint/shared';
+import type { Device, Job, JobFilter, Mode, ScanPage } from '@openwebprint/shared';
+
+export interface JobPageOptions {
+  limit: number;
+  kind?: Job['kind'];
+  filter?: JobFilter;
+  before?: { createdAt: string; id: string };
+}
 
 export interface StoredScanPage extends ScanPage {
   path: string;
@@ -27,6 +34,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, mode TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, mode TEXT NOT NULL, created TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS jobs_history ON jobs (mode, created DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS jobs_kind_history ON jobs (mode, json_extract(data, '$.kind'), created DESC, id DESC);
       `);
     this.migrateUsers();
   }
@@ -93,6 +102,27 @@ export class Store {
       .prepare('SELECT data FROM jobs WHERE mode=? ORDER BY created DESC')
       .all(mode)
       .map((r) => JSON.parse(String(r.data)));
+  }
+  jobPage(mode: Mode, { limit, kind, filter, before }: JobPageOptions): StoredJob[] {
+    const where = ['mode=?'];
+    const params: (string | number)[] = [mode];
+    if (kind) {
+      where.push("json_extract(data, '$.kind')=?");
+      params.push(kind);
+    }
+    if (filter === 'active')
+      where.push("json_extract(data, '$.status') NOT IN ('completed', 'canceled', 'failed')");
+    if (filter === 'completed') where.push("json_extract(data, '$.status')='completed'");
+    if (before) {
+      where.push('(created, id) < (?, ?)');
+      params.push(before.createdAt, before.id);
+    }
+    return this.db
+      .prepare(
+        `SELECT data FROM jobs WHERE ${where.join(' AND ')} ORDER BY created DESC, id DESC LIMIT ?`,
+      )
+      .all(...params, limit)
+      .map((row) => JSON.parse(String(row.data)));
   }
   job(id: string, mode: Mode): StoredJob | undefined {
     const row = this.db.prepare('SELECT data FROM jobs WHERE id=? AND mode=?').get(id, mode);

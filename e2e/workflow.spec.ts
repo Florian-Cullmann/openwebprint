@@ -1,8 +1,10 @@
-import { test, expect, type Page } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
+import { isolatedTest } from './isolated-server';
 import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
+const test = isolatedTest();
 // Publishing full-resolution multi-page PDFs can exceed Playwright's default 5s on CI.
 const expectScan = expect.configure({ timeout: 15_000 });
 async function navigate(page: Page, name: string) {
