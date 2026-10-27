@@ -220,3 +220,36 @@ it.each([
   ).rejects.toThrow(error);
   expect(run.mock.calls.every(([, args]) => args.includes('--all-options'))).toBe(true);
 });
+
+it('bypasses the persisted dialog cache before acquisition (stubbed SANE)', async () => {
+  const run = vi.fn().mockResolvedValue(flatbed);
+  f = await fixture({
+    mode: 'hardware',
+    users: false,
+    provider: new HardwareProvider('localhost:631', run),
+  });
+  f.store.putDevice(scanner);
+  const endpoint = `/api/devices/${scanner.id}/scan-sources`;
+  expect((await f.app.inject(endpoint)).json<ScanSources>().resolutions).toContain(1200);
+  run.mockResolvedValue(feeder);
+  run.mockClear();
+  // A repeated dialog still uses its saved capabilities, even after the provider changed.
+  expect((await f.app.inject(endpoint)).json<ScanSources>().resolutions).toContain(1200);
+  expect(run).not.toHaveBeenCalled();
+  const response = await f.app.inject({
+    method: 'POST',
+    url: '/api/scans',
+    headers: f.headers,
+    payload: { deviceId: scanner.id, options: { resolution: 1200, color: 'Color' } },
+  });
+  expect(response.statusCode).toBe(202);
+  await f.service.close();
+  const job = f.service.job(response.json<Job>().id);
+  expect(job.status).toBe('failed');
+  expect(job.error).toContain('resolution');
+  expect(run).toHaveBeenCalledExactlyOnceWith(
+    'scanimage',
+    ['--device-name', scanner.target, '--all-options'],
+    20_000,
+  );
+});

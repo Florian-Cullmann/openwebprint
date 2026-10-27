@@ -129,6 +129,9 @@ export class Workspace {
         this.store.db.prepare('DELETE FROM jobs WHERE mode=?').run('demo');
         this.store.db.prepare('DELETE FROM devices WHERE mode=?').run('demo');
         this.store.db.prepare('DELETE FROM settings WHERE key=?').run('demo-seeded');
+        this.store.db
+          .prepare('DELETE FROM settings WHERE key LIKE ?')
+          .run('scan-capabilities:demo:%');
         this.store.set('mode', 'hardware');
         this.store.set('onboarding-phase', 'devices');
         this.store.db.exec('COMMIT');

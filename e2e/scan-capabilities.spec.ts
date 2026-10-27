@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page, type TestInfo } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ScanSources, Snapshot } from '@openwebprint/shared';
 
@@ -67,7 +67,7 @@ async function setup(page: Page) {
   await expect(page.getByRole('combobox', { name: 'Paper source', exact: true })).toBeEnabled();
 }
 
-test('reconciles scanner and source settings, validates a range and submits the selected values (browser fixtures)', async ({
+test('reconciles and refreshes scanner settings, validates a range and submits the selected values (browser fixtures)', async ({
   page,
 }, info) => {
   await setup(page);
@@ -108,6 +108,7 @@ test('reconciles scanner and source settings, validates a range and submits the 
   await page.getByRole('combobox', { name: 'Scanner', exact: true }).selectOption(first);
   await expect(resolution).toHaveValue('200');
   await expect(color).toHaveValue('Lineart');
+  await refreshSavedSettings(page, info);
   let submitted: unknown;
   await page.route('**/api/scans', (route) => {
     submitted = route.request().postDataJSON();
@@ -199,3 +200,78 @@ test('ignores a stale capability response after switching scanners (browser fixt
   ).toHaveText(['200 dpi', '600 dpi']);
   await expect(color.locator('option')).toHaveText(['Lineart']);
 });
+
+async function refreshSavedSettings(page: Page, info: TestInfo) {
+  const source = page.getByRole('combobox', { name: 'Paper source', exact: true });
+  await source.selectOption('ADF');
+  await page.getByRole('spinbutton', { name: /^Resolution/ }).fill('300');
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const changed: ScanSources = {
+    ...discrete,
+    resolutions: [200, 600],
+    colorModes: ['Lineart'],
+    defaultResolution: 200,
+    defaultColorMode: 'Lineart',
+  };
+  const queries: URLSearchParams[] = [];
+  let fail = false;
+  await page.route(`**/devices/${first}/scan-sources*`, async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    queries.push(query);
+    if (query.has('refresh')) await pending;
+    await route.fulfill({
+      json: fail
+        ? {
+            sources: paperSources,
+            duplex: false,
+            warning: 'Controlled capability discovery failure.',
+          }
+        : changed,
+    });
+  });
+  const refresh = page.getByRole('button', { name: 'Refresh scanner settings', exact: true });
+  await refresh.click();
+  await expect(refresh).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Start demo scan', exact: true })).toBeDisabled();
+  release();
+  await expect(refresh).toBeEnabled();
+  expect(queries[0].get('refresh')).toBe('true');
+  expect(queries[0].get('source')).toBe('ADF');
+  const resolution = page.getByRole('combobox', { name: 'Resolution', exact: true });
+  const color = page.getByRole('combobox', { name: 'Color mode', exact: true });
+  await expect(resolution).toHaveValue('200');
+  await expect(color).toHaveValue('Lineart');
+  await expect(source).toHaveValue('ADF');
+  await page
+    .getByRole('dialog')
+    .screenshot({ path: `test-results/${info.project.name}-22-cached-settings.png` });
+
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Close', exact: true })
+    .first()
+    .click();
+  await page.getByRole('button', { name: 'Scan', exact: true }).first().click();
+  await expect(refresh).toBeEnabled();
+  expect(queries.at(-1)!.has('refresh')).toBe(false);
+  await expect(resolution).toHaveValue('200');
+  await expect(color).toHaveValue('Lineart');
+
+  fail = true;
+  await refresh.click();
+  await expect(
+    page.getByText('Some scanner capabilities are unknown.', { exact: false }),
+  ).toBeVisible();
+  await expect(resolution).toHaveValue('300');
+  await expect(color).toHaveValue('Color');
+  fail = false;
+  await refresh.click();
+  await expect(resolution).toHaveValue('200');
+  await expect(color).toHaveValue('Lineart');
+  await expect(
+    page.getByText('Some scanner capabilities are unknown.', { exact: false }),
+  ).toHaveCount(0);
+}

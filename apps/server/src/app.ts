@@ -244,8 +244,12 @@ export async function createApp(
       );
   });
   app.get('/api/devices/:id/scan-sources', async (req) => {
-    const { source } = z.object({ source: scanChoiceSchema.optional() }).parse(req.query);
-    return workspace.run((service) => service.scanSources(idParam.parse(req.params).id, source));
+    const { source, refresh } = z
+      .object({ source: scanChoiceSchema.optional(), refresh: z.literal('true').optional() })
+      .parse(req.query);
+    return workspace.run((service) =>
+      service.scanSources(idParam.parse(req.params).id, source, refresh === 'true'),
+    );
   });
   app.post('/api/scans/:id/pages', async (req) => {
     const input = scanPagesSchema.parse(req.body);

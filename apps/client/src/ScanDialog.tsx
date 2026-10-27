@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Crop,
+  RefreshCw,
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
@@ -51,6 +52,8 @@ export function ScanDialog({
   const [sourceError, setSourceError] = useState('');
   const [loadingSources, setLoadingSources] = useState(false);
   const [loadedSettings, setLoadedSettings] = useState('');
+  const [refreshSettings, setRefreshSettings] = useState(0);
+  const refreshRequested = useRef(false);
   const [job, setJob] = useState(existing);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -67,7 +70,7 @@ export function ScanDialog({
   const cropIndex = pages.findIndex((page) => page.id === cropping);
   const locked = busy || running;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
-  const settingsKey = JSON.stringify([deviceId, source]);
+  const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
   const settingsLoading = loadingSources || loadedSettings !== settingsKey;
   const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
   const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
@@ -87,9 +90,11 @@ export function ScanDialog({
     setLoadingSources(false);
     if (!deviceId || !scanners.some((d) => d.id === deviceId)) return;
     setLoadingSources(true);
-    api<ScanSources>(
-      `/devices/${deviceId}/scan-sources${source ? `?source=${encodeURIComponent(source)}` : ''}`,
-    )
+    const query = new URLSearchParams();
+    if (source) query.set('source', source);
+    if (refreshRequested.current) query.set('refresh', 'true');
+    refreshRequested.current = false;
+    api<ScanSources>(`/devices/${deviceId}/scan-sources${query.size ? `?${query}` : ''}`)
       .then((data) => {
         if (alive) {
           setSources(data);
@@ -139,7 +144,7 @@ export function ScanDialog({
     return () => {
       alive = false;
     };
-  }, [deviceId, source]);
+  }, [deviceId, source, refreshSettings]);
   useEffect(() => {
     if (!running || !job) return;
     let alive = true;
@@ -513,6 +518,22 @@ export function ScanDialog({
                 </label>
               )}
             </fieldset>
+            {deviceId && (
+              <div className={s.scanCapabilityActions}>
+                <p className={s.small}>Scanner settings are saved per paper source.</p>
+                <button
+                  type="button"
+                  className={s.textButton}
+                  disabled={locked || settingsLoading}
+                  onClick={() => {
+                    refreshRequested.current = true;
+                    setRefreshSettings((value) => value + 1);
+                  }}
+                >
+                  <RefreshCw size={14} /> Refresh scanner settings
+                </button>
+              </div>
+            )}
             {settingsLoading && (
               <p role="status" className={s.small}>
                 Loading scanner capabilities…

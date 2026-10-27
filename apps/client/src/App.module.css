@@ -680,6 +680,11 @@
 .scanSettings .formGrid {
   align-items: start;
 }
+.scanCapabilityActions {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+}
 .optional {
   font-weight: 400;
   font-size: 11px;

@@ -71,6 +71,9 @@ export class Store {
   set(key: string, value: string) {
     this.db.prepare('INSERT OR REPLACE INTO settings VALUES (?, ?)').run(key, value);
   }
+  deleteSetting(key: string) {
+    this.db.prepare('DELETE FROM settings WHERE key=?').run(key);
+  }
   devices(mode: Mode): Device[] {
     return this.db
       .prepare('SELECT data FROM devices WHERE mode=?')
