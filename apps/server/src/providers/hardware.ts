@@ -378,14 +378,16 @@ export class HardwareProvider implements Provider {
     if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Invalid job ID.');
     await this.cups('cancel', [`${validateQueue(device.target!)}-${job.externalId}`]);
   }
-  async scanSources(device: Device, source?: string): Promise<ScanSources> {
+  async scanSources(device: Device, source?: string, signal?: AbortSignal): Promise<ScanSources> {
+    signal?.throwIfAborted();
     const args = ['--device-name', validateScanner(device.target!)];
     let capabilities: ScanSources;
     try {
       capabilities = saneCapabilities(
-        await this.run('scanimage', [...args, '--all-options'], 20_000),
+        await this.run('scanimage', [...args, '--all-options'], 20_000, signal),
       );
     } catch {
+      signal?.throwIfAborted();
       return {
         sources: [],
         duplex: false,
@@ -397,10 +399,11 @@ export class HardwareProvider implements Provider {
       throw new AppError(400, 'The scanner does not support the selected source.');
     try {
       const selected = saneCapabilities(
-        await this.run('scanimage', [...args, '--source', source, '--all-options'], 20_000),
+        await this.run('scanimage', [...args, '--source', source, '--all-options'], 20_000, signal),
       );
       return { ...selected, sources: capabilities.sources };
     } catch {
+      signal?.throwIfAborted();
       return {
         sources: capabilities.sources,
         duplex: false,
@@ -408,10 +411,18 @@ export class HardwareProvider implements Provider {
       };
     }
   }
-  async scan(device: Device, outputPath: string, options: ScanOptions, pageLimit = MAX_SCAN_PAGES) {
+  async scan(
+    device: Device,
+    outputPath: string,
+    options: ScanOptions,
+    pageLimit = MAX_SCAN_PAGES,
+    signal?: AbortSignal,
+  ) {
+    signal?.throwIfAborted();
     if (options.batch && !options.source)
       throw new AppError(400, 'Choose a document feeder source for batch scanning.');
-    const capabilities = await this.scanSources(device, options.source);
+    const capabilities = await this.scanSources(device, options.source, signal);
+    signal?.throwIfAborted();
     const settingsError = scanSettingsError(capabilities, options);
     if (settingsError) throw new AppError(400, settingsError);
     if (options.source || options.duplex) {
@@ -449,8 +460,10 @@ export class HardwareProvider implements Provider {
           options.color,
         ],
         options.batch ? 600_000 : 120_000,
+        signal,
       );
     } catch (error) {
+      signal?.throwIfAborted();
       if (!(options.batch && error instanceof CommandError && error.reason === 'no-documents'))
         throw error;
       // The service requires at least one complete image before publishing the batch.

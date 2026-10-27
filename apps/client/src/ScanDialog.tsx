@@ -57,6 +57,9 @@ export function ScanDialog({
   const [job, setJob] = useState(existing);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [canceling, setCanceling] = useState(false);
+  const cancelRequest = useRef(false);
+  const pollVersion = useRef(0);
   const [cropping, setCropping] = useState<string>();
   const cropButtons = useRef(new Map<string, HTMLButtonElement>());
   const returnToPage = useRef<string | undefined>(undefined);
@@ -71,7 +74,7 @@ export function ScanDialog({
   const locked = busy || running;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
   const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
-  const settingsLoading = loadingSources || loadedSettings !== settingsKey;
+  const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
   const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
   const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
   const invalidSettings = !!scanSettingsError(sources, { resolution, color });
@@ -88,7 +91,7 @@ export function ScanDialog({
     let alive = true;
     setSourceError('');
     setLoadingSources(false);
-    if (!deviceId || !scanners.some((d) => d.id === deviceId)) return;
+    if (running || !deviceId || !scanners.some((d) => d.id === deviceId)) return;
     setLoadingSources(true);
     const query = new URLSearchParams();
     if (source) query.set('source', source);
@@ -144,17 +147,18 @@ export function ScanDialog({
     return () => {
       alive = false;
     };
-  }, [deviceId, source, refreshSettings]);
+  }, [deviceId, source, refreshSettings, running]);
   useEffect(() => {
     if (!running || !job) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
+        const version = pollVersion.current;
         const updated = await api<Job>(`/jobs/${job.id}`);
-        if (alive) {
+        if (alive && !cancelRequest.current && version === pollVersion.current) {
           setJob(updated);
-          if (['completed', 'failed'].includes(updated.status)) {
+          if (['completed', 'failed', 'canceled'].includes(updated.status)) {
             changedRef.current();
             return;
           }
@@ -195,6 +199,22 @@ export function ScanDialog({
     } finally {
       setBusy(false);
       requestActive.current = false;
+    }
+  }
+  async function cancel() {
+    if (!job || cancelRequest.current) return;
+    cancelRequest.current = true;
+    pollVersion.current++;
+    setCanceling(true);
+    setError('');
+    try {
+      setJob(await post<Job>(`/jobs/${job.id}/cancel`));
+      changed();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      cancelRequest.current = false;
+      setCanceling(false);
     }
   }
   async function edit(updated: ScanPage[]) {
@@ -245,8 +265,11 @@ export function ScanDialog({
           <p role="status" className={s.scanHeaderStatus}>
             <Spinner />
             <span>
-              {complete ? 'Adding pages…' : 'Scanning your document…'} You can continue in the
-              background.
+              {canceling
+                ? 'Canceling scan…'
+                : complete
+                  ? 'Adding pages…'
+                  : 'Scanning your document…'}
             </span>
           </p>
         )
@@ -396,12 +419,7 @@ export function ScanDialog({
                 <span className={`${s.badge} ${s.positive}`}>
                   <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
                 </span>
-                <a
-                  className={s.primary}
-                  href={locked ? undefined : `/api/jobs/${job!.id}/pdf`}
-                  aria-disabled={locked}
-                  download
-                >
+                <a className={s.primary} href={`/api/jobs/${job!.id}/pdf`} download>
                   <Download size={17} /> Download PDF
                 </a>
               </div>
@@ -538,7 +556,8 @@ export function ScanDialog({
                 Loading scanner capabilities…
               </p>
             )}
-            {!settingsLoading &&
+            {!running &&
+              !settingsLoading &&
               (sourceError ||
                 sources.resolutions === undefined ||
                 sources.colorModes === undefined) && (
@@ -549,7 +568,7 @@ export function ScanDialog({
                   them.
                 </p>
               )}
-            {!settingsLoading && invalidSettings && (
+            {!running && !settingsLoading && invalidSettings && (
               <p role="alert" className={s.error}>
                 Choose a supported resolution and color mode. This paper source may have no
                 supported scan settings.
@@ -560,39 +579,59 @@ export function ScanDialog({
                 {error || job?.error}
               </p>
             )}
+            {running && (
+              <p className={s.small}>
+                Closing this dialog continues the scan in the background. Canceling discards all new
+                pages from this operation and keeps previously saved pages.
+              </p>
+            )}
             <div className={s.modalActions}>
+              {running && (
+                <button
+                  type="button"
+                  className={s.secondary}
+                  disabled={canceling || busy}
+                  onClick={() => void cancel()}
+                >
+                  {canceling ? 'Canceling scan…' : 'Cancel scan'}
+                </button>
+              )}
               {(!complete || running) && (
                 <button type="button" className={s.secondary} onClick={close}>
                   {running ? 'Continue in background' : 'Close'}
                 </button>
               )}
-              <button
-                type="button"
-                className={s.secondary}
-                disabled={
-                  locked ||
-                  settingsLoading ||
-                  invalidSettings ||
-                  !feeder ||
-                  pages.length >= MAX_SCAN_PAGES
-                }
-                onClick={() => void start(true)}
-              >
-                Scan multiple pages
-              </button>
-              <button
-                className={s.primary}
-                disabled={
-                  locked ||
-                  settingsLoading ||
-                  invalidSettings ||
-                  !scanners.some((d) => d.id === deviceId) ||
-                  pages.length >= MAX_SCAN_PAGES
-                }
-              >
-                {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
-                {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
-              </button>
+              {!running && (
+                <>
+                  <button
+                    type="button"
+                    className={s.secondary}
+                    disabled={
+                      locked ||
+                      settingsLoading ||
+                      invalidSettings ||
+                      !feeder ||
+                      pages.length >= MAX_SCAN_PAGES
+                    }
+                    onClick={() => void start(true)}
+                  >
+                    Scan multiple pages
+                  </button>
+                  <button
+                    className={s.primary}
+                    disabled={
+                      locked ||
+                      settingsLoading ||
+                      invalidSettings ||
+                      !scanners.some((d) => d.id === deviceId) ||
+                      pages.length >= MAX_SCAN_PAGES
+                    }
+                  >
+                    {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
+                    {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </form>

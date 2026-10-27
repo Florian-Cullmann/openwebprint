@@ -29,7 +29,7 @@ This is the first public beta, **v0.1.0-beta.1**, with real CUPS and SANE integr
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
 - **Scan documents:** discovered resolutions and color modes per paper source, explicit fallback when capabilities are unknown, multiple pages, reversible cropping, rotation and ordering, image preview, and a real downloadable PDF.
-- **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
+- **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs and scans; delete completed records and scan files. Canceling a scan discards its new pages and keeps previously saved pages.
 - **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.
 
