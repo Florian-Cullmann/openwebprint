@@ -24,7 +24,7 @@ Open source, self-hosted, and built around open standards.
 
 openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, remote font requests, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
-This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
+This is the first public beta, **v0.1.0-beta.1**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
@@ -63,11 +63,13 @@ Review the scanned page, download its PDF, or scan another page. The sample docu
 
 Download and run the installer for your computer. The package includes the production web application, a private Node.js runtime, and application dependencies. It sets up a browser launcher, local data storage, and startup at login. **No Git, npm, system Node.js, Docker, VM, or Electron is required.**
 
+The first release is a beta; both commands below explicitly select that version. See the [release notes](docs/releases/v0.1.0-beta.1.md) for scope and known limitations.
+
 **Linux / macOS** — paste into Terminal, without `sudo`:
 
 ```sh
-curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/latest/download/install.sh -o install-openwebprint.sh
-sh install-openwebprint.sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.1/install.sh -o install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh
 ```
 
 The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, with CUPS/SANE installed, **Start setup**. OS hardware tools and vendor drivers are separate from the web package.
