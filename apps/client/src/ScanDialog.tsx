@@ -445,7 +445,12 @@ export function ScanDialog({
               <ColorModeControl
                 modes={colorModes.map((mode) => ({
                   value: mode,
-                  label: mode === 'Gray' ? 'Grayscale' : mode,
+                  label:
+                    mode === 'Gray'
+                      ? 'Grayscale'
+                      : mode === 'Lineart'
+                        ? 'Black and white (1-bit)'
+                        : mode,
                 }))}
                 value={color}
                 onChange={setColor}

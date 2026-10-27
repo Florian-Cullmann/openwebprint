@@ -86,7 +86,11 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
   await setup(page);
   const source = page.getByRole('combobox', { name: 'Paper source', exact: true });
   const submit = page.getByRole('button', { name: 'Start demo scan', exact: true });
-  await expect(colorSelect(page).locator('option')).toHaveText(['Color', 'Grayscale', 'Lineart']);
+  await expect(colorSelect(page).locator('option')).toHaveText([
+    'Color',
+    'Grayscale',
+    'Black and white (1-bit)',
+  ]);
   await dpi(page, 300);
   await slider(page).focus();
   await page.keyboard.press('Home');
@@ -115,7 +119,7 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
   await dpi(page, 300);
   await slider(page).press('ArrowRight');
   await dpi(page, 400);
-  await page.getByRole('radio', { name: 'Lineart', exact: true }).check();
+  await page.getByRole('radio', { name: 'Black and white (1-bit)', exact: true }).check();
   await page.keyboard.press('ArrowLeft');
   await expect(page.getByRole('radio', { name: 'Grayscale', exact: true })).toBeChecked();
   await expect(submit).toBeEnabled();
@@ -128,12 +132,12 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
   const scanner = page.getByRole('combobox', { name: 'Scanner', exact: true });
   await scanner.selectOption(second);
   await dpi(page, 200);
-  await expect(colorGroup(page)).toHaveText('Color modeLineart');
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
   await expect(source).toHaveValue('');
   await scanner.selectOption(first);
   await dpi(page, 200);
   await expect(colorSelect(page)).toHaveValue('Lineart');
-  await colorSelect(page).selectOption('Grayscale');
+  await colorSelect(page).selectOption({ label: 'Black and white (1-bit)' });
   let submitted: unknown;
   await page.route('**/api/scans', (route) => {
     submitted = route.request().postDataJSON();
@@ -146,7 +150,7 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
   await expect(page.getByRole('alert')).toHaveText('Submission captured by browser fixture.');
   expect(submitted).toMatchObject({
     deviceId: first,
-    options: { resolution: 200, color: 'Grayscale', batch: false },
+    options: { resolution: 200, color: 'Lineart', batch: false },
   });
 });
 
@@ -250,7 +254,7 @@ test('ignores a stale response and disables controls while loading settings (bro
   await expect(colorSelect(page)).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Start demo scan', exact: true })).toBeDisabled();
   await page.getByRole('combobox', { name: 'Scanner', exact: true }).selectOption(second);
-  await expect(colorGroup(page)).toHaveText('Color modeLineart');
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
   const staleResponse = page.waitForResponse((response) =>
     response.url().includes(`${first}/scan-sources?source=ADF`),
   );
@@ -258,7 +262,7 @@ test('ignores a stale response and disables controls while loading settings (bro
   await staleResponse;
   await dpi(page, 200);
   await expect(slider(page)).toHaveAttribute('max', '1');
-  await expect(colorGroup(page)).toHaveText('Color modeLineart');
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
 });
 
 test('refreshes saved source settings, preserves reopening and recovers from unknown discovery (browser fixtures)', async ({
@@ -304,7 +308,7 @@ test('refreshes saved source settings, preserves reopening and recovers from unk
   expect(queries[0].get('refresh')).toBe('true');
   expect(queries[0].get('source')).toBe('ADF');
   await dpi(page, 200);
-  await expect(colorGroup(page)).toHaveText('Color modeLineart');
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
   await expect(source).toHaveValue('ADF');
   await page
     .getByRole('dialog')
@@ -329,7 +333,7 @@ test('refreshes saved source settings, preserves reopening and recovers from unk
   fail = false;
   await refresh.click();
   await dpi(page, 200);
-  await expect(colorGroup(page)).toHaveText('Color modeLineart');
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
   await expect(
     page.getByText('Some scanner capabilities are unknown.', { exact: false }),
   ).toHaveCount(0);
