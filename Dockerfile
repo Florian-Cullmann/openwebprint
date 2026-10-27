@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS build
+FROM node:26-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/package.json
@@ -10,7 +10,7 @@ COPY packages/shared packages/shared
 COPY apps apps
 RUN npm run build && npm prune --omit=dev
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cups cups-filters printer-driver-brlaser sane-utils sane-airscan \
     avahi-daemon avahi-utils dbus util-linux tini ca-certificates procps \
