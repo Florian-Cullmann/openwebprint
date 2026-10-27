@@ -3,6 +3,8 @@ import sharp from 'sharp';
 import { PDFDocument } from 'pdf-lib';
 import { readFile } from 'node:fs/promises';
 import AxeBuilder from '@axe-core/playwright';
+// Publishing full-resolution multi-page PDFs can exceed Playwright's default 5s on CI.
+const expectScan = expect.configure({ timeout: 15_000 });
 async function navigate(page: Page, name: string) {
   await page
     .getByRole('navigation', { name: 'Main navigation' })
@@ -187,12 +189,12 @@ test('open access → routes → print → scans → users → login → setting
         (await PDFDocument.load(await readFile((await download.path())!))).getPageCount(),
       ).toBe(1);
       await page.getByRole('button', { name: 'Scan another page', exact: true }).click();
-      await expect(page.getByAltText('Scanned page 2')).toBeVisible();
+      await expectScan(page.getByAltText('Scanned page 2')).toBeVisible();
       await page
         .getByRole('combobox', { name: 'Paper source', exact: true })
         .selectOption('ADF Duplex');
       await page.getByRole('button', { name: 'Scan multiple pages', exact: true }).click();
-      await expect(page.getByAltText('Scanned page 6')).toBeVisible();
+      await expectScan(page.getByAltText('Scanned page 6')).toBeVisible();
       const state = await (await page.request.get('/api/snapshot')).json();
       const scan = state.jobs.find((job: { kind: string }) => job.kind === 'scan');
       expect(scan.pages).toHaveLength(6);
@@ -200,7 +202,7 @@ test('open access → routes → print → scans → users → login → setting
         existingScans + 1,
       );
       await page.getByRole('button', { name: 'Rotate page 1 clockwise', exact: true }).click();
-      await expect
+      await expectScan
         .poll(() =>
           page
             .getByAltText('Scanned page 1')
@@ -211,7 +213,7 @@ test('open access → routes → print → scans → users → login → setting
         )
         .toEqual([3508, 2480]);
       await page.getByRole('button', { name: 'Move page 1 later', exact: true }).click();
-      await expect
+      await expectScan
         .poll(() =>
           page
             .getByAltText('Scanned page 2')
@@ -249,7 +251,7 @@ test('open access → routes → print → scans → users → login → setting
         await expect(cards.nth(0)).toHaveCSS('transform', `matrix(1, 0, 0, 1, ${shift}, 0)`);
         expect(await savedOrder()).toEqual(beforeDrag);
         await page.mouse.up();
-        await expect
+        await expectScan
           .poll(() =>
             page
               .getByAltText('Scanned page 1')
@@ -259,23 +261,23 @@ test('open access → routes → print → scans → users → login → setting
               ]),
           )
           .toEqual([3508, 2480]);
-        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        await expectScan(list.locator('[data-insertion-index]')).toHaveCount(0);
         const afterDrag = await savedOrder();
         expect(afterDrag).toEqual([beforeDrag[1], beforeDrag[0], ...beforeDrag.slice(2)]);
         // Dropping onto a preview's center works in both directions, repeatedly.
         await beginDrag(0, 1, 'center');
         await page.mouse.up();
-        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        await expectScan(list.locator('[data-insertion-index]')).toHaveCount(0);
         expect(await savedOrder()).toEqual(beforeDrag);
         await beginDrag(1, 0, 'center');
         await page.mouse.up();
-        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        await expectScan(list.locator('[data-insertion-index]')).toHaveCount(0);
         expect(await savedOrder()).toEqual(afterDrag);
         await beginDrag(0, 1, true);
         await expect(list.locator('[data-insertion-index="1"]')).toBeVisible();
         await page.keyboard.press('Escape');
         await page.mouse.up();
-        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        await expectScan(list.locator('[data-insertion-index]')).toHaveCount(0);
         expect(await savedOrder()).toEqual(afterDrag);
         // Captured pointer movement also scrolls a long gallery without saving until release.
         await page.setViewportSize({ width: 1440, height: 700 });
@@ -289,17 +291,17 @@ test('open access → routes → print → scans → users → login → setting
         await page.mouse.down();
         await page.mouse.move(first.x + first.width / 2 + 12, first.y + 45, { steps: 3 });
         await page.mouse.move(pane.x + pane.width / 2, pane.y + pane.height - 8, { steps: 5 });
-        await expect
+        await expectScan
           .poll(() => list.evaluate((element) => element.parentElement!.scrollTop))
           .toBeGreaterThan(scrollBefore + 20);
         await page.keyboard.press('Escape');
         await page.mouse.up();
-        await expect(list.locator('[data-insertion-index]')).toHaveCount(0);
+        await expectScan(list.locator('[data-insertion-index]')).toHaveCount(0);
         expect(await savedOrder()).toEqual(afterDrag);
         await page.setViewportSize({ width: 1440, height: 1100 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
       }
-      await expect(page.getByRole('list', { name: 'Scanned pages' })).toHaveAttribute(
+      await expectScan(page.getByRole('list', { name: 'Scanned pages' })).toHaveAttribute(
         'aria-busy',
         'false',
       );
