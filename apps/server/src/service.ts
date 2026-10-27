@@ -1,5 +1,5 @@
-import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile, readFile, unlink, rm, readdir, chmod } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, writeFile, readFile, unlink, rm, readdir, chmod, rename } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type {
   Device,
@@ -23,11 +23,31 @@ import {
 } from './store.js';
 import type { Provider } from './providers/types.js';
 import { demoDevices } from './providers/demo.js';
-import { normalizeDocument, exportScanPages } from './documents.js';
+import {
+  normalizeDocument,
+  selectPrintPages,
+  exportScanPages,
+  renderScanPage,
+  SCAN_THUMBNAIL_SIZE,
+} from './documents.js';
 import { ScannerCapabilities } from './scan-capabilities.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
 const DEVICE_STATUS_TTL = 5000;
+// Version the key when the thumbnail format changes. Original page paths
+// are immutable; document revision/order must not invalidate unchanged pages.
+function thumbnailName(page: StoredScanPage) {
+  const crop = page.crop;
+  const key = [
+    'png-v1',
+    SCAN_THUMBNAIL_SIZE,
+    page.id,
+    page.path,
+    page.rotation,
+    crop && [crop.x, crop.y, crop.width, crop.height],
+  ];
+  return createHash('sha256').update(JSON.stringify(key)).digest('hex') + '.png';
+}
 type DeviceState = Pick<Snapshot, 'devices' | 'warnings' | 'devicesCheckedAt'>;
 const remove = async (path?: string) => {
   if (path)
@@ -49,6 +69,8 @@ export class Service {
   private deviceCache?: { result: Promise<DeviceState>; expiresAt: number };
   private deviceInspections = new Set<Promise<DeviceState>>();
   private scannerCapabilities: ScannerCapabilities;
+  private thumbnailTasks = new Map<string, Promise<Buffer>>();
+  private removingFiles = new Set<string>();
   constructor(
     readonly store: Store,
     readonly mode: Mode,
@@ -70,6 +92,7 @@ export class Service {
         if (!job.hasFile) await this.removeFiles(job);
         this.store.putJob(job);
       }
+      if (job.kind === 'scan' && job.hasFile) await this.pruneThumbnails(job, true);
     }
     await this.expireFiles();
   }
@@ -93,6 +116,72 @@ export class Service {
         if (this.store.job(job.id, job.mode)) this.store.putJob(job);
       }
     }
+  }
+  private thumbnailDirectory(id: string) {
+    return join(this.filesDir, `${id}.thumbnails`);
+  }
+  scanThumbnail(id: string, pageId?: string): Promise<Buffer> {
+    const job = this.job(id);
+    if (job.kind !== 'scan' || !job.hasFile || this.removingFiles.has(id))
+      throw new AppError(404, 'Page unavailable.');
+    const pages = storedScanPages(job);
+    const page = pageId ? pages.find((page) => page.id === pageId) : pages[0];
+    if (!page) throw new AppError(404, 'Page unavailable.');
+    const name = thumbnailName(page);
+    const key = `${id}/${name}`;
+    const existing = this.thumbnailTasks.get(key);
+    if (existing) return existing;
+    const directory = this.thumbnailDirectory(id);
+    const task = (async () => {
+      const path = join(directory, name);
+      try {
+        return await readFile(path);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+      const { image } = await renderScanPage(page, true, true);
+      await mkdir(directory, { recursive: true, mode: 0o700 });
+      const temporary = join(directory, `${randomUUID()}.tmp`);
+      try {
+        await writeFile(temporary, image, { mode: 0o600 });
+        await rename(temporary, path);
+      } finally {
+        await remove(temporary);
+      }
+      return image;
+    })().finally(() => this.thumbnailTasks.delete(key));
+    this.thumbnailTasks.set(key, task);
+    return task;
+  }
+  private async drainThumbnails(id: string) {
+    await Promise.allSettled(
+      [...this.thumbnailTasks].filter(([key]) => key.startsWith(`${id}/`)).map(([, task]) => task),
+    );
+  }
+  private async pruneThumbnails(job: StoredJob, removeTemporary = false) {
+    // Publication already exposes the new pages. Drain old requests before
+    // pruning so they cannot recreate obsolete variants after cleanup.
+    await this.drainThumbnails(job.id);
+    const directory = this.thumbnailDirectory(job.id);
+    let names: string[];
+    try {
+      names = await readdir(directory);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
+    const retained = new Set(storedScanPages(job).map(thumbnailName));
+    await Promise.all(
+      names
+        // New requests may be writing valid variants after publication. Only
+        // startup, before requests are accepted, can discard temporary files.
+        .filter(
+          (name) =>
+            (name.endsWith('.png') && !retained.has(name)) ||
+            (removeTemporary && name.endsWith('.tmp')),
+        )
+        .map((name) => remove(join(directory, name))),
+    );
   }
   device(id: string) {
     const device = this.store.device(id, this.mode);
@@ -306,7 +395,7 @@ export class Service {
     ) {
       throw new AppError(400, 'This device does not support the selected print options.');
     }
-    const normalized = await document();
+    const normalized = await selectPrintPages(await document(), options);
     const title = name.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 120) || 'Document';
     const job = this.createJob(device, 'print', title, options);
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
@@ -314,7 +403,11 @@ export class Service {
     job.hasFile = true;
     this.store.putJob(job);
     try {
-      job.externalId = await this.provider.print(device, job.filePath, title, options);
+      // The PDF already contains the selection. Providers must not filter it again.
+      const providerOptions = { ...options };
+      delete providerOptions.pageRanges;
+      delete providerOptions.pageParity;
+      job.externalId = await this.provider.print(device, job.filePath, title, providerOptions);
     } catch (e) {
       // A transport failure may happen after CUPS accepted the job: never auto-retry.
       job.status = 'unknown';
@@ -410,9 +503,10 @@ export class Service {
     this.store.putJob(published);
     Object.assign(job, published);
     const retainedFiles = new Set([filePath, previewPath, ...pages.map((page) => page.path)]);
-    const cleanup = await Promise.allSettled(
-      [...previousFiles].filter((path) => path && !retainedFiles.has(path)).map(remove),
-    );
+    const cleanup = await Promise.allSettled([
+      ...[...previousFiles].filter((path) => path && !retainedFiles.has(path)).map(remove),
+      this.pruneThumbnails(job),
+    ]);
     // A cleanup failure must not turn a successfully saved edit into a failed request.
     if (cleanup.some((result) => result.status === 'rejected')) {
       job.error =
@@ -507,16 +601,23 @@ export class Service {
     return task.then(() => publicJob(job));
   }
   async removeFiles(job: StoredJob) {
-    await remove(job.filePath);
-    await remove(job.previewPath);
-    for (const page of storedScanPages(job)) await remove(page.path);
-    if (job.scanDirectory) await rm(job.scanDirectory, { recursive: true, force: true });
-    job.filePath = undefined;
-    job.previewPath = undefined;
-    job.scanPages = undefined;
-    job.scanDirectory = undefined;
-    job.scanWorkPath = undefined;
-    job.hasFile = false;
+    this.removingFiles.add(job.id);
+    try {
+      await this.drainThumbnails(job.id);
+      await rm(this.thumbnailDirectory(job.id), { recursive: true, force: true });
+      await remove(job.filePath);
+      await remove(job.previewPath);
+      for (const page of storedScanPages(job)) await remove(page.path);
+      if (job.scanDirectory) await rm(job.scanDirectory, { recursive: true, force: true });
+      job.filePath = undefined;
+      job.previewPath = undefined;
+      job.scanPages = undefined;
+      job.scanDirectory = undefined;
+      job.scanWorkPath = undefined;
+      job.hasFile = false;
+    } finally {
+      this.removingFiles.delete(job.id);
+    }
   }
   tick(): Promise<void> {
     this.polling ??= this.pollJobs().finally(() => {
@@ -586,6 +687,7 @@ export class Service {
     await this.scannerCapabilities.drain();
     await Promise.allSettled([...this.deviceInspections]);
     await Promise.all(this.tasks);
+    await Promise.allSettled(this.thumbnailTasks.values());
     await this.polling;
     this.deviceCache = undefined;
   }
