@@ -1723,6 +1723,73 @@
   gap: 20px;
   min-width: 0;
 }
+.scanRecovery {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.scanRecoveryHeading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.scanRecoveryHeading > svg {
+  flex-shrink: 0;
+  color: var(--danger);
+}
+.scanRecoveryHeading h3 {
+  font-size: inherit;
+  font-weight: 600;
+}
+.scanRecovery > p,
+.scanRecoveryDetails p {
+  color: var(--muted);
+}
+.scanRecoveryFacts {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 16px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.scanRecoveryFacts > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+}
+.scanRecoveryFacts dt {
+  color: var(--muted);
+}
+.scanRecoveryFacts dd {
+  margin: 0;
+  text-align: right;
+}
+.scanRecoveryDetails summary {
+  cursor: pointer;
+}
+.scanRecoveryDetails p {
+  margin-top: 10px;
+}
+.scanRecoveryActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+}
+.scanRecoveryActions > button {
+  font-size: inherit;
+}
+.scanRecoveryActions > :first-child {
+  margin-right: auto;
+  padding: 8px 0;
+}
 .scanControls .modalActions {
   flex-wrap: nowrap;
   gap: 8px;
@@ -1752,6 +1819,21 @@
   max-width: 360px;
   font-size: 12px;
   line-height: 1.5;
+}
+@media (max-width: 400px) {
+  .scanRecovery {
+    padding: 16px;
+  }
+  .scanRecoveryActions {
+    flex-wrap: wrap;
+  }
+  .scanRecoveryActions > :first-child {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+  .scanRecoveryActions > :not(:first-child) {
+    flex: 1;
+  }
 }
 @media (max-width: 800px) {
   .scanLayout {

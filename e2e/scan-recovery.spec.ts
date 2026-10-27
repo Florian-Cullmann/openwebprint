@@ -61,16 +61,20 @@ for (const append of [false, true])
       await page.getByRole('button', { name: 'Scan multiple pages', exact: true }).click();
       const recovery = page.getByRole('region', { name: 'Recover scanned pages' });
       await expect(recovery).toBeVisible({ timeout: 15000 });
-      await expect(recovery).toContainText(
-        '2 complete pages can be recovered. Batch page order: 1, 2.',
-      );
+      await expect(recovery).toContainText('2 pages ready to recover');
       await expect(
         page.getByRole('heading', { name: 'Scan incomplete', exact: true }),
       ).toBeVisible();
       await expect(page.getByRole('alert')).toHaveText('Paper jam (controlled provider).');
       await expect(
         page.getByRole('button', { name: 'Scan multiple pages', exact: true }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
+      await expect(recovery.getByText('1, 2', { exact: true })).toBeVisible();
+      await recovery.getByText('Recovery details', { exact: true }).click();
+      await expect(
+        recovery.getByText('Only complete pages are included.', { exact: false }),
+      ).toBeVisible();
+      await recovery.getByText('Recovery details', { exact: true }).click();
       if (append) {
         await expect(cards).toHaveCount(1);
         await expect(page.getByRole('link', { name: 'Download PDF', exact: true })).toHaveAttribute(
@@ -78,7 +82,7 @@ for (const append of [false, true])
           /\/pdf$/,
         );
       }
-      await page.getByRole('button', { name: 'Close', exact: true }).last().click();
+      await page.getByRole('button', { name: 'Decide later', exact: true }).click();
       await page.reload();
       await page.getByRole('button', { name: /^Open scan preview:/ }).click();
       await expect(recovery).toBeVisible();
@@ -96,11 +100,11 @@ for (const append of [false, true])
         await page.route('**/api/scans/*/recovery', (route) =>
           route.fulfill({ status: 422, json: { error: 'Could not rebuild the document.' } }),
         );
-        await page.getByRole('button', { name: 'Keep 2 recovered pages', exact: true }).click();
+        await page.getByRole('button', { name: 'Keep 2 pages', exact: true }).click();
         await expect(page.getByRole('alert')).toHaveText('Could not rebuild the document.');
         await expect(recovery).toBeVisible();
         await page.unroute('**/api/scans/*/recovery');
-        await page.getByRole('button', { name: 'Keep 2 recovered pages', exact: true }).click();
+        await page.getByRole('button', { name: 'Keep 2 pages', exact: true }).click();
         await expect(recovery).toHaveCount(0);
         await expect(cards).toHaveCount(append ? 3 : 2);
         await expect(page.getByRole('alert')).toContainText(
