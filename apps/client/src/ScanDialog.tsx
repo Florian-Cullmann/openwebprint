@@ -151,9 +151,8 @@ export function ScanDialog({
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
-        const data = await api<{ jobs: Job[] }>('/snapshot');
-        const updated = data.jobs.find((j) => j.id === job.id);
-        if (alive && updated) {
+        const updated = await api<Job>(`/jobs/${job.id}`);
+        if (alive) {
           setJob(updated);
           if (['completed', 'failed'].includes(updated.status)) {
             changedRef.current();

@@ -49,7 +49,7 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 ![Paginated document preview beside Brother printer selection and print options](docs/images/printing.png)
 
-Review a PDF or image before printing, browse its pages, and set printer, color, sides, paper size, and copies. Open the retained document again from Jobs after submission.
+Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
 
 ### Preview and download a scan
 
@@ -172,7 +172,7 @@ For Docker, export those two variables or put them in the root `.env`; Compose f
 - Real scan storage defaults to `DATA_DIR/scans`. Choose an absolute server path during setup or change it under **Settings → General**. The app creates the folder and checks write access. Existing scans remain in their original location. Demo scans always use temporary instance storage.
 - In Docker, paths refer to the container. `/data/scans` is covered by the named data volume. For another location, configure a bind mount and grant the `node` user write access; entering a host path alone does not mount it. Back up any external scan folders as well as `DATA_DIR`.
 - Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry. Click a document title in Jobs to reopen its preview. Older print jobs created before this feature may have no retained document; already deleted files cannot be recovered.
-- The UI shows the most recent **200** jobs. History is local SQLite data; it is not an analytics service.
+- Jobs show **50 records per page**; Scans show **30 scans per page** in either grid or list view. The browser remembers your scan view choice. The pagination shows your current range, the total matching records, and the current/total pages. Use Previous/Next to reach older records. Job status filters apply to the entire history; Scans has its own listing. New jobs appear on the first page without shifting the cursor for older pages. Overview shows recent activity. File expiry removes documents, not history records. History is local SQLite data; it is not an analytics service.
 - Back up `DATA_DIR` and your CUPS configuration while the app is stopped. For Docker, back up the named volumes. Keep backups private; scans and personal metadata are not encrypted at rest.
 - Multiple users are supported, all with the same administrator permissions. To reset access, stop the server and run `node --env-file-if-exists=.env scripts/reset-access.mjs --confirm`. This removes all users and sessions, preserving devices/documents. Restart to use the instance without signing in, then add users again in Settings. With Docker, stop the service first, then run `docker compose --profile demo run --rm --entrypoint node demo scripts/reset-access.mjs --confirm` (replace `demo` with `hardware` as appropriate).
 

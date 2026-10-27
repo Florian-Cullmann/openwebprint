@@ -16,7 +16,7 @@ import {
   scanPagesSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
-import { Store, storedScanPages } from './store.js';
+import { Store, publicJob, storedScanPages } from './store.js';
 import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
@@ -170,6 +170,45 @@ export async function createApp(
     return workspace.saveStorage(path);
   });
   app.get('/api/snapshot', async () => workspace.snapshot());
+  app.get('/api/jobs', async (req) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        kind: z.enum(['print', 'scan']).optional(),
+        filter: z.enum(['all', 'active', 'completed']).default('all'),
+        cursor: z.string().min(1).max(1024).optional(),
+      })
+      .strict()
+      .parse(req.query);
+    let before: { createdAt: string; id: string } | undefined;
+    if (query.cursor) {
+      try {
+        const cursor = z
+          .object({
+            createdAt: z.iso.datetime(),
+            id: z.uuid(),
+            mode: z.enum(['demo', 'hardware']),
+            kind: z.enum(['print', 'scan']).optional(),
+            filter: z.enum(['all', 'active', 'completed']),
+          })
+          .strict()
+          .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
+        if (
+          cursor.mode !== workspace.mode ||
+          cursor.kind !== query.kind ||
+          cursor.filter !== query.filter
+        )
+          throw new Error('Cursor belongs to another listing');
+        before = cursor;
+      } catch {
+        throw new AppError(400, 'Invalid history cursor. Refresh the list and try again.');
+      }
+    }
+    return workspace.run((service) => service.listJobs({ ...query, before }));
+  });
+  app.get('/api/jobs/:id', async (req) =>
+    workspace.run((service) => publicJob(service.job(idParam.parse(req.params).id))),
+  );
   let discovery: Promise<Awaited<ReturnType<Provider['discover']>>> | undefined;
   app.post(
     '/api/devices/discover',
