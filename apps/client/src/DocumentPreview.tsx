@@ -13,9 +13,11 @@ const ZOOM_LEVELS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
 export function DocumentPreview({
   data,
   monochrome = false,
+  onPageCount,
 }: {
   data: Uint8Array;
   monochrome?: boolean;
+  onPageCount?: (count: number) => void;
 }) {
   const instructionsId = useId();
   const drag = useRef<{ x: number; y: number; left: number; top: number } | undefined>(undefined);
@@ -65,7 +67,10 @@ export function DocumentPreview({
           wasmUrl: '/pdfjs/wasm/',
         });
         const document = await task.promise;
-        if (!cancelled) setPdf(document);
+        if (!cancelled) {
+          setPdf(document);
+          onPageCount?.(document.numPages);
+        }
       } catch (e) {
         if (!cancelled) setError('Unable to display this document preview.');
       }
@@ -74,7 +79,7 @@ export function DocumentPreview({
       cancelled = true;
       void task?.destroy();
     };
-  }, [data]);
+  }, [data, onPageCount]);
   useEffect(() => {
     if (!pdf) return;
     let cancelled = false;

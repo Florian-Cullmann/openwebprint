@@ -23,7 +23,7 @@ import {
 } from './store.js';
 import type { Provider } from './providers/types.js';
 import { demoDevices } from './providers/demo.js';
-import { normalizeDocument, exportScanPages } from './documents.js';
+import { normalizeDocument, selectPrintPages, exportScanPages } from './documents.js';
 import { ScannerCapabilities } from './scan-capabilities.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
@@ -301,7 +301,7 @@ export class Service {
     ) {
       throw new AppError(400, 'This device does not support the selected print options.');
     }
-    const normalized = await document();
+    const normalized = await selectPrintPages(await document(), options);
     const title = name.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 120) || 'Document';
     const job = this.createJob(device, 'print', title, options);
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
@@ -309,7 +309,11 @@ export class Service {
     job.hasFile = true;
     this.store.putJob(job);
     try {
-      job.externalId = await this.provider.print(device, job.filePath, title, options);
+      // The PDF already contains the selection. Providers must not filter it again.
+      const providerOptions = { ...options };
+      delete providerOptions.pageRanges;
+      delete providerOptions.pageParity;
+      job.externalId = await this.provider.print(device, job.filePath, title, providerOptions);
     } catch (e) {
       // A transport failure may happen after CUPS accepted the job: never auto-retry.
       job.status = 'unknown';
