@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { connect } from 'node:net';
-import { cp, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { cp, link, mkdir, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
@@ -206,9 +206,21 @@ async function serve() {
     instanceId: values.instance,
   };
   try {
-    const file = await open(statePath, 'wx', 0o600);
-    await file.writeFile(JSON.stringify(state));
-    await file.close();
+    // Readers must only see complete JSON. A hard link publishes the closed
+    // file atomically and, unlike rename, cannot replace another instance's
+    // claim. Keep both paths in the same directory/filesystem.
+    const pendingState = `${statePath}.${values.instance}.tmp`;
+    const file = await open(pendingState, 'wx', 0o600);
+    try {
+      try {
+        await file.writeFile(JSON.stringify(state));
+      } finally {
+        await file.close();
+      }
+      await link(pendingState, statePath);
+    } finally {
+      await rm(pendingState, { force: true });
+    }
   } catch (error) {
     controlServer.close();
     throw new Error('Another instance is starting. Use the launcher again in a moment.', {
