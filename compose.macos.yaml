@@ -1,0 +1,13 @@
+# Run `npm run discovery:macos` on the Mac before starting this override.
+# The bridge profile keeps its existing data/CUPS volumes.
+services:
+  demo:
+    environment:
+      HOST_DISCOVERY_FILE: /run/openwebprint-discovery/devices.json
+    volumes:
+      - type: bind
+        source: ./.local/discovery
+        target: /run/openwebprint-discovery
+        read_only: true
+        bind:
+          create_host_path: false

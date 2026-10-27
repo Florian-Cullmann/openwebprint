@@ -11,28 +11,36 @@
   align-items: center;
   gap: 28px;
   min-height: 76px;
-  max-width: 1180px;
+  max-width: 1060px;
   margin: auto;
   padding: 16px 28px;
 }
 .brand {
   display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.65px;
+  min-width: 0;
   text-decoration: none;
-  white-space: nowrap;
 }
-.brandMark {
-  width: 32px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--text);
+.brandLogo {
+  display: inline-block;
+  width: 240px;
+  max-width: 100%;
+}
+.brandLogo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.headerInner .brandLogo {
+  width: 210px;
+}
+.brandLogo .brandDark {
+  display: none;
+}
+:global([data-theme='dark']) .brandLight {
+  display: none;
+}
+:global([data-theme='dark']) .brandDark {
+  display: block;
 }
 .navigation {
   display: flex;
@@ -635,6 +643,12 @@
   color: var(--muted);
   margin-top: 7px;
 }
+.modalHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
 .modalBody {
   display: grid;
   gap: 20px;
@@ -977,9 +991,6 @@
   .navItem svg {
     display: none;
   }
-  .brand {
-    font-size: 17px;
-  }
 }
 @media (max-width: 760px) {
   .headerInner {
@@ -1117,6 +1128,9 @@
   }
 }
 @media (max-width: 480px) {
+  .headerInner .brandLogo {
+    width: 180px;
+  }
   .headerInner {
     padding-left: 16px;
     padding-right: 16px;
@@ -1461,5 +1475,344 @@
   }
   .setupSearch {
     flex-wrap: wrap;
+  }
+}
+
+.printLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.printOptions {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.compactDropzone {
+  padding: 14px;
+}
+.compactDropzone > svg {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 6px;
+}
+.compactDropzone h3 {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.documentPreview {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.previewToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted);
+}
+.previewZoomToolbar {
+  flex-wrap: wrap;
+}
+.previewZoomGroup {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.previewZoomLevel {
+  min-width: 42px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.previewHint {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.previewCanvas {
+  max-height: 544px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+.previewCanvas:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.previewPage {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+.previewCanvas canvas {
+  display: block;
+  box-shadow: 0 1px 8px #00000016;
+}
+.previewLoading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.previewPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 300px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.previewJobDetails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.documentTitle {
+  display: block;
+  max-width: 300px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  font-weight: 600;
+  font-size: inherit;
+  cursor: pointer;
+}
+.documentTitle:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+@media (max-width: 760px) {
+  .printLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.scanDocumentSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.scanSettings {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.scanPages {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr));
+  gap: 16px;
+  list-style: none;
+  padding: 10px;
+  margin: 0;
+}
+.scanPages li {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.scanPageImage {
+  aspect-ratio: 1;
+  padding: 16px;
+  background: var(--bg);
+}
+.scanPageImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.scanPageTools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px;
+}
+.scanPageTools > span {
+  flex: 1;
+  font-size: 12px;
+}
+.scanPages[aria-busy='true'] {
+  opacity: 0.7;
+}
+.scanDuplex {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.scanDuplex input {
+  width: auto;
+}
+
+.scanDialog {
+  width: min(1120px, calc(100vw - 32px));
+}
+.scanLayout {
+  grid-template-columns: minmax(0, 1.1fr) minmax(320px, 1fr);
+  align-items: start;
+  gap: 28px;
+}
+.scanPreviewPane {
+  min-width: 0;
+  max-height: calc(100dvh - 180px);
+  overflow-y: auto;
+}
+.scanPreviewPane > .scanIntro {
+  min-height: 360px;
+  justify-content: center;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+.scanControls {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.scanControls .modalActions {
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+.scanControls .modalActions button {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 8px;
+  font-size: 12px;
+  white-space: normal;
+}
+.scanControls .modalActions svg,
+.scanHeaderStatus > svg {
+  flex-shrink: 0;
+}
+.scanDialog .modalHeader {
+  align-items: center;
+}
+.scanDialog .modalHeader > :first-child {
+  min-width: 0;
+}
+.scanDialog .scanHeaderStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+@media (max-width: 800px) {
+  .scanLayout {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .scanPreviewPane {
+    max-height: none;
+    overflow: visible;
+  }
+  .scanPreviewPane > .scanIntro {
+    min-height: 220px;
+  }
+}
+
+.scanPages[data-dragging='true'] > [data-page-id] {
+  transition: transform 140ms ease-out;
+  cursor: grabbing;
+}
+.scanPages > .scanPageDragging {
+  opacity: 0.35;
+}
+.scanPages > .scanInsertionLine {
+  position: absolute;
+  z-index: 1;
+  border: 0;
+  border-radius: 2px;
+  background: var(--focus);
+  box-shadow: 0 0 0 2px var(--panel);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scanPages[data-dragging='true'] > [data-page-id] {
+    transition: none;
+  }
+}
+
+.scanPages > [data-page-id] {
+  cursor: grab;
+  user-select: none;
+}
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+.paginationSummary {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-width: 220px;
+  line-height: 1.5;
+}
+.paginationPage {
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.paginationControls .secondary {
+  min-height: 36px;
+  padding: 8px 12px;
+  font-size: 12px;
+}
+@media (max-width: 600px) {
+  .paginationSummary {
+    flex-basis: 100%;
+    min-width: 0;
+    gap: 12px;
+  }
+  .paginationControls {
+    margin-left: auto;
   }
 }

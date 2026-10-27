@@ -19,12 +19,16 @@ export function Modal({
   close,
   children,
   wide = false,
+  className = '',
+  headerContent,
 }: {
   title: string;
   subtitle?: string;
   close: () => void;
   children: ReactNode;
   wide?: boolean;
+  className?: string;
+  headerContent?: ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -42,7 +46,7 @@ export function Modal({
     <dialog
       ref={ref}
       aria-labelledby={titleId}
-      className={`${s.dialog} ${wide ? s.wide : ''}`}
+      className={`${s.dialog} ${wide ? s.wide : ''} ${className}`}
       onCancel={(e) => {
         e.preventDefault();
         close();
@@ -56,9 +60,12 @@ export function Modal({
           <h2 id={titleId}>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
-        <button className={s.iconButton} aria-label="Close" onClick={close}>
-          <X size={20} />
-        </button>
+        <div className={s.modalHeaderActions}>
+          {headerContent}
+          <button className={s.iconButton} aria-label="Close" onClick={close}>
+            <X size={20} />
+          </button>
+        </div>
       </div>
       {children}
     </dialog>

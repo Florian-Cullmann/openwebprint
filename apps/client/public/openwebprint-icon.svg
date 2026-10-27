@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<defs><linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#172637"/><stop offset="1" stop-color="#0B1421"/></linearGradient><linearGradient id="a" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#5CE9D5"/><stop offset="1" stop-color="#38BDE9"/></linearGradient></defs>
+<rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bg)"/>
+<!-- outgoing document -->
+<path d="M166 111h136l44 44v91H166z" fill="#F4FAFD"/>
+<path d="M302 111v44h44z" fill="#C9E1EC"/>
+<rect x="195" y="170" width="113" height="10" rx="5" fill="#BCCED8"/>
+<rect x="195" y="193" width="86" height="10" rx="5" fill="#BCCED8"/>
+<!-- printer silhouette -->
+<rect x="107" y="226" width="298" height="159" rx="36" fill="#E5F3F8"/>
+<path d="M107 318h298v31c0 20-16 36-36 36H143c-20 0-36-16-36-36z" fill="#C2DCE8"/>
+<rect x="142" y="263" width="228" height="34" rx="12" fill="#21374A"/>
+<rect x="164" y="279" width="184" height="9" rx="4.5" fill="url(#a)"/>
+<circle cx="366" cy="252" r="9" fill="#37D3BF"/>
+<!-- print output -->
+<path d="M174 325h164v91c0 10-8 18-18 18H192c-10 0-18-8-18-18z" fill="#FFFFFF"/>
+<rect x="199" y="357" width="114" height="10" rx="5" fill="#9BC5D2"/>
+<rect x="199" y="380" width="88" height="10" rx="5" fill="#9BC5D2"/>
+<rect x="199" y="404" width="56" height="7" rx="3.5" fill="#42C7DD"/>
+</svg>

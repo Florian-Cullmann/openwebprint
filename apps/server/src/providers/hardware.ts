@@ -8,11 +8,14 @@ import type {
   ScanOptions,
   JobStatus,
 } from '@openwebprint/shared';
+import { MAX_SCAN_PAGES, PRINT_SIDES } from '@openwebprint/shared';
 import { randomUUID } from 'node:crypto';
+import { dirname, basename, join } from 'node:path';
 import { AppError } from '../errors.js';
 import type { StoredJob } from '../store.js';
-import { command, type Command } from './command.js';
+import { command, CommandError, type Command } from './command.js';
 import type { Provider } from './types.js';
+import { hostDiscovery } from './host-discovery.js';
 
 type Attributes = Record<string, unknown>;
 export type IppRequest = (
@@ -84,6 +87,26 @@ export function validateScanner(value: string) {
   }
   return value;
 }
+export function validateHostScanner(value: string) {
+  const match = /^airscan:escl:([^:\x00-\x1f\x7f]{1,80}):(https?:\/\/.+)$/.exec(value);
+  if (!match || value.length > 512) throw new AppError(400, 'Invalid AirScan discovery address.');
+  let url: URL;
+  try {
+    url = new URL(match[2]);
+  } catch {
+    throw new AppError(400, 'Invalid AirScan URL.');
+  }
+  if (
+    !url.hostname ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    url.search ||
+    /[\s\x00-\x1f\x7f]/.test(match[2])
+  )
+    throw new AppError(400, 'Invalid AirScan discovery address.');
+  return validateScanner(value);
+}
 const list = (v: unknown): unknown[] => (v === undefined ? [] : Array.isArray(v) ? v : [v]);
 const states: Record<string, JobStatus> = {
   3: 'queued',
@@ -108,6 +131,7 @@ export class HardwareProvider implements Provider {
     private readonly server: string,
     private readonly run: Command = command,
     request?: IppRequest,
+    private readonly hostDiscoveryFile?: string,
   ) {
     this.request = request ?? cupsIpp(server);
   }
@@ -117,6 +141,7 @@ export class HardwareProvider implements Provider {
   async discover(): Promise<DiscoveryResult> {
     const devices: DeviceInput[] = [];
     const warnings: string[] = [];
+    let host: DiscoveryResult['hostDiscovery'];
     await Promise.all([
       this.cups('lpstat', ['-v'])
         .then((output) => {
@@ -131,7 +156,10 @@ export class HardwareProvider implements Provider {
               });
           }
         })
-        .catch((e: Error) => warnings.push(`CUPS: ${e.message}`)),
+        .catch((e: Error) => {
+          if (!(e instanceof CommandError && e.reason === 'empty-destinations'))
+            warnings.push(`CUPS: ${e.message}`);
+        }),
       this.run('scanimage', ['--formatted-device-list=%d\t%v %m%n'], 35_000)
         .then((output) => {
           for (const line of output.trim().split('\n')) {
@@ -149,8 +177,25 @@ export class HardwareProvider implements Provider {
       this.networkPrinters()
         .then((found) => devices.push(...found))
         .catch(() => warnings.push('mDNS discovery is unavailable. Add devices manually.')),
+      this.hostDiscoveryFile
+        ? hostDiscovery(this.hostDiscoveryFile, (address, kind) =>
+            kind === 'printer' ? validatePrinterUri(address) : validateHostScanner(address),
+          ).then((result) => {
+            devices.push(...result.devices);
+            warnings.push(...result.warnings);
+            host = result.hostDiscovery;
+          })
+        : Promise.resolve(),
     ]);
-    return { devices: [...new Map(devices.map((d) => [d.address, d])).values()], warnings };
+    if (!devices.length)
+      warnings.push(
+        'No devices responded to discovery. If you use Docker Desktop on macOS, enable Docker in System Settings → Privacy & Security → Local Network. Docker bridge networking can also limit automatic discovery; use the optional macOS Bonjour helper, Linux host networking, or add a device by IP address.',
+      );
+    return {
+      devices: [...new Map(devices.map((d) => [d.address, d])).values()],
+      warnings,
+      ...(host ? { hostDiscovery: host } : {}),
+    };
   }
   private networkPrinters(): Promise<DeviceInput[]> {
     return new Promise((resolve, reject) => {
@@ -262,7 +307,10 @@ export class HardwareProvider implements Provider {
           color:
             list(attrs['print-color-mode-supported']).includes('color') ||
             attrs['color-supported'] === true,
-          duplex: list(attrs['sides-supported']).includes('two-sided-long-edge'),
+          sides:
+            attrs['sides-supported'] == null
+              ? undefined
+              : PRINT_SIDES.filter((side) => list(attrs['sides-supported']).includes(side)),
           media: media.filter((m) => list(attrs['media-supported']).includes(m)),
         },
       };
@@ -324,21 +372,71 @@ export class HardwareProvider implements Provider {
     if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Invalid job ID.');
     await this.cups('cancel', [`${validateQueue(device.target!)}-${job.externalId}`]);
   }
-  async scan(device: Device, outputPath: string, options: ScanOptions) {
-    await this.run(
+  async scanSources(device: Device) {
+    const output = await this.run(
       'scanimage',
-      [
-        '--device-name',
-        validateScanner(device.target!),
-        '--format=png',
-        '--output-file',
-        outputPath,
-        '--resolution',
-        String(options.resolution),
-        '--mode',
-        options.color,
-      ],
-      120_000,
+      ['--device-name', validateScanner(device.target!), '--all-options'],
+      20_000,
     );
+    const lines = output.split(/\r?\n/);
+    const index = lines.findIndex((line) => /--source[ \t]+/.test(line));
+    let source = index < 0 ? '' : lines[index].replace(/^.*?--source[ \t]+/, '');
+    for (
+      let next = index + 1;
+      index >= 0 && next < lines.length && !source.includes('[') && source.trimEnd().endsWith('|');
+      next++
+    ) {
+      if (lines[next].trimStart().startsWith('--')) break;
+      source += lines[next].trim();
+    }
+    const choices = source.replace(/\s+\[[^\]]*\].*$/, '').split('|');
+    return {
+      sources: choices
+        .map((name) => name.trim())
+        .filter(Boolean)
+        .map((name) => ({ name, feeder: /adf|document feeder/i.test(name) })),
+      duplex: /--duplex(?:[\[= \t]|$)/m.test(output),
+    };
+  }
+  async scan(device: Device, outputPath: string, options: ScanOptions, pageLimit = MAX_SCAN_PAGES) {
+    if (options.batch && !options.source)
+      throw new AppError(400, 'Choose a document feeder source for batch scanning.');
+    if (options.source || options.duplex) {
+      const capabilities = await this.scanSources(device);
+      const source = capabilities.sources.find((s) => s.name === options.source);
+      if (options.source && !source)
+        throw new AppError(400, 'The scanner does not support the selected source.');
+      if (options.batch && !source?.feeder)
+        throw new AppError(400, 'Batch scanning requires a document feeder.');
+      if (options.duplex && !capabilities.duplex)
+        throw new AppError(400, 'The scanner does not support the duplex option.');
+    }
+    try {
+      await this.run(
+        'scanimage',
+        [
+          '--device-name',
+          validateScanner(device.target!),
+          '--format=png',
+          ...(options.batch
+            ? [
+                `--batch=${join(dirname(outputPath).replaceAll('%', '%%'), basename(outputPath))}`,
+                `--batch-count=${pageLimit}`,
+              ]
+            : ['--output-file', outputPath]),
+          ...(options.source ? ['--source', options.source] : []),
+          ...(options.duplex ? ['--duplex=yes'] : []),
+          '--resolution',
+          String(options.resolution),
+          '--mode',
+          options.color,
+        ],
+        options.batch ? 600_000 : 120_000,
+      );
+    } catch (error) {
+      if (!(options.batch && error instanceof CommandError && error.reason === 'no-documents'))
+        throw error;
+      // The service requires at least one complete image before publishing the batch.
+    }
   }
 }

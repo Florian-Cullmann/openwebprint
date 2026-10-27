@@ -8,14 +8,19 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { z } from 'zod';
-import { deviceInputSchema, printOptionsSchema, scanOptionsSchema } from '@openwebprint/shared';
+import {
+  deviceInputSchema,
+  printOptionsSchema,
+  scanOptionsSchema,
+  scanPagesSchema,
+} from '@openwebprint/shared';
 import type { Config } from './config.js';
-import { Store } from './store.js';
+import { Store, publicJob, storedScanPages } from './store.js';
 import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
 import { AppError } from './errors.js';
-import { MAX_UPLOAD } from './documents.js';
+import { MAX_UPLOAD, normalizeDocument, renderScanPage } from './documents.js';
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(80),
@@ -52,7 +57,8 @@ export async function createApp(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", "'wasm-unsafe-eval'"],
+        workerSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'blob:', 'data:'],
         objectSrc: ["'none'"],
@@ -130,6 +136,17 @@ export async function createApp(
     await auth.login(input.username, input.password, reply);
     return { ok: true };
   });
+  app.post('/api/account/password', authLimit, async (req, reply) => {
+    const input = z
+      .object({
+        currentPassword: z.string().min(1),
+        newPassword: z.string().min(1),
+      })
+      .strict()
+      .parse(req.body);
+    await auth.changePassword(req, reply, input.currentPassword, input.newPassword);
+    return { ok: true };
+  });
   app.post('/api/logout', async (req, reply) => {
     auth.logout(req, reply);
     return { ok: true };
@@ -151,7 +168,46 @@ export async function createApp(
     const { path } = z.object({ path: z.string().trim().min(1).max(1024) }).parse(req.body);
     return workspace.saveStorage(path);
   });
-  app.get('/api/snapshot', async () => workspace.service.snapshot());
+  app.get('/api/snapshot', async () => workspace.snapshot());
+  app.get('/api/jobs', async (req) => {
+    const query = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(50),
+        kind: z.enum(['print', 'scan']).optional(),
+        filter: z.enum(['all', 'active', 'completed']).default('all'),
+        cursor: z.string().min(1).max(1024).optional(),
+      })
+      .strict()
+      .parse(req.query);
+    let before: { createdAt: string; id: string } | undefined;
+    if (query.cursor) {
+      try {
+        const cursor = z
+          .object({
+            createdAt: z.iso.datetime(),
+            id: z.uuid(),
+            mode: z.enum(['demo', 'hardware']),
+            kind: z.enum(['print', 'scan']).optional(),
+            filter: z.enum(['all', 'active', 'completed']),
+          })
+          .strict()
+          .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
+        if (
+          cursor.mode !== workspace.mode ||
+          cursor.kind !== query.kind ||
+          cursor.filter !== query.filter
+        )
+          throw new Error('Cursor belongs to another listing');
+        before = cursor;
+      } catch {
+        throw new AppError(400, 'Invalid history cursor. Refresh the list and try again.');
+      }
+    }
+    return workspace.run((service) => service.listJobs({ ...query, before }));
+  });
+  app.get('/api/jobs/:id', async (req) =>
+    workspace.run((service) => publicJob(service.job(idParam.parse(req.params).id))),
+  );
   let discovery: Promise<Awaited<ReturnType<Provider['discover']>>> | undefined;
   app.post(
     '/api/devices/discover',
@@ -203,11 +259,47 @@ export async function createApp(
     );
     return reply.code(201).send(job);
   });
+  app.post('/api/documents/preview', async (req, reply) => {
+    let file: { data: Buffer; mime: string } | undefined;
+    for await (const part of req.parts()) {
+      if (part.type !== 'file' || part.fieldname !== 'file')
+        throw new AppError(400, 'Only a document upload is accepted.');
+      file = { data: await part.toBuffer(), mime: part.mimetype };
+      if (part.file.truncated) throw new AppError(413, 'The file exceeds 25 MB.');
+    }
+    if (!file) throw new AppError(400, 'Choose a file.');
+    const document = await workspace.run(() => normalizeDocument(file.data, file.mime));
+    return reply.type('application/pdf').send(document);
+  });
   app.post('/api/scans', async (req, reply) => {
-    const input = z.object({ deviceId: z.uuid(), options: scanOptionsSchema }).parse(req.body);
+    const input = z
+      .object({ deviceId: z.uuid(), options: scanOptionsSchema, jobId: z.uuid().optional() })
+      .parse(req.body);
     return reply
       .code(202)
-      .send(await workspace.run((service) => service.scan(input.deviceId, input.options)));
+      .send(
+        await workspace.run((service) => service.scan(input.deviceId, input.options, input.jobId)),
+      );
+  });
+  app.get('/api/devices/:id/scan-sources', async (req) =>
+    workspace.run((service) => service.scanSources(idParam.parse(req.params).id)),
+  );
+  app.post('/api/scans/:id/pages', async (req) => {
+    const input = scanPagesSchema.parse(req.body);
+    return workspace.run((service) =>
+      service.editScan(idParam.parse(req.params).id, input.revision, input.pages),
+    );
+  });
+  app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
+    const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
+    const { rendered } = z.object({ rendered: z.literal('1').optional() }).parse(req.query);
+    const job = workspace.service.job(id);
+    if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
+    const page = storedScanPages(job).find((page) => page.id === pageId);
+    if (!page) throw new AppError(404, 'Page unavailable.');
+    return reply
+      .type('image/png')
+      .send(rendered ? (await renderScanPage(page)).image : await readFile(page.path));
   });
   app.post('/api/jobs/:id/cancel', async (req) =>
     workspace.run((service) => service.cancel(idParam.parse(req.params).id)),
@@ -217,16 +309,25 @@ export async function createApp(
     return { ok: true };
   });
   app.get('/api/jobs/:id/:format', async (req, reply) => {
-    const { id, format } = idParam.extend({ format: z.enum(['pdf', 'preview']) }).parse(req.params);
+    const { id, format } = idParam
+      .extend({ format: z.enum(['pdf', 'preview', 'document']) })
+      .parse(req.params);
     const job = workspace.service.job(id);
-    if (job.kind !== 'scan' || !job.hasFile || job.status !== 'completed')
-      throw new AppError(404, 'No scan available. Scan files expire after 7 days.');
-    const path = format === 'pdf' ? job.filePath : job.previewPath;
+    if (
+      !job.hasFile ||
+      (job.kind === 'scan' && job.status !== 'completed') ||
+      (format === 'preview' && job.kind !== 'scan')
+    )
+      throw new AppError(
+        404,
+        'No document available. Files expire after 7 days; older print jobs may have no retained preview.',
+      );
+    const path = format === 'preview' ? job.previewPath : job.filePath;
     if (!path) throw new AppError(404, 'File unavailable.');
-    reply.type(format === 'pdf' ? 'application/pdf' : 'image/png');
+    reply.type(format === 'preview' ? 'image/png' : 'application/pdf');
     reply.header(
       'Content-Disposition',
-      `${format === 'pdf' ? 'attachment' : 'inline'}; filename="scan-${id}.${format === 'pdf' ? 'pdf' : 'png'}"`,
+      `${format === 'pdf' ? 'attachment' : 'inline'}; filename="${job.kind === 'scan' ? 'scan' : 'document'}-${id}.${format === 'preview' ? 'png' : 'pdf'}"`,
     );
     return reply.send(await readFile(path));
   });

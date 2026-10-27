@@ -24,7 +24,8 @@ export class Workspace {
     this.hardware = new Service(
       store,
       'hardware',
-      providers.hardware ?? new HardwareProvider(config.cupsServer),
+      providers.hardware ??
+        new HardwareProvider(config.cupsServer, undefined, undefined, config.hostDiscoveryFile),
       this.scanRoot,
     );
   }
@@ -84,7 +85,13 @@ export class Workspace {
   run<T>(operation: (service: Service) => Promise<T> | T): Promise<T> {
     if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
     if (this.required) throw new AppError(409, 'Complete setup before printing or scanning.');
-    const promise = Promise.resolve().then(() => operation(this.service));
+    return this.track(Promise.resolve().then(() => operation(this.service)));
+  }
+  snapshot() {
+    if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
+    return this.track(this.service.snapshot());
+  }
+  private track<T>(promise: Promise<T>): Promise<T> {
     this.operations.add(promise);
     void promise.then(
       () => this.operations.delete(promise),
@@ -116,18 +123,7 @@ export class Workspace {
       if (this.mode !== 'demo') throw new AppError(409, 'Demo mode is not active.');
       // Drain pending scans and polls before deleting records, so workers cannot recreate them.
       await this.demo.close();
-      for (const job of this.store.jobs('demo')) {
-        for (const path of [job.filePath, job.previewPath]) {
-          if (path)
-            await unlink(path).catch((error) => {
-              if (error.code !== 'ENOENT')
-                throw new AppError(
-                  500,
-                  'Could not remove a demo file. Check file permissions and try again.',
-                );
-            });
-        }
-      }
+      for (const job of this.store.jobs('demo')) await this.demo.removeFiles(job);
       this.store.db.exec('BEGIN IMMEDIATE');
       try {
         this.store.db.prepare('DELETE FROM jobs WHERE mode=?').run('demo');
@@ -151,13 +147,7 @@ export class Workspace {
   async addDevice(input: DeviceInput) {
     if (this.transitioning) throw new AppError(409, 'Setup is changing. Please try again.');
     if (this.phase === 'welcome') throw new AppError(409, 'Choose demo mode or start setup first.');
-    const promise = this.service.addDevice(input);
-    this.operations.add(promise);
-    try {
-      return await promise;
-    } finally {
-      this.operations.delete(promise);
-    }
+    return this.track(this.service.addDevice(input));
   }
   async selectDevices(inputs: DeviceInput[]) {
     return this.exclusive(async () => {

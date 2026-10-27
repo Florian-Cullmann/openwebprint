@@ -1,6 +1,6 @@
 {
   "name": "openwebprint",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "private": true,
   "license": "MIT",
   "type": "module",
@@ -20,7 +20,11 @@
     "check": "npm run build && npm test",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "screenshots": "npm run build && node scripts/capture-screenshots.mjs"
+    "screenshots": "npm run build && node scripts/capture-screenshots.mjs",
+    "discovery:macos": "node scripts/discovery-macos.mjs",
+    "build:discovery:macos": "node scripts/discovery-macos.mjs --build",
+    "package:release": "node scripts/package-release.mjs",
+    "test:install": "node scripts/test-bootstrap.mjs && node scripts/test-install.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

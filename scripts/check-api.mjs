@@ -44,6 +44,19 @@ if (process.env.MODE === 'hardware') {
 const snapshot = await (await fetch(base + '/api/snapshot')).json();
 assert.equal(snapshot.mode, process.env.MODE === 'hardware' ? 'hardware' : 'demo');
 assert.equal(snapshot.devices.length, snapshot.mode === 'demo' ? 3 : 0);
+if (snapshot.mode === 'hardware') {
+  const discovered = await fetch(base + '/api/devices/discover', {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  assert.equal(discovered.status, 200);
+  const result = await discovered.json();
+  assert.ok(
+    !result.warnings.some((warning) => warning.startsWith('CUPS:')),
+    'An empty, healthy CUPS scheduler must not produce a discovery failure.',
+  );
+}
 const html = await (await fetch(base + '/settings/users')).text();
 assert.ok(html.includes('lang="en"'));
 const credentials = { username: 'container-check', password: randomUUID() };

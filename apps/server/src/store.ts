@@ -2,9 +2,24 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Device, Job, Mode } from '@openwebprint/shared';
+import type { Device, Job, JobFilter, Mode, ScanPage } from '@openwebprint/shared';
 
+export interface JobPageOptions {
+  limit: number;
+  kind?: Job['kind'];
+  filter?: JobFilter;
+  before?: { createdAt: string; id: string };
+}
+
+export interface StoredScanPage extends ScanPage {
+  path: string;
+  // Acquisition DPI belongs to this page, not the most recent job options.
+  resolution?: number;
+}
 export interface StoredJob extends Job {
+  scanPages?: StoredScanPage[];
+  scanDirectory?: string;
+  scanWorkPath?: string;
   externalId?: string;
   filePath?: string;
   previewPath?: string;
@@ -19,6 +34,8 @@ export class Store {
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, mode TEXT NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, mode TEXT NOT NULL, created TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS jobs_history ON jobs (mode, created DESC, id DESC);
+      CREATE INDEX IF NOT EXISTS jobs_kind_history ON jobs (mode, json_extract(data, '$.kind'), created DESC, id DESC);
       `);
     this.migrateUsers();
   }
@@ -86,6 +103,41 @@ export class Store {
       .all(mode)
       .map((r) => JSON.parse(String(r.data)));
   }
+  private jobWhere(mode: Mode, { kind, filter }: Pick<JobPageOptions, 'kind' | 'filter'>) {
+    const where = ['mode=?'];
+    const params: (string | number)[] = [mode];
+    if (kind) {
+      where.push("json_extract(data, '$.kind')=?");
+      params.push(kind);
+    }
+    if (filter === 'active')
+      where.push("json_extract(data, '$.status') NOT IN ('completed', 'canceled', 'failed')");
+    if (filter === 'completed') where.push("json_extract(data, '$.status')='completed'");
+    return { where, params };
+  }
+  jobStats(mode: Mode, { before, ...options }: Omit<JobPageOptions, 'limit'>) {
+    const { where, params } = this.jobWhere(mode, options);
+    const position = before ? 'COUNT(*) FILTER (WHERE (created, id) >= (?, ?))' : '0';
+    const row = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total, ${position} AS offset FROM jobs WHERE ${where.join(' AND ')}`,
+      )
+      .get(...(before ? [before.createdAt, before.id, ...params] : params))!;
+    return { total: Number(row.total), offset: Number(row.offset) };
+  }
+  jobPage(mode: Mode, { limit, kind, filter, before }: JobPageOptions): StoredJob[] {
+    const { where, params } = this.jobWhere(mode, { kind, filter });
+    if (before) {
+      where.push('(created, id) < (?, ?)');
+      params.push(before.createdAt, before.id);
+    }
+    return this.db
+      .prepare(
+        `SELECT data FROM jobs WHERE ${where.join(' AND ')} ORDER BY created DESC, id DESC LIMIT ?`,
+      )
+      .all(...params, limit)
+      .map((row) => JSON.parse(String(row.data)));
+  }
   job(id: string, mode: Mode): StoredJob | undefined {
     const row = this.db.prepare('SELECT data FROM jobs WHERE id=? AND mode=?').get(id, mode);
     return row ? JSON.parse(String(row.data)) : undefined;
@@ -106,7 +158,25 @@ export function publicJob({
   externalId: _externalId,
   filePath: _filePath,
   previewPath: _previewPath,
+  scanPages: _scanPages,
+  scanDirectory: _scanDirectory,
+  scanWorkPath: _scanWorkPath,
   ...job
 }: StoredJob): Job {
+  if (job.kind === 'scan' && job.hasFile) {
+    job.pages = storedScanPages({ ...job, scanPages: _scanPages, previewPath: _previewPath }).map(
+      ({ id, rotation, crop }) => ({ id, rotation, ...(crop ? { crop } : {}) }),
+    );
+    job.scanRevision ??= job.updatedAt;
+  }
   return job;
+}
+
+export function storedScanPages(job: StoredJob): StoredScanPage[] {
+  return (
+    job.scanPages ??
+    (job.hasFile && job.previewPath
+      ? [{ id: job.id, rotation: 0 as const, path: job.previewPath }]
+      : [])
+  );
 }

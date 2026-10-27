@@ -1,6 +1,11 @@
 <div align="center">
 
-# openwebprint
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="apps/client/public/openwebprint-logo-dark.svg" />
+    <img src="apps/client/public/openwebprint-logo.svg" alt="openwebprint" width="560" />
+  </picture>
+</h1>
 
 **Your paper. Your workflow. Your server.**
 
@@ -11,19 +16,19 @@ Open source, self-hosted, and built around open standards.
 [![MIT](https://img.shields.io/badge/license-MIT-24252a.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-24252a.svg)](https://nodejs.org/)
 
-[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Brother support](docs/hardware.md#brother-from-day-one) · [Contribute](CONTRIBUTING.md)
+[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Hardware compatibility](docs/hardware.md#supported-protocols) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
 ## A calmer way to work with paper
 
-openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, third-party fonts, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
+openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, remote font requests, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
-This is a working **v0.1 MVP**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
+This is the first public beta, **v0.1.0-beta.1**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
-- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, and supported paper sizes.
-- **Scan a page:** 150/300/600 dpi, color or grayscale, image preview, and a real downloadable PDF.
+- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
+- **Scan documents:** 150/300/600 dpi, color or grayscale, multiple pages, reversible cropping, rotation and ordering, image preview, and a real downloadable PDF.
 - **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
 - **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.
@@ -42,9 +47,9 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 ### Print from your browser
 
-![Print dialog with document upload, Brother printer selection, and print options](docs/images/printing.png)
+![Paginated document preview beside Brother printer selection and print options](docs/images/printing.png)
 
-Upload a PDF or image, choose a printer, and set color, sides, paper size, and copies. Available options follow the selected printer's capabilities.
+Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
 
 ### Preview and download a scan
 
@@ -53,6 +58,27 @@ Upload a PDF or image, choose a printer, and set color, sides, paper size, and c
 Review the scanned page, download its PDF, or scan another page. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
 
 ## Quick start
+
+### Install for everyday use
+
+Download and run the installer for your computer. The package includes the production web application, a private Node.js runtime, and application dependencies. It sets up a browser launcher, local data storage, and startup at login. **No Git, npm, system Node.js, Docker, VM, or Electron is required.**
+
+The first release is a beta; both commands below explicitly select that version. See the [release notes](docs/releases/v0.1.0-beta.1.md) for scope and known limitations.
+
+**Linux / macOS** — paste into Terminal, without `sudo`:
+
+```sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.1/install.sh -o install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.1 sh install-openwebprint.sh
+```
+
+The installer opens **http://127.0.0.1:3001**. Choose **Try demo** or, with CUPS/SANE installed, **Start setup**. OS hardware tools and vendor drivers are separate from the web package.
+
+**Supported platforms: Linux and macOS. Windows is currently unsupported**, including installation, printing, and scanning. Complete Windows support is planned in [#14](https://github.com/Florian-Cullmann/openwebprint/issues/14).
+
+Installer downloads require a published release with installer assets. See the [installation guide](docs/installation.md) for supported systems, hardware requirements, updates, backups, logs, uninstall, offline packages, and the maintainer release process.
+
+### Run from source (development)
 
 Requires Node.js **24 LTS** (recommended) or 26 and npm. SQLite is provided by Node's built-in `node:sqlite`; no database service is required. Node 24 may print an experimental SQLite warning.
 
@@ -70,7 +96,7 @@ Setup searches for compatible printers and scanners, lets you choose which to co
 
 To leave the demo, click **Remove demo data** in the banner. This deletes demo devices, jobs, and scan files, waits for running demo operations to finish, and opens real device discovery. Accounts and any existing hardware records are preserved. Existing configured installations keep their current mode when upgrading.
 
-Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Passwords must not be empty. There are no length or character-composition requirements. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
+Create users under **Settings → Users** (`/settings/users`). Adding the first user enables login immediately, including for the creator. All users can manage the instance and access its devices/documents. Removing the last user disables login again. Signed-in users can change their own password under **Settings → Users** by entering their current password. The current browser receives a new session and stays signed in; all other sessions for that account are revoked. Passwords must not be empty. There are no length or character-composition requirements. Existing accounts are preserved when upgrading; legacy sessions expire once during the database migration.
 
 ### Try it with Docker
 
@@ -118,7 +144,9 @@ The profile runs CUPS and Avahi inside the container and drops the web process t
 
 The Compose profile controls **networking**, while the browser choice controls the application mode. The historically named `demo` profile uses bridge networking and can also connect manually addressed hardware. Both profiles start the hardware daemons so leaving the demo needs no container restart. They have **separate persistent data and CUPS volumes**, so changing profiles does not transfer accounts or devices. Within an instance, mode and setup progress are stored in SQLite; demo records never become real devices.
 
-Docker Desktop on macOS/Windows does not reliably forward link-local discovery. Use manual IPP addresses and native SANE configuration, or run on a Linux host. USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE.
+Docker Desktop on macOS does not reliably forward link-local discovery. Enable **Docker** under **System Settings → Privacy & Security → Local Network** before connecting LAN devices. If discovery remains empty, use a manual IPP address or run on a Linux host; see [Docker networking](docs/hardware.md#docker-networking). USB passthrough is not configured by the Compose file. The native app can use devices already exposed by CUPS/SANE. Docker Desktop on Windows is not a supported deployment target.
+
+For **automatic printer and eSCL scanner discovery on macOS with Docker Desktop**, run `npm run discovery:macos` on the Mac, then start Compose with `-f compose.yaml -f compose.macos.yaml --profile demo`. The optional native Bonjour helper passes current network advertisements into the container through a read-only folder. See the [macOS discovery setup](docs/hardware.md#automatic-device-discovery-with-docker-desktop-on-macos) for prerequisites, commands, and scanner limitations.
 
 ### Configuration
 
@@ -134,27 +162,30 @@ Docker Desktop on macOS/Windows does not reliably forward link-local discovery. 
 
 For LAN or internet access, put a reverse proxy on the same host in front of loopback port 3001, terminate TLS, set `APP_ORIGIN=https://print.example.org` and `COOKIE_SECURE=true`. The proxy must preserve the `Origin` header and allow uploads of at least 25 MiB plus multipart overhead. No CORS wildcard is used. Request limits use the direct peer IP; the app intentionally does not trust arbitrary forwarding headers. A shared proxy therefore shares rate limits.
 
+If a proxy returns an HTML, empty, or malformed error response, the interface shows the HTTP status (for example, `The request failed (HTTP 502).`) without displaying the proxy response body. Failed print and scan submissions are never automatically retried.
+
 For Docker, export those two variables or put them in the root `.env`; Compose forwards them. Other settings require updating the service environment explicitly. Do not expose CUPS or SANE to an untrusted network. With no users, everyone who can reach the web app has full access; add a user before making the app accessible beyond a trusted environment.
 
 ### Storage, backups, and access recovery
 
-- Uploaded print files are removed immediately after the CUPS submission attempt. CUPS has its own spool/history policy; the bundled configuration disables retained job files.
+- Original uploads are normalized to private PDFs. Print PDFs are retained for **7 days** for job previews, including unconfirmed submissions, or until you delete the job. Draft previews are processed in memory and create no jobs or stored documents. CUPS has its own spool/history policy; the bundled configuration disables retained job files.
 - Real scan storage defaults to `DATA_DIR/scans`. Choose an absolute server path during setup or change it under **Settings → General**. The app creates the folder and checks write access. Existing scans remain in their original location. Demo scans always use temporary instance storage.
 - In Docker, paths refer to the container. `/data/scans` is covered by the named data volume. For another location, configure a bind mount and grant the `node` user write access; entering a host path alone does not mount it. Back up any external scan folders as well as `DATA_DIR`.
-- Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry.
-- The UI shows the most recent **200** jobs. History is local SQLite data; it is not an analytics service.
+- Scan PNGs and PDFs remain for **7 days**, checked at startup and hourly, or until you delete them in the UI. Records remain after file expiry. Click a document title in Jobs to reopen its preview. Older print jobs created before this feature may have no retained document; already deleted files cannot be recovered.
+- Jobs show **50 records per page**; Scans show **30 scans per page** in either grid or list view. The browser remembers your scan view choice. The pagination shows your current range, the total matching records, and the current/total pages. Use Previous/Next to reach older records. Job status filters apply to the entire history; Scans has its own listing. New jobs appear on the first page without shifting the cursor for older pages. Overview shows recent activity. File expiry removes documents, not history records. History is local SQLite data; it is not an analytics service.
 - Back up `DATA_DIR` and your CUPS configuration while the app is stopped. For Docker, back up the named volumes. Keep backups private; scans and personal metadata are not encrypted at rest.
 - Multiple users are supported, all with the same administrator permissions. To reset access, stop the server and run `node --env-file-if-exists=.env scripts/reset-access.mjs --confirm`. This removes all users and sessions, preserving devices/documents. Restart to use the instance without signing in, then add users again in Settings. With Docker, stop the service first, then run `docker compose --profile demo run --rm --entrypoint node demo scripts/reset-access.mjs --confirm` (replace `demo` with `hardware` as appropriate).
 
 ## Hardware support and honest limits
 
-**Brother is a first-class target**, alongside HP, Canon, Epson, and other standards-compatible devices. CUPS handles printing through IPP Everywhere/AirPrint; sane-airscan handles eSCL and WSD scanning. Some Brother models support only WSD scanning. Enable the relevant protocols in the device's settings.
+**Hardware compatibility depends on device protocols and host drivers.** CUPS handles printing through IPP Everywhere/AirPrint or an existing queue with a suitable driver; SANE handles scanning, including eSCL and WSD through sane-airscan. Enable the relevant protocols in the device's settings.
 
 See the [model compatibility and troubleshooting guide](docs/hardware.md). There is no blanket promise that every model from a manufacturer works. CUPS queue state is not proof of physical reachability or paper output. `completed` means the backend reported completion; communication errors remain `unknown`, with no automatic resubmission that could duplicate prints.
 
 Current scope:
 
-- Single-page scans; no ADF batch selection, multi-page scan assembly, OCR, or scan cancellation. Closing the dialog leaves a scan running (up to 120 seconds).
+- Collect up to 100 scanned pages in one PDF. **Scan another page** appends one page; select a scanner-advertised ADF or duplex ADF source and use **Scan multiple pages** to read a feeder batch. Rotate each page clockwise in 90° steps and reorder by dragging or with the arrow buttons; changes are saved automatically. Reopen the scan to add or edit pages. New scan PDFs preserve physical page dimensions, including crops and pages appended at different resolutions; see [legacy scan sizing](docs/hardware.md#scanners). Failed follow-up scans keep the previously saved document.
+- No OCR or scan cancellation. Closing the dialog leaves a scan running (up to 120 seconds for one page or 10 minutes for a batch).
 - PDF uploads are rebuilt and form fields flattened before printing; annotations and document-level active content are omitted. Digital signatures are not validated.
 - Standard A4, A5, and Letter print media, only when the CUPS queue reports support. Color/duplex capabilities come from IPP; scan options are backend-dependent and unsupported options fail explicitly.
 - No printer firmware management, ink-level estimates, cloud relay, per-user roles or document isolation, or remote CUPS authentication.
@@ -172,7 +203,7 @@ Settings use a horizontal menu with their own URLs:
 | General    | `/settings/general`    | Operating mode, scan storage, document retention, project information |
 | Users      | `/settings/users`      | Add and remove users; enable or disable login by user count           |
 | Appearance | `/settings/appearance` | Light, dark, or system theme                                          |
-| Hardware   | `/settings/hardware`   | Brother support and driver guidance                                   |
+| Hardware   | `/settings/hardware`   | Hardware compatibility and driver guidance                            |
 
 `/settings` redirects to General. Fastify serves the React entry point for page URLs; `/api/*` remains a separate API namespace.
 

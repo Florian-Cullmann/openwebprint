@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { DatabaseSync } from 'node:sqlite';
+import type { FastifyReply } from 'fastify';
 import { createHash, scryptSync } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -195,4 +196,133 @@ it('creates and authenticates short, whitespace-only and long passwords without 
       ).statusCode,
     ).toBe(200);
   }
+});
+
+describe('password changes', () => {
+  it('rotates the current session, revokes other sessions and preserves other accounts', async () => {
+    f = await fixture();
+    const login = async (username: string, password: string) =>
+      f!.app.inject({
+        method: 'POST',
+        url: '/api/login',
+        headers: { 'x-openwebprint': '1' },
+        payload: { username, password },
+      });
+    const otherSession = await login(credentials.username, credentials.password);
+    await f.auth.createUser('other', 'other-password', f.auth.users()[0]);
+    const otherUser = await login('other', 'other-password');
+    const response = await f.app.inject({
+      method: 'POST',
+      url: '/api/account/password',
+      headers: f.headers,
+      payload: { currentPassword: credentials.password, newPassword: ' ' },
+    });
+    expect(response.statusCode).toBe(200);
+    const cookie = String(response.headers['set-cookie']).split(';')[0];
+    expect(cookie).not.toBe(f.cookie);
+    for (const revoked of [f.cookie, String(otherSession.headers['set-cookie']).split(';')[0]])
+      expect(
+        (await f.app.inject({ url: '/api/snapshot', headers: { cookie: revoked } })).statusCode,
+      ).toBe(401);
+    for (const valid of [cookie, String(otherUser.headers['set-cookie']).split(';')[0]])
+      expect(
+        (await f.app.inject({ url: '/api/snapshot', headers: { cookie: valid } })).statusCode,
+      ).toBe(200);
+    expect((await login(credentials.username, credentials.password)).statusCode).toBe(401);
+    expect((await login(credentials.username, ' ')).statusCode).toBe(200);
+  });
+
+  it('requires authentication even on an instance without users', async () => {
+    f = await fixture({ users: false });
+    expect(
+      (
+        await f.app.inject({
+          method: 'POST',
+          url: '/api/account/password',
+          headers: f.headers,
+          payload: { currentPassword: 'a', newPassword: 'b' },
+        })
+      ).statusCode,
+    ).toBe(401);
+  });
+
+  it('rejects anonymous and cross-origin requests, wrong passwords, empty passwords and account targeting', async () => {
+    f = await fixture();
+    const payload = { currentPassword: credentials.password, newPassword: 'new' };
+    const request = (headers: Record<string, string>, body = payload) =>
+      f!.app.inject({
+        method: 'POST',
+        url: '/api/account/password',
+        headers,
+        payload: body,
+      });
+    expect((await request({ 'x-openwebprint': '1' })).statusCode).toBe(401);
+    expect((await request({ cookie: f.cookie })).statusCode).toBe(403);
+    expect((await request({ ...f.headers, origin: 'https://evil.example' })).statusCode).toBe(403);
+    expect((await request(f.headers, { ...payload, currentPassword: 'wrong' })).statusCode).toBe(
+      400,
+    );
+    expect((await request(f.headers, { ...payload, newPassword: '' })).statusCode).toBe(400);
+    expect(
+      (await request(f.headers, { ...payload, ...{ userId: 'another-account' } })).statusCode,
+    ).toBe(400);
+    expect((await f.app.inject({ url: '/api/snapshot', headers: f.headers })).statusCode).toBe(200);
+    expect(
+      (
+        await f.app.inject({
+          method: 'POST',
+          url: '/api/login',
+          headers: f.headers,
+          payload: credentials,
+        })
+      ).statusCode,
+    ).toBe(200);
+  });
+
+  it('rate limits password guessing without changing credentials', async () => {
+    f = await fixture();
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const response = await f.app.inject({
+        method: 'POST',
+        url: '/api/account/password',
+        headers: f.headers,
+        payload: { currentPassword: 'wrong', newPassword: 'new' },
+      });
+      expect(response.statusCode).toBe(attempt < 5 ? 400 : 429);
+    }
+  });
+
+  it('rejects an old-password login if credentials change during verification', async () => {
+    f = await fixture();
+    const before = f.store.db.prepare('SELECT COUNT(*) AS count FROM sessions').get()!.count;
+    const pending = f.auth.login(credentials.username, credentials.password, {
+      setCookie() {
+        throw new Error('A stale login must not create a session');
+      },
+    } as unknown as FastifyReply);
+    const result = expect(pending).rejects.toMatchObject({ statusCode: 401 });
+    const salt = 'replacement-salt';
+    const encoded = `${salt}:${scryptSync('replacement', salt, 64).toString('hex')}`;
+    f.store.db
+      .prepare('UPDATE users SET password=? WHERE username=?')
+      .run(encoded, credentials.username);
+    await result;
+    expect(f.store.db.prepare('SELECT COUNT(*) AS count FROM sessions').get()!.count).toBe(before);
+  });
+
+  it('allows only one concurrent password change using the same session', async () => {
+    f = await fixture();
+    const responses = await Promise.all(
+      ['first', 'second'].map((newPassword) =>
+        f!.app.inject({
+          method: 'POST',
+          url: '/api/account/password',
+          headers: f!.headers,
+          payload: { currentPassword: credentials.password, newPassword },
+        }),
+      ),
+    );
+    expect(responses.map((response) => response.statusCode).sort()).toEqual([200, 401]);
+    expect(f.store.db.prepare('SELECT COUNT(*) AS count FROM sessions').get()!.count).toBe(1);
+  });
 });

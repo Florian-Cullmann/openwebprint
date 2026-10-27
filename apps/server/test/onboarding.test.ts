@@ -240,10 +240,12 @@ describe('optional demo and hardware onboarding', () => {
     });
     expect(scan.statusCode).toBe(202);
     await workspace.hardware.close();
-    expect(workspace.hardware.job(scan.json().id).filePath).toBe(
-      join(await realpath(root), scan.json().id + '.pdf'),
+    expect(workspace.hardware.job(scan.json().id).filePath).toMatch(
+      new RegExp(
+        '^' + (await realpath(root)) + '/' + scan.json().id + '\\.pages/[^/]+/document\\.pdf$',
+      ),
     );
-    expect(await readdir(root)).toHaveLength(2);
+    expect(await readdir(root)).toHaveLength(1);
     const scannerId = store.devices('hardware')[0].id;
     const secondRoot = join(directory, 'future-scans');
     const changed = await app.inject({
@@ -262,10 +264,12 @@ describe('optional demo and hardware onboarding', () => {
     expect((await instance.app.inject(`/api/jobs/${scan.json().id}/pdf`)).statusCode).toBe(200);
     const next = instance.workspace.hardware.scan(scannerId, { resolution: 150, color: 'Color' });
     await instance.workspace.hardware.close();
-    expect(instance.workspace.hardware.job(next.id).filePath).toBe(
-      join(await realpath(secondRoot), next.id + '.pdf'),
+    expect(instance.workspace.hardware.job(next.id).filePath).toMatch(
+      new RegExp(
+        '^' + (await realpath(secondRoot)) + '/' + next.id + '\\.pages/[^/]+/document\\.pdf$',
+      ),
     );
-    expect(await readdir(root)).toHaveLength(2);
-    expect(await readdir(secondRoot)).toHaveLength(2);
+    expect(await readdir(root)).toHaveLength(1);
+    expect(await readdir(secondRoot)).toHaveLength(1);
   });
 });

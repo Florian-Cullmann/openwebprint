@@ -10,14 +10,15 @@ import {
 import type { Device, PrintOptions } from '@openwebprint/shared';
 import type { StoredJob } from '../src/store.js';
 import { fixture } from './helpers.js';
-import { command } from '../src/providers/command.js';
+import { command, CommandError } from '../src/providers/command.js';
 import { randomUUID } from 'node:crypto';
 const discoveryTypes = vi.hoisted(() => [] as string[]);
+const advertisements = vi.hoisted(() => ({ enabled: true }));
 vi.mock('bonjour-service', () => ({
   Bonjour: class {
     find({ type }: { type: string }, callback: (service: unknown) => void) {
       discoveryTypes.push(type);
-      if (['ipp', 'ipps'].includes(type))
+      if (advertisements.enabled && ['ipp', 'ipps'].includes(type))
         callback({
           name: `Brother ${type}`,
           host: 'brother.local',
@@ -62,6 +63,49 @@ const job: StoredJob = {
   hasFile: false,
 };
 describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', () => {
+  it.each([
+    [new CommandError('No printers have been configured in CUPS.', 'empty-destinations'), false],
+    [new CommandError('Scheduler unavailable.'), true],
+  ])(
+    'keeps network discovery working when local queue enumeration returns %s',
+    async (failure, warning) => {
+      vi.useFakeTimers();
+      try {
+        const run = vi.fn(async (tool: string) => {
+          if (tool === 'lpstat') throw failure;
+          return '';
+        });
+        const pending = new HardwareProvider('localhost:631', run).discover();
+        await vi.advanceTimersByTimeAsync(4001);
+        const result = await pending;
+        expect(result.devices).toHaveLength(2);
+        expect(result.warnings.some((message) => message.startsWith('CUPS:'))).toBe(warning);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('explains network permission and multicast limitations when no devices respond', async () => {
+    vi.useFakeTimers();
+    advertisements.enabled = false;
+    try {
+      const run = vi.fn(async (tool: string) => {
+        if (tool === 'lpstat')
+          throw new CommandError('No printers configured.', 'empty-destinations');
+        return '';
+      });
+      const pending = new HardwareProvider('localhost:631', run).discover();
+      await vi.advanceTimersByTimeAsync(4001);
+      const result = await pending;
+      expect(result.devices).toEqual([]);
+      expect(result.warnings).toHaveLength(1);
+      expect(result.warnings[0]).toContain('Local Network');
+      expect(result.warnings[0]).toContain('IP address');
+    } finally {
+      advertisements.enabled = true;
+      vi.useRealTimers();
+    }
+  });
   it('discovers standard IPP/IPPS advertisements, local queues and SANE identifiers', async () => {
     vi.useFakeTimers();
     discoveryTypes.length = 0;
@@ -101,7 +145,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
     expect(inspected.status).toBe('ready');
     expect(inspected.capabilities).toEqual({
       color: false,
-      duplex: true,
+      sides: ['one-sided', 'two-sided-long-edge'],
       media: ['iso_a4_210x297mm'],
     });
     request.mockResolvedValue({ 'job-state': 'completed' });
@@ -170,6 +214,97 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
       ),
     ).rejects.toThrow();
     expect(run).not.toHaveBeenCalled();
+  });
+  it('uses advertised SANE feeder and duplex options for bounded batches (stubbed command)', async () => {
+    const scanner: Device = {
+      ...device,
+      kind: 'scanner',
+      provider: 'sane',
+      target: 'airscan:e0:Brother',
+    };
+    const run = vi.fn(async (_tool: string, args: string[]) => {
+      if (args.includes('--all-options'))
+        return '  --source Flatbed|ADF|ADF Duplex [Flatbed]\n    Selects the scan source.\n  --duplex[=(yes|no)] [no]\n';
+      throw new CommandError('The document feeder is empty.', 'no-documents');
+    });
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'ADF', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: true,
+    });
+    await provider.scan(
+      scanner,
+      '/private/100%/page-%d.png',
+      { resolution: 300, color: 'Gray', source: 'ADF', batch: true, duplex: true },
+      12,
+    );
+    expect(run).toHaveBeenLastCalledWith(
+      'scanimage',
+      [
+        '--device-name',
+        scanner.target,
+        '--format=png',
+        '--batch=/private/100%%/page-%d.png',
+        '--batch-count=12',
+        '--source',
+        'ADF',
+        '--duplex=yes',
+        '--resolution',
+        '300',
+        '--mode',
+        'Gray',
+      ],
+      600_000,
+    );
+    await expect(
+      provider.scan(scanner, '/private/page.png', { resolution: 300, color: 'Gray' }),
+    ).rejects.toThrow('empty');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Flatbed',
+      }),
+    ).rejects.toThrow('document feeder');
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'Unadvertised ADF',
+      }),
+    ).rejects.toThrow('selected source');
+    run.mockRejectedValue(new CommandError('Disconnected'));
+    await expect(
+      provider.scan(scanner, '/private/page-%d.png', {
+        resolution: 300,
+        color: 'Gray',
+        batch: true,
+        source: 'ADF',
+      }),
+    ).rejects.toThrow('Disconnected');
+  });
+  it('reads wrapped source lists without inventing duplex support (stubbed command)', async () => {
+    const scanner = { ...device, kind: 'scanner' as const, target: 'airscan:e0:Brother' };
+    const run = vi
+      .fn()
+      .mockResolvedValue(
+        '  --source Flatbed|Automatic Document Feeder|\n    ADF Duplex [Flatbed]\n    Selects the scan source.\n',
+      );
+    const provider = new HardwareProvider('localhost:631', run);
+    expect(await provider.scanSources(scanner)).toEqual({
+      sources: [
+        { name: 'Flatbed', feeder: false },
+        { name: 'Automatic Document Feeder', feeder: true },
+        { name: 'ADF Duplex', feeder: true },
+      ],
+      duplex: false,
+    });
   });
   it('calls SANE with explicit bounded options and surfaces failures', async () => {
     const run = vi.fn().mockResolvedValue('');
