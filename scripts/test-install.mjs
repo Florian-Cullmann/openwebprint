@@ -57,11 +57,15 @@ const menuEntry =
         'applications',
         'openwebprint.desktop',
       );
-async function run(action, extra = [], success = true, env = process.env) {
-  const child = spawn(node, [manager, ...common, action, ...extra], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env,
-  });
+async function run(action, extra = [], success = true, env = process.env, hardware = false) {
+  const child = spawn(
+    node,
+    [manager, ...common, ...(!hardware ? ['--skip-hardware-setup'] : []), action, ...extra],
+    {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env,
+    },
+  );
   let output = '';
   child.stdout.on('data', (chunk) => {
     output += chunk;
@@ -241,7 +245,10 @@ const base = `http://127.0.0.1:${port}`;
 try {
   assert.match(await run('install', ['--port', String(port)], false), /in use/);
   await new Promise((done) => portServer.close(done));
-  await run('install', ['--port', String(port)]);
+  const installed = await run('install', ['--port', String(port)], true, process.env, true);
+  assert.match(installed, /Printing and scanning prerequisites/);
+  assert.match(installed, /Software checks passed|Hardware setup is incomplete/);
+  assert.match(installed, /is running at/);
   await writeFile(serverEntry, originalServer);
   await writeFile(join(root, 'app/apps/server/dist/index.js'), originalServer);
   if (shortcuts) {
@@ -255,6 +262,19 @@ try {
   assert.equal(session.authenticated, false);
   assert.equal(session.onboardingRequired, true);
   const headers = { Origin: base, 'x-openwebprint': '1', 'Content-Type': 'application/json' };
+  const prerequisitesResponse = await fetch(`${base}/api/hardware/prerequisites`, {
+    method: 'POST',
+    headers,
+    body: '{}',
+  });
+  assert.equal(prerequisitesResponse.status, 200);
+  const prerequisites = await prerequisitesResponse.json();
+  assert.equal(prerequisites.method, 'native');
+  assert.equal(
+    prerequisites.setupCommand,
+    `'${join(root, 'openwebprint').replaceAll("'", "'\\''")}' hardware`,
+  );
+  assert.ok(!prerequisites.guidance.includes('Docker'));
   const demo = await fetch(`${base}/api/onboarding/demo`, { method: 'POST', headers, body: '{}' });
   assert.equal(demo.status, 200, await demo.text());
   const snapshot = await (await fetch(`${base}/api/snapshot`)).json();

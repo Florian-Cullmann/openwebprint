@@ -101,6 +101,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
       expect(result.warnings).toHaveLength(1);
       expect(result.warnings[0]).toContain('Local Network');
       expect(result.warnings[0]).toContain('IP address');
+      expect(result.warnings[0]).not.toContain('Docker');
     } finally {
       advertisements.enabled = true;
       vi.useRealTimers();

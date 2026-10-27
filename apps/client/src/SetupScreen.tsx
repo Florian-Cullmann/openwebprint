@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Check, FolderOpen, Plus, Printer, Radar, ScanLine } from 'lucide-react';
-import type { DeviceInput, DiscoveryResult, OnboardingState } from '@openwebprint/shared';
+import type {
+  DeviceInput,
+  DiscoveryResult,
+  OnboardingState,
+  HardwareReport,
+} from '@openwebprint/shared';
 import { api, post } from './api';
 import { DeviceDialog } from './DeviceDialog';
 import { Brand } from './Brand';
@@ -8,6 +13,9 @@ import { Spinner } from './ui';
 import s from './App.module.css';
 export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
   const [state, setState] = useState<OnboardingState>();
+  const [hardware, setHardware] = useState<HardwareReport>();
+  const [checking, setChecking] = useState(false);
+  const [hardwareError, setHardwareError] = useState('');
   const [discovery, setDiscovery] = useState<DiscoveryResult>();
   const [selected, setSelected] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
@@ -30,6 +38,21 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
       alive.current = false;
     };
   }, [load]);
+  const prerequisites = useCallback(async () => {
+    setChecking(true);
+    setHardwareError('');
+    try {
+      const result = await post<HardwareReport>('/hardware/prerequisites');
+      if (alive.current) setHardware(result);
+    } catch (e) {
+      if (alive.current) setHardwareError((e as Error).message);
+    } finally {
+      if (alive.current) setChecking(false);
+    }
+  }, []);
+  useEffect(() => {
+    if (state?.phase === 'devices') void prerequisites();
+  }, [state?.phase, prerequisites]);
   const discover = useCallback(async () => {
     setSearching(true);
     setError('');
@@ -166,6 +189,78 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
             </p>
             {state.phase === 'devices' ? (
               <>
+                <section
+                  className={s.setupPrerequisites}
+                  aria-label="Printing and scanning prerequisites"
+                  aria-busy={checking}
+                >
+                  <h2>Printing and scanning prerequisites</h2>
+                  <p role="status">
+                    {checking
+                      ? 'Checking software and service access…'
+                      : hardware
+                        ? hardware.ready
+                          ? 'Software checks passed'
+                          : 'Hardware setup needs attention'
+                        : 'Software access has not been checked.'}
+                  </p>
+                  {hardware && (
+                    <>
+                      <ul>
+                        {hardware.checks.map((check) => (
+                          <li key={check.id}>
+                            <strong>{check.label}:</strong>{' '}
+                            {
+                              {
+                                ok: 'Available',
+                                empty: 'Search succeeded; no devices found',
+                                missing: 'Software missing',
+                                unavailable: 'Service or backend unavailable',
+                                permission: 'Permission denied',
+                                timeout: 'Check timed out',
+                              }[check.state]
+                            }
+                          </li>
+                        ))}
+                      </ul>
+                      <p>{hardware.guidance}</p>
+                      {hardware.setupCommand ? (
+                        <>
+                          <p>
+                            To install missing packages or start services, run the integrated setup
+                            in Terminal on this computer. It shows each OS change and asks for your
+                            consent. Then check again here.
+                          </p>
+                          <pre className={s.setupCommand}>
+                            <code>{hardware.setupCommand}</code>
+                          </pre>
+                        </>
+                      ) : (
+                        <p>
+                          {hardware.method === 'container'
+                            ? 'Update the container hardware stack on its host, then check again.'
+                            : 'For source installations, use the hardware prerequisites in the project installation guide or switch to the official installer for guided dependency setup.'}
+                        </p>
+                      )}
+                      <p className={s.small}>{hardware.note}</p>
+                      <p className={s.small}>
+                        Checked: {new Date(hardware.checkedAt).toLocaleString()}
+                      </p>
+                    </>
+                  )}
+                  {hardwareError && (
+                    <p role="alert" className={s.error}>
+                      {hardwareError}
+                    </p>
+                  )}
+                  <button
+                    className={s.secondary}
+                    disabled={checking}
+                    onClick={() => void prerequisites()}
+                  >
+                    {checking ? <Spinner /> : <Check size={16} />} Check prerequisites again
+                  </button>
+                </section>
                 <div className={s.setupSearch}>
                   <p>
                     {searching ? (

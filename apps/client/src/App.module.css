@@ -1921,3 +1921,24 @@
     margin-left: auto;
   }
 }
+
+.setupPrerequisites {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  overflow-wrap: anywhere;
+}
+.setupPrerequisites h2 {
+  font-size: 1.1rem;
+  margin-top: 0;
+}
+.setupPrerequisites p,
+.setupPrerequisites li {
+  line-height: 1.6;
+}
+.setupCommand {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+}

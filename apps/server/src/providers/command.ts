@@ -26,7 +26,8 @@ export const command: Command = async (executable, args, timeout = 20_000, signa
     const pending = execute(executable, args, {
       timeout,
       maxBuffer: 2 * 1024 * 1024,
-      env: { ...process.env, LANG: 'C', LC_ALL: 'C', LANGUAGE: 'C' },
+      // macOS CUPS only honors LANG when SOFTWARE is set.
+      env: { ...process.env, SOFTWARE: 'openwebprint', LANG: 'C', LC_ALL: 'C', LANGUAGE: 'C' },
       shell: false,
     });
     if (signal) {

@@ -122,6 +122,8 @@ Named volumes retain `/etc/cups` and the CUPS spool. To supply custom SANE confi
 
 ## Troubleshooting
 
+With the official installer after beta.2, hardware onboarding checks software and service access and shows a local `openwebprint hardware` command for the consent-based dependency setup. See [guided installation](installation.md#hardware-on-linux-and-macos). Native installations receive OS-specific recovery guidance; container prerequisites must be repaired in the container/host configuration. Checks distinguish missing software, service/backend failures, permissions, timeouts and empty searches. They never print or acquire a scan.
+
 | Symptom                                   | Check                                                                                                    |
 | ----------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Device never appears                      | Same subnet, multicast enabled, guest-network isolation, VPN, Avahi, device protocol settings            |

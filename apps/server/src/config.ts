@@ -2,6 +2,7 @@ import { isAbsolute, resolve } from 'node:path';
 import { z } from 'zod';
 
 const envSchema = z.object({
+  OPENWEBPRINT_INSTALL_ROOT: z.string().refine(isAbsolute).optional(),
   MODE: z.enum(['demo', 'hardware']).optional(),
   HOST: z.string().default('127.0.0.1'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
@@ -27,6 +28,7 @@ export function readConfig(env = process.env) {
   const e = envSchema.parse(env);
   return {
     mode: e.MODE,
+    installRoot: e.OPENWEBPRINT_INSTALL_ROOT,
     host: e.HOST,
     port: e.PORT,
     dataDir: resolve(e.DATA_DIR),
