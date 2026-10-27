@@ -8,19 +8,73 @@ async function setup(page: Page) {
   const variants: [string, Device['capabilities']][] = [
     [
       'Short edge fixture',
-      { color: false, sides: ['one-sided', 'two-sided-short-edge'], media: ['iso_a4_210x297mm'] },
+      {
+        color: false,
+        colorModes: ['monochrome'],
+        sides: ['one-sided', 'two-sided-short-edge'],
+        media: ['iso_a4_210x297mm'],
+      },
     ],
     [
       'Long edge fixture',
-      { color: false, sides: ['one-sided', 'two-sided-long-edge'], media: ['iso_a4_210x297mm'] },
+      {
+        color: false,
+        colorModes: ['monochrome'],
+        sides: ['one-sided', 'two-sided-long-edge'],
+        media: ['iso_a4_210x297mm'],
+      },
     ],
-    ['Both edges fixture', { color: false, sides: [...PRINT_SIDES], media: ['iso_a4_210x297mm'] }],
-    ['Simplex fixture', { color: false, sides: ['one-sided'], media: ['iso_a4_210x297mm'] }],
-    ['Missing sides fixture', { color: false, media: ['iso_a4_210x297mm'] }],
-    ['Unsupported sides fixture', { color: false, sides: [], media: ['iso_a4_210x297mm'] }],
+    [
+      'Both edges fixture',
+      {
+        color: false,
+        colorModes: ['monochrome'],
+        sides: [...PRINT_SIDES],
+        media: ['iso_a4_210x297mm'],
+      },
+    ],
+    [
+      'Simplex fixture',
+      {
+        color: false,
+        colorModes: ['monochrome'],
+        sides: ['one-sided'],
+        media: ['iso_a4_210x297mm'],
+      },
+    ],
+    [
+      'Missing sides fixture',
+      { color: false, colorModes: ['monochrome'], media: ['iso_a4_210x297mm'] },
+    ],
+    [
+      'Unsupported sides fixture',
+      { color: false, colorModes: ['monochrome'], sides: [], media: ['iso_a4_210x297mm'] },
+    ],
     ['Unreachable fixture', undefined],
-    ['Color printer fixture', { color: true, sides: ['one-sided'], media: ['iso_a4_210x297mm'] }],
+    [
+      'Color printer fixture',
+      {
+        color: true,
+        colorModes: ['monochrome', 'color'],
+        sides: ['one-sided'],
+        media: ['iso_a4_210x297mm'],
+      },
+    ],
   ];
+  variants.push(
+    [
+      'Color-only fixture',
+      { color: true, colorModes: ['color'], sides: ['one-sided'], media: ['iso_a4_210x297mm'] },
+    ],
+    [
+      'Missing color modes fixture',
+      { color: true, sides: ['one-sided'], media: ['iso_a4_210x297mm'] },
+    ],
+    [
+      'Unsupported color modes fixture',
+      { color: true, colorModes: [], sides: ['one-sided'], media: ['iso_a4_210x297mm'] },
+    ],
+  );
   const snapshot: Snapshot = {
     mode: 'demo',
     devicesCheckedAt: new Date().toISOString(),
@@ -169,7 +223,7 @@ test('reconciles sides when capabilities change on the same printer (browser fix
   await expect(submit).toBeEnabled();
 });
 
-test('selects print color with keyboard and pointer, resets on printer change and submits the chosen mode (browser fixtures)', async ({
+test('selects print color with keyboard and pointer, reconciles printer changes and submits the chosen mode (browser fixtures)', async ({
   page,
 }, info) => {
   await setup(page);
@@ -216,4 +270,99 @@ test('selects print color with keyboard and pointer, resets on printer change an
   await page.getByRole('button', { name: 'Start demo print', exact: true }).click();
   await expect(page.getByRole('alert')).toHaveText('Print submission captured by browser fixture.');
   expect(submitted).toContain('"color":"color"');
+});
+
+for (const [label, mode, text] of [
+  ['Color-only fixture', 'color', 'Color'],
+  ['Simplex fixture', 'monochrome', 'Black and white'],
+] as const) {
+  test(`offers and submits only ${mode} on a single-mode printer (browser fixtures)`, async ({
+    page,
+  }, info) => {
+    await setup(page);
+    await page.getByRole('combobox', { name: 'Printer', exact: true }).selectOption({ label });
+    const group = page.getByRole('group', { name: 'Color mode', exact: true });
+    await expect(group).toHaveText(`Color mode${text}`);
+    await expect(group.getByRole('radio')).toHaveCount(0);
+    const submit = page.getByRole('button', { name: 'Start demo print', exact: true });
+    await expect(submit).toBeEnabled();
+    await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveCSS(
+      'filter',
+      mode === 'color' ? 'none' : 'grayscale(1)',
+    );
+    if (mode === 'color') {
+      await group.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: `test-results/${info.project.name}-62-color-only.png`,
+        fullPage: true,
+      });
+      const accessibility = await new AxeBuilder({ page }).analyze();
+      expect(
+        accessibility.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+      ).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    }
+    let submitted = '';
+    await page.route('**/api/print', (route) => {
+      submitted = route.request().postData() ?? '';
+      return route.fulfill({
+        status: 409,
+        json: { error: 'Color mode captured by browser fixture.' },
+      });
+    });
+    await submit.click();
+    await expect(page.getByRole('alert')).toHaveText('Color mode captured by browser fixture.');
+    expect(submitted).toContain(`"color":"${mode}"`);
+  });
+}
+
+test('reconciles color modes across printers, missing discovery and same-printer updates (browser fixtures)', async ({
+  page,
+}) => {
+  const snapshot = await setup(page);
+  const printer = page.getByRole('combobox', { name: 'Printer', exact: true });
+  const group = page.getByRole('group', { name: 'Color mode', exact: true });
+  const submit = page.getByRole('button', { name: 'Start demo print', exact: true });
+  await printer.selectOption({ label: 'Color-only fixture' });
+  await expect(group).toHaveText('Color modeColor');
+  await printer.selectOption({ label: 'Color printer fixture' });
+  await expect(group.getByRole('radio', { name: 'Color', exact: true })).toBeChecked();
+  await printer.selectOption({ label: 'Simplex fixture' });
+  await expect(group).toHaveText('Color modeBlack and white');
+  await printer.selectOption({ label: 'Missing color modes fixture' });
+  await expect(group).toHaveText('Color modeColor modes unavailable');
+  await expect(group.getByRole('radio')).toHaveCount(0);
+  await expect(submit).toBeDisabled();
+  await expect(
+    page.getByText('Print color modes are unavailable. Check the CUPS connection.'),
+  ).toBeVisible();
+  await printer.selectOption({ label: 'Unsupported color modes fixture' });
+  await expect(group).toHaveText('Color modeNo supported color modes');
+  await expect(submit).toBeDisabled();
+  await expect(
+    page.getByText('This printer reports no supported print color modes.'),
+  ).toBeVisible();
+  await printer.selectOption({ label: 'Short edge fixture' });
+  const caps = snapshot.devices[0].capabilities!;
+  caps.colorModes = ['color'];
+  await page.clock.runFor(5100);
+  await expect(group).toHaveText('Color modeColor');
+  await expect(submit).toBeEnabled();
+  caps.colorModes = ['monochrome', 'color'];
+  await page.clock.runFor(5100);
+  await expect(group.getByRole('radio', { name: 'Color', exact: true })).toBeChecked();
+  caps.colorModes = undefined;
+  await page.clock.runFor(5100);
+  await expect(group).toHaveText('Color modeColor modes unavailable');
+  await expect(submit).toBeDisabled();
+  caps.colorModes = [];
+  await page.clock.runFor(5100);
+  await expect(group).toHaveText('Color modeNo supported color modes');
+  await expect(submit).toBeDisabled();
+  caps.colorModes = ['color'];
+  await page.clock.runFor(5100);
+  await expect(group).toHaveText('Color modeColor');
+  await expect(submit).toBeEnabled();
 });

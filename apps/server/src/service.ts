@@ -294,8 +294,13 @@ export class Service {
         409,
         'Unable to retrieve supported print sides. Check the CUPS connection.',
       );
+    if (!caps.colorModes)
+      throw new AppError(
+        409,
+        'Unable to retrieve supported print color modes. Check the CUPS connection.',
+      );
     if (
-      (options.color === 'color' && !caps.color) ||
+      !caps.colorModes.includes(options.color) ||
       !caps.sides.includes(options.sides) ||
       !caps.media.includes(options.media)
     ) {
