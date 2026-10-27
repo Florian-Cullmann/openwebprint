@@ -3,8 +3,28 @@ import sharp from 'sharp';
 import { writeFile } from 'node:fs/promises';
 import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
+import { resolvePrintPages, type PrintOptions } from '@openwebprint/shared';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
+export async function selectPrintPages(buffer: Buffer, options: PrintOptions): Promise<Buffer> {
+  const source = await PDFDocument.load(buffer, { updateMetadata: false });
+  let pages: number[];
+  try {
+    pages = resolvePrintPages(source.getPageCount(), options);
+  } catch (error) {
+    throw new AppError(400, (error as Error).message);
+  }
+  // Preserve the original bytes for all-page submissions, including saved large scans.
+  if (pages.length === source.getPageCount()) return buffer;
+  const selected = await PDFDocument.create();
+  for (const page of await selected.copyPages(
+    source,
+    pages.map((page) => page - 1),
+  ))
+    selected.addPage(page);
+  return Buffer.from(await selected.save());
+}
+
 export async function normalizeDocument(buffer: Buffer, claimedType: string): Promise<Buffer> {
   if (buffer.length === 0 || buffer.length > MAX_UPLOAD)
     throw new AppError(413, 'The file must be between 1 byte and 25 MB.');

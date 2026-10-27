@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
+import { resolvePrintPages, formatPrintPages } from '@openwebprint/shared';
 import { api, post, documentData, ApiError } from './api';
 import { DocumentPreview } from './DocumentPreview';
 import { ColorModeControl } from './CapabilityControls';
@@ -35,6 +36,7 @@ export function PrintDialog({
   const [deviceId, setDeviceId] = useState(initial ?? printers[0]?.id ?? '');
   const [file, setFile] = useState<File>();
   const [preview, setPreview] = useState<Uint8Array>();
+  const [pageCount, setPageCount] = useState<number>();
   const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -53,10 +55,20 @@ export function PrintDialog({
   });
   const validSides = !!supportedSides?.includes(options.sides);
   const hasDocument = !!source || !!file;
+  let selectedPages: number[] = [];
+  let selectionError = '';
+  if (pageCount) {
+    try {
+      selectedPages = resolvePrintPages(pageCount, options);
+    } catch (e) {
+      selectionError = (e as Error).message;
+    }
+  }
   useEffect(() => {
     if (!file && !source) return;
     const controller = new AbortController();
     setPreview(undefined);
+    setPageCount(undefined);
     setPreviewing(true);
     setError('');
     const form = new FormData();
@@ -103,6 +115,8 @@ export function PrintDialog({
       return;
     }
     setFile(file);
+    setPreview(undefined);
+    setPageCount(undefined);
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -114,6 +128,7 @@ export function PrintDialog({
       !preview ||
       previewing ||
       !validSides ||
+      !selectedPages.length ||
       device.status === 'offline'
     )
       return;
@@ -195,7 +210,16 @@ export function PrintDialog({
             {hasDocument && (
               <div>
                 {preview ? (
-                  <DocumentPreview data={preview} monochrome={options.color === 'monochrome'} />
+                  <>
+                    <DocumentPreview
+                      data={preview}
+                      monochrome={options.color === 'monochrome'}
+                      onPageCount={setPageCount}
+                    />
+                    <p className={s.previewHint}>
+                      Preview shows the full document with original page numbers.
+                    </p>
+                  </>
                 ) : (
                   <div className={s.previewPlaceholder}>
                     {previewing ? (
@@ -278,6 +302,83 @@ export function PrintDialog({
                   ))}
                 </select>
               </label>
+              {hasDocument && (
+                <div className={s.pageSelection}>
+                  <div className={s.formGrid}>
+                    <label>
+                      Pages
+                      <select
+                        value={options.pageRanges === undefined ? 'all' : 'custom'}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            pageRanges: e.target.value === 'all' ? undefined : '',
+                          })
+                        }
+                      >
+                        <option value="all">All pages</option>
+                        <option value="custom">Custom range</option>
+                      </select>
+                    </label>
+                    <label>
+                      Page filter
+                      <select
+                        value={options.pageParity ?? 'all'}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setOptions({
+                            ...options,
+                            pageParity: e.target.value as PrintOptions['pageParity'],
+                          })
+                        }
+                      >
+                        <option value="all">All pages</option>
+                        <option value="odd">Odd pages</option>
+                        <option value="even">Even pages</option>
+                      </select>
+                    </label>
+                  </div>
+                  {options.pageRanges !== undefined && (
+                    <label>
+                      Page range
+                      <input
+                        value={options.pageRanges}
+                        placeholder="1-3, 7"
+                        maxLength={2000}
+                        disabled={busy}
+                        aria-invalid={!!selectionError}
+                        aria-describedby={`print-page-help${selectionError ? ' print-page-error' : ''}`}
+                        onChange={(e) => setOptions({ ...options, pageRanges: e.target.value })}
+                      />
+                    </label>
+                  )}
+                  <p id="print-page-help" className={s.previewHint}>
+                    Ranges use original page numbers. The filter applies within the range.
+                    Duplicates print once, in document order.
+                  </p>
+                  {selectionError && (
+                    <p id="print-page-error" role="alert" className={s.error}>
+                      {selectionError}
+                    </p>
+                  )}
+                  {!!selectedPages.length && (
+                    <p role="status" className={s.pageSelectionSummary}>
+                      {selectedPages.length} of {pageCount} pages per copy · Pages{' '}
+                      {formatPrintPages(selectedPages)}
+                      {' · '}
+                      {options.copies} {options.copies === 1 ? 'copy' : 'copies'}
+                    </p>
+                  )}
+                  {options.sides !== 'one-sided' && (
+                    <p className={s.previewHint}>
+                      Duplex pairs consecutive selected pages on the front and back of each sheet.
+                      Skipped pages leave no gaps; an unpaired final page has a blank back. Odd/even
+                      filtering does not perform manual duplex printing.
+                    </p>
+                  )}
+                </div>
+              )}
               <div className={s.formGrid}>
                 <ColorModeControl
                   modes={[
@@ -383,6 +484,7 @@ export function PrintDialog({
                 !preview ||
                 previewing ||
                 !validSides ||
+                !selectedPages.length ||
                 !device?.capabilities?.media.length
               }
             >
