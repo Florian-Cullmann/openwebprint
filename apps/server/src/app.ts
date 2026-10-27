@@ -14,13 +14,15 @@ import {
   scanOptionsSchema,
   scanChoiceSchema,
   scanPagesSchema,
+  retentionSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
-import { Store, publicJob, storedScanPages } from './store.js';
+import { Store, storedScanPages } from './store.js';
 import { Auth } from './auth.js';
 import { Workspace } from './workspace.js';
 import type { Provider } from './providers/types.js';
 import { AppError } from './errors.js';
+import { retentionPolicy } from './retention.js';
 import { MAX_UPLOAD, normalizeDocument, renderScanPage } from './documents.js';
 
 const credentials = z.object({
@@ -169,6 +171,16 @@ export async function createApp(
     const { path } = z.object({ path: z.string().trim().min(1).max(1024) }).parse(req.body);
     return workspace.saveStorage(path);
   });
+  app.get('/api/retention', async () => retentionPolicy(store));
+  app.post('/api/retention/preview', async (req) =>
+    workspace.retentionImpact(retentionSchema.parse(req.body)),
+  );
+  app.put('/api/retention', async (req) => {
+    const { confirm, ...policy } = retentionSchema
+      .extend({ confirm: z.boolean().default(false) })
+      .parse(req.body);
+    return workspace.saveRetention(policy, confirm);
+  });
   app.get('/api/snapshot', async () => workspace.snapshot());
   app.get('/api/jobs', async (req) => {
     const query = z
@@ -207,7 +219,7 @@ export async function createApp(
     return workspace.run((service) => service.listJobs({ ...query, before }));
   });
   app.get('/api/jobs/:id', async (req) =>
-    workspace.run((service) => publicJob(service.job(idParam.parse(req.params).id))),
+    workspace.run((service) => service.publicJob(service.job(idParam.parse(req.params).id))),
   );
   let discovery: Promise<Awaited<ReturnType<Provider['discover']>>> | undefined;
   app.post(
@@ -324,6 +336,7 @@ export async function createApp(
       return reply.type('image/png').send(await workspace.service.scanThumbnail(id, pageId));
     const job = workspace.service.job(id);
     if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
+    workspace.service.availableJob(id);
     const page = storedScanPages(job).find((page) => page.id === pageId);
     if (!page) throw new AppError(404, 'Page unavailable.');
     return reply
@@ -345,8 +358,9 @@ export async function createApp(
     if (!job.hasFile || (format === 'preview' && job.kind !== 'scan'))
       throw new AppError(
         404,
-        'No document available. Files expire after 7 days; older print jobs may have no retained preview.',
+        'No document available. Files follow the instance retention policy; older print jobs may have no retained preview.',
       );
+    workspace.service.availableJob(id);
     const path = format === 'preview' ? job.previewPath : job.filePath;
     if (!path) throw new AppError(404, 'File unavailable.');
     const { revision } = z
@@ -380,7 +394,7 @@ export async function createApp(
     }, 2000);
     timer.unref();
     retention = setInterval(() => {
-      void workspace.service.expireFiles().catch(() => app.log.error('Retention cleanup failed'));
+      void workspace.expireFiles().catch(() => app.log.error('Retention cleanup failed'));
     }, 3600_000);
     retention.unref();
   }

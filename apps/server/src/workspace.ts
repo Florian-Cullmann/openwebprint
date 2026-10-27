@@ -1,7 +1,14 @@
 import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { DeviceInput, Mode, OnboardingState } from '@openwebprint/shared';
+import type {
+  DeviceInput,
+  Mode,
+  OnboardingState,
+  RetentionPolicy,
+  RetentionImpact,
+} from '@openwebprint/shared';
+import { expired, retentionPolicy } from './retention.js';
 import type { Config } from './config.js';
 import { Store } from './store.js';
 import { Service } from './service.js';
@@ -207,6 +214,36 @@ export class Workspace {
       if (finishSetup) this.store.set('onboarding-phase', 'complete');
       return this.state();
     });
+  }
+  retentionImpact(policy: RetentionPolicy): RetentionImpact {
+    const previous = retentionPolicy(this.store);
+    const impact = { scans: 0, prints: 0 };
+    for (const job of [...this.store.jobs('demo'), ...this.store.jobs('hardware')]) {
+      const shorter =
+        job.kind === 'scan'
+          ? policy.scanDays < previous.scanDays
+          : policy.printDays < previous.printDays;
+      if (shorter && job.hasFile && expired(job, policy)) {
+        if (job.kind === 'scan') impact.scans++;
+        else impact.prints++;
+      }
+    }
+    return impact;
+  }
+  saveRetention(policy: RetentionPolicy, confirmed: boolean) {
+    const impact = this.retentionImpact(policy);
+    if ((impact.scans || impact.prints) && !confirmed)
+      throw new AppError(
+        409,
+        'This shorter policy makes existing documents eligible for deletion. Review the impact and confirm the change.',
+      );
+    this.store.set('retention', JSON.stringify(policy));
+    return policy;
+  }
+  async expireFiles() {
+    if (!this.transitioning) {
+      await this.track(Promise.all([this.demo.expireFiles(), this.hardware.expireFiles()]));
+    }
   }
   async tick() {
     if (!this.transitioning) await this.service.tick();

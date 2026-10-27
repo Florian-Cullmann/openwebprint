@@ -30,6 +30,7 @@ import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-
 import { Brand } from './Brand';
 import { SetupScreen } from './SetupScreen';
 import { StorageSettings } from './StorageSettings';
+import { RetentionSettings } from './RetentionSettings';
 import { JobPreviewDialog } from './JobPreviewDialog';
 import { JobHistory } from './JobHistory';
 import { UsersSettings } from './UsersSettings';
@@ -674,10 +675,11 @@ export function App() {
                         </p>
                       </SettingsCard>
                       <StorageSettings demo={demo} />
+                      <RetentionSettings />
                       <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
                         <p>
-                          Sessions last 7 days. Print previews and scan files are removed after 7
-                          days, or earlier when you delete their jobs.
+                          Sessions last 7 days. Document files follow the retention periods above,
+                          or are removed earlier when you delete their jobs.
                         </p>
                         <p>
                           CUPS has its own spool and retention rules. Use HTTPS and secure cookies

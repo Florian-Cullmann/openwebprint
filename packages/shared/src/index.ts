@@ -138,6 +138,20 @@ export const scanPagesSchema = z.object({
     .min(1)
     .max(MAX_SCAN_PAGES),
 });
+// Instance policy: whole days from job creation; edits/appends do not reset the clock.
+export const retentionSchema = z
+  .object({
+    scanDays: z.int().min(1).max(3650),
+    printDays: z.int().min(1).max(3650),
+  })
+  .strict();
+export type RetentionPolicy = z.infer<typeof retentionSchema>;
+export interface RetentionImpact {
+  scans: number;
+  prints: number;
+}
+export const DEFAULT_RETENTION: RetentionPolicy = { scanDays: 7, printDays: 7 };
+
 export interface Job {
   id: string;
   deviceId: string;
@@ -151,6 +165,7 @@ export interface Job {
   options: PrintOptions | ScanOptions;
   error?: string;
   hasFile: boolean;
+  expiresAt?: string;
   pages?: ScanPage[];
   scanRevision?: string;
 }

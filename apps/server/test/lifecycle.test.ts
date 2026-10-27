@@ -85,7 +85,7 @@ it('expires files from both modes, even while only demo mode is selected', async
     options: { resolution: 300, color: 'Color' },
   };
   f.store.putJob(job);
-  await f.service.expireFiles();
+  await f.workspace.expireFiles();
   await expect(access(path)).rejects.toThrow();
   expect(f.store.job(job.id, 'hardware')!.hasFile).toBe(false);
   expect((await f.service.snapshot()).jobs).toEqual([]);

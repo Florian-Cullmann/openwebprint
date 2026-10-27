@@ -31,6 +31,7 @@ import {
   SCAN_THUMBNAIL_SIZE,
 } from './documents.js';
 import { ScannerCapabilities } from './scan-capabilities.js';
+import { expired, retentionPolicy } from './retention.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
 const DEVICE_STATUS_TTL = 5000;
@@ -104,18 +105,50 @@ export class Service {
     for (const input of demoDevices) await this.addDevice(input);
     this.store.set('demo-seeded', 'true');
   }
-  async expireFiles() {
-    for (const job of [...this.store.jobs('demo'), ...this.store.jobs('hardware')]) {
+  expireFiles(): Promise<void> {
+    // Share overlapping cleanup passes and drain them before shutdown/mode transitions.
+    this.cleanup ??= this.cleanupFiles().finally(() => {
+      this.cleanup = undefined;
+    });
+    return this.cleanup;
+  }
+  private cleanup?: Promise<void>;
+  private async cleanupFiles() {
+    for (const { id } of this.store.jobs(this.mode)) {
+      const job = this.store.job(id, this.mode);
       if (
+        job &&
         !this.activeJobs.has(job.id) &&
-        (job.kind === 'print' || terminal.has(job.status)) &&
-        Date.now() - new Date(job.createdAt).getTime() > 7 * 86400_000 &&
+        (terminal.has(job.status) || (job.kind === 'print' && job.status === 'unknown')) &&
+        expired(job, retentionPolicy(this.store)) &&
         job.hasFile
       ) {
-        await this.removeFiles(job);
-        if (this.store.job(job.id, job.mode)) this.store.putJob(job);
+        // Lock synchronously before filesystem awaits so an edit/append cannot race deletion.
+        this.activeJobs.add(job.id);
+        try {
+          await this.removeFiles(job);
+          const current = this.store.job(job.id, this.mode);
+          if (current) {
+            this.clearFileReferences(current);
+            this.store.putJob(current);
+          }
+        } finally {
+          this.activeJobs.delete(job.id);
+        }
       }
     }
+  }
+  publicJob(job: StoredJob) {
+    return publicJob(job, retentionPolicy(this.store));
+  }
+  availableJob(id: string) {
+    const job = this.job(id);
+    if (!job.hasFile || expired(job, retentionPolicy(this.store)))
+      throw new AppError(
+        410,
+        'This document has expired or was deleted. Upload it again or create a new scan.',
+      );
+    return job;
   }
   private thumbnailDirectory(id: string) {
     return join(this.filesDir, `${id}.thumbnails`);
@@ -124,6 +157,7 @@ export class Service {
     const job = this.job(id);
     if (job.kind !== 'scan' || !job.hasFile || this.removingFiles.has(id))
       throw new AppError(404, 'Page unavailable.');
+    this.availableJob(id);
     const pages = storedScanPages(job);
     const page = pageId ? pages.find((page) => page.id === pageId) : pages[0];
     if (!page) throw new AppError(404, 'Page unavailable.');
@@ -255,13 +289,13 @@ export class Service {
   async snapshot(): Promise<Snapshot> {
     return {
       ...(await this.deviceState()),
-      jobs: this.store.jobPage(this.mode, { limit: 200 }).map(publicJob),
+      jobs: this.store.jobPage(this.mode, { limit: 200 }).map((job) => this.publicJob(job)),
       mode: this.mode,
     };
   }
   listJobs(options: JobPageOptions): JobPage {
     const rows = this.store.jobPage(this.mode, { ...options, limit: options.limit + 1 });
-    const jobs = rows.slice(0, options.limit).map(publicJob);
+    const jobs = rows.slice(0, options.limit).map((job) => this.publicJob(job));
     const last = jobs.at(-1);
     return {
       jobs,
@@ -306,12 +340,8 @@ export class Service {
     return this.submitPrint(deviceId, () => normalizeDocument(data, mime), name, options);
   }
   async document(id: string, revision?: string) {
-    const job = this.job(id);
-    if (
-      !job.hasFile ||
-      !job.filePath ||
-      Date.now() - new Date(job.createdAt).getTime() > 7 * 86400_000
-    )
+    const job = this.availableJob(id);
+    if (!job.filePath)
       throw new AppError(
         410,
         'This document has expired or was deleted. Upload it again or create a new scan.',
@@ -402,6 +432,7 @@ export class Service {
     await writeFile(job.filePath, normalized, { mode: 0o600 });
     job.hasFile = true;
     this.store.putJob(job);
+    this.activeJobs.add(job.id);
     try {
       // The PDF already contains the selection. Providers must not filter it again.
       const providerOptions = { ...options };
@@ -413,10 +444,11 @@ export class Service {
       job.status = 'unknown';
       job.error = e instanceof Error ? e.message : 'Print submission failed.';
     } finally {
+      this.activeJobs.delete(job.id);
       job.updatedAt = new Date().toISOString();
       this.store.putJob(job);
     }
-    return publicJob(job);
+    return this.publicJob(job);
   }
   async scanSources(deviceId: string, source?: string, refresh = false) {
     const device = this.device(deviceId);
@@ -452,7 +484,7 @@ export class Service {
     });
     this.activeScans.set(job.id, { controller, task });
     this.tasks.add(task);
-    return publicJob(job);
+    return this.publicJob(job);
   }
   private prepareScan(job: StoredJob) {
     job.scanDirectory ??= join(
@@ -466,6 +498,7 @@ export class Service {
     this.store.putJob(job);
   }
   private editableScan(job: StoredJob) {
+    this.availableJob(job.id);
     if (
       job.kind !== 'scan' ||
       !job.hasFile ||
@@ -598,7 +631,7 @@ export class Service {
     // Track the work without an unhandled rejection during shutdown.
     const tracked = task.catch(() => {}).finally(() => this.tasks.delete(tracked));
     this.tasks.add(tracked);
-    return task.then(() => publicJob(job));
+    return task.then(() => this.publicJob(job));
   }
   async removeFiles(job: StoredJob) {
     this.removingFiles.add(job.id);
@@ -609,15 +642,18 @@ export class Service {
       await remove(job.previewPath);
       for (const page of storedScanPages(job)) await remove(page.path);
       if (job.scanDirectory) await rm(job.scanDirectory, { recursive: true, force: true });
-      job.filePath = undefined;
-      job.previewPath = undefined;
-      job.scanPages = undefined;
-      job.scanDirectory = undefined;
-      job.scanWorkPath = undefined;
-      job.hasFile = false;
+      this.clearFileReferences(job);
     } finally {
       this.removingFiles.delete(job.id);
     }
+  }
+  private clearFileReferences(job: StoredJob) {
+    job.filePath = undefined;
+    job.previewPath = undefined;
+    job.scanPages = undefined;
+    job.scanDirectory = undefined;
+    job.scanWorkPath = undefined;
+    job.hasFile = false;
   }
   tick(): Promise<void> {
     this.polling ??= this.pollJobs().finally(() => {
@@ -634,15 +670,19 @@ export class Service {
           const device = this.store.device(job.deviceId, this.mode);
           if (!device) return;
           try {
-            Object.assign(job, await this.provider.poll(job, device));
+            const result = await this.provider.poll(job, device);
+            job.status = result.status;
+            job.error = result.error;
           } catch {
             job.status = 'unknown';
             job.error = 'Job status is currently unavailable.';
           }
           const current = this.store.job(job.id, this.mode);
           if (!current || current.status === 'canceled') return;
-          job.updatedAt = new Date().toISOString();
-          this.store.putJob(job);
+          current.status = job.status;
+          current.error = job.error;
+          current.updatedAt = new Date().toISOString();
+          this.store.putJob(current);
         }),
     );
   }
@@ -662,7 +702,7 @@ export class Service {
         throw new AppError(409, 'This scan operation cannot be canceled.');
       }
       // A completed publication wins a late cancel; never overwrite its state.
-      return publicJob(this.job(id));
+      return this.publicJob(this.job(id));
     }
     if (terminal.has(job.status) || !job.externalId)
       throw new AppError(
@@ -670,11 +710,12 @@ export class Service {
         'This job cannot be canceled. Check unconfirmed submissions directly in CUPS.',
       );
     await this.provider.cancel(job, this.device(job.deviceId));
-    job.status = 'canceled';
-    job.error = undefined;
-    job.updatedAt = new Date().toISOString();
-    this.store.putJob(job);
-    return publicJob(job);
+    const current = this.job(id);
+    current.status = 'canceled';
+    current.error = undefined;
+    current.updatedAt = new Date().toISOString();
+    this.store.putJob(current);
+    return this.publicJob(current);
   }
   async deleteJob(id: string) {
     const job = this.job(id);
@@ -689,6 +730,7 @@ export class Service {
     await Promise.all(this.tasks);
     await Promise.allSettled(this.thumbnailTasks.values());
     await this.polling;
+    await this.cleanup;
     this.deviceCache = undefined;
   }
 }
