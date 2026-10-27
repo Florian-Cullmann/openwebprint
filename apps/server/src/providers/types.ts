@@ -19,6 +19,6 @@ export interface Provider {
   print(device: Device, filePath: string, title: string, options: PrintOptions): Promise<string>;
   poll(job: StoredJob, device: Device): Promise<JobUpdate>;
   cancel(job: StoredJob, device: Device): Promise<void>;
-  scanSources(device: Device): Promise<ScanSources>;
+  scanSources(device: Device, source?: string): Promise<ScanSources>;
   scan(device: Device, outputPath: string, options: ScanOptions, pageLimit?: number): Promise<void>;
 }

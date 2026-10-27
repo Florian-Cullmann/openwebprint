@@ -10,16 +10,19 @@ export const printOptionsSchema = z.object({
     .default('iso_a4_210x297mm'),
 });
 export const MAX_SCAN_PAGES = 100;
+export const MAX_SCAN_RESOLUTION = 9600;
+export const FALLBACK_SCAN_RESOLUTIONS = [150, 300, 600];
+export const FALLBACK_SCAN_COLOR_MODES = ['Color', 'Gray'];
+export const scanChoiceSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .refine((v) => !/[\x00-\x1f\x7f]/.test(v));
 export const scanOptionsSchema = z.object({
-  resolution: z.union([z.literal(150), z.literal(300), z.literal(600)]).default(300),
-  color: z.enum(['Color', 'Gray']).default('Color'),
-  source: z
-    .string()
-    .trim()
-    .min(1)
-    .max(200)
-    .refine((v) => !/[\x00-\x1f\x7f]/.test(v))
-    .optional(),
+  resolution: z.number().min(1).max(MAX_SCAN_RESOLUTION).default(300),
+  color: scanChoiceSchema.default('Color'),
+  source: scanChoiceSchema.optional(),
   batch: z.boolean().optional(),
   duplex: z.boolean().optional(),
 });
@@ -72,9 +75,41 @@ export interface ScanPage {
   rotation: 0 | 90 | 180 | 270;
   crop?: ScanCrop;
 }
-export interface ScanSources {
+export type ScanResolutions = number[] | { min: number; max: number; step?: number };
+export interface ScanCapabilities {
+  // Undefined means unknown; [] means no selectable values within application limits.
+  resolutions?: ScanResolutions;
+  colorModes?: string[];
+  defaultResolution?: number;
+  defaultColorMode?: string;
+}
+export interface ScanSources extends ScanCapabilities {
   sources: { name: string; feeder: boolean }[];
   duplex: boolean;
+  warning?: string;
+}
+export function supportsScanResolution(resolutions: ScanResolutions, value: number): boolean {
+  if (!Number.isFinite(value) || value < 1 || value > MAX_SCAN_RESOLUTION) return false;
+  if (Array.isArray(resolutions)) return resolutions.includes(value);
+  if (value < resolutions.min || value > resolutions.max) return false;
+  if (!resolutions.step) return true;
+  const steps = (value - resolutions.min) / resolutions.step;
+  return Math.abs(steps - Math.round(steps)) < 0.00001;
+}
+export function scanSettingsError(capabilities: ScanCapabilities, options: ScanOptions) {
+  if (
+    !supportsScanResolution(
+      capabilities.resolutions ?? FALLBACK_SCAN_RESOLUTIONS,
+      options.resolution,
+    )
+  )
+    return capabilities.resolutions === undefined
+      ? 'Scanner resolutions are unknown. Choose a fallback resolution (150, 300 or 600 dpi), or retry discovery.'
+      : 'The scanner does not support the selected resolution for this paper source.';
+  if (!(capabilities.colorModes ?? FALLBACK_SCAN_COLOR_MODES).includes(options.color))
+    return capabilities.colorModes === undefined
+      ? 'Scanner color modes are unknown. Choose Color or Gray, or retry discovery.'
+      : 'The scanner does not support the selected color mode for this paper source.';
 }
 export const scanPagesSchema = z.object({
   revision: z.string().min(1).max(80),

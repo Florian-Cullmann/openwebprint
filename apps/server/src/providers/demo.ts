@@ -1,7 +1,13 @@
 import { writeFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import type { Device, DeviceInput, PrintOptions, ScanOptions } from '@openwebprint/shared';
-import { PRINT_SIDES } from '@openwebprint/shared';
+import {
+  PRINT_SIDES,
+  FALLBACK_SCAN_RESOLUTIONS,
+  FALLBACK_SCAN_COLOR_MODES,
+  scanSettingsError,
+} from '@openwebprint/shared';
+import { AppError } from '../errors.js';
 import type { StoredJob } from '../store.js';
 import type { Provider } from './types.js';
 export const demoDevices: DeviceInput[] = [
@@ -72,9 +78,15 @@ export class DemoProvider implements Provider {
         { name: 'ADF Duplex', feeder: true },
       ],
       duplex: false,
+      resolutions: [...FALLBACK_SCAN_RESOLUTIONS],
+      colorModes: [...FALLBACK_SCAN_COLOR_MODES],
+      defaultResolution: 300,
+      defaultColorMode: 'Color',
     };
   }
   async scan(_device: Device, outputPath: string, options: ScanOptions, pageLimit = 100) {
+    const settingsError = scanSettingsError(await this.scanSources(), options);
+    if (settingsError) throw new AppError(400, settingsError);
     const image = await sharp(
       Buffer.from(`<svg width="1240" height="1754" xmlns="http://www.w3.org/2000/svg">
     <rect width="1240" height="1754" fill="#fff"/><rect x="90" y="100" width="50" height="50" rx="10" fill="#24252a"/>

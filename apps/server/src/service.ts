@@ -212,12 +212,12 @@ export class Service {
     }
     return publicJob(job);
   }
-  async scanSources(deviceId: string) {
+  async scanSources(deviceId: string, source?: string) {
     const device = this.device(deviceId);
     if (device.kind !== 'scanner') throw new AppError(400, 'The selected device is not a scanner.');
     if (this.activeScanners.has(deviceId))
       throw new AppError(409, 'This scanner is already in use.');
-    return this.provider.scanSources(device);
+    return this.provider.scanSources(device, source);
   }
   scan(deviceId: string, options: ScanOptions, jobId?: string) {
     const device = this.device(deviceId);
