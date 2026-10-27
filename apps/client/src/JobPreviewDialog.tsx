@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import type { Job } from '@openwebprint/shared';
 import { documentData } from './api';
+import { DocumentExpiry } from './DocumentExpiry';
 import { DocumentPreview } from './DocumentPreview';
 import { Modal, Spinner, JobBadge } from './ui';
 import s from './App.module.css';
@@ -33,6 +34,7 @@ export function JobPreviewDialog({
           <JobBadge status={job.status} />
           <span>{job.deviceName}</span>
         </div>
+        <DocumentExpiry job={job} />
         {!job.hasFile ? (
           <p>
             Preview unavailable. The file has expired, was deleted, or belongs to an older print

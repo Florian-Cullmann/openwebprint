@@ -2,7 +2,16 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Device, Job, JobFilter, Mode, ScanPage } from '@openwebprint/shared';
+import {
+  DEFAULT_RETENTION,
+  type Device,
+  type Job,
+  type JobFilter,
+  type Mode,
+  type ScanPage,
+  type RetentionPolicy,
+} from '@openwebprint/shared';
+import { expiry } from './retention.js';
 
 export interface JobPageOptions {
   limit: number;
@@ -157,15 +166,19 @@ export class Store {
     this.db.close();
   }
 }
-export function publicJob({
-  externalId: _externalId,
-  filePath: _filePath,
-  previewPath: _previewPath,
-  scanPages: _scanPages,
-  scanDirectory: _scanDirectory,
-  scanWorkPath: _scanWorkPath,
-  ...job
-}: StoredJob): Job {
+export function publicJob(
+  {
+    externalId: _externalId,
+    filePath: _filePath,
+    previewPath: _previewPath,
+    scanPages: _scanPages,
+    scanDirectory: _scanDirectory,
+    scanWorkPath: _scanWorkPath,
+    ...job
+  }: StoredJob,
+  policy: RetentionPolicy = DEFAULT_RETENTION,
+): Job {
+  if (job.hasFile) job.expiresAt = new Date(expiry(job, policy)).toISOString();
   if (job.kind === 'scan' && job.hasFile) {
     job.pages = storedScanPages({ ...job, scanPages: _scanPages, previewPath: _previewPath }).map(
       ({ id, rotation, crop }) => ({ id, rotation, ...(crop ? { crop } : {}) }),

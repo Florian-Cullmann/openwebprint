@@ -29,6 +29,7 @@ import { DeviceDialog } from './DeviceDialog';
 import { useScanPageDrag } from './useScanPageDrag';
 import { ScanCropEditor } from './ScanCropEditor';
 import { ColorModeControl, ResolutionControl } from './CapabilityControls';
+import { DocumentExpiry } from './DocumentExpiry';
 import s from './App.module.css';
 export function ScanDialog({
   devices,
@@ -451,6 +452,7 @@ export function ScanDialog({
           <div className={s.scanControls}>
             {complete && (
               <>
+                <DocumentExpiry job={job!} />
                 <div className={s.scanDocumentSummary}>
                   <span className={`${s.badge} ${s.positive}`}>
                     <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
