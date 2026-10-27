@@ -112,6 +112,13 @@ export interface Job {
   pages?: ScanPage[];
   scanRevision?: string;
 }
+export type JobFilter = 'all' | 'active' | 'completed';
+export interface JobPage {
+  jobs: Job[];
+  total: number;
+  offset: number;
+  nextCursor?: string;
+}
 export interface DiscoveryResult {
   devices: DeviceInput[];
   warnings: string[];
