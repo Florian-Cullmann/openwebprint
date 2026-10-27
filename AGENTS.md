@@ -4,8 +4,8 @@
 
 Every project change must use a dedicated branch and a pull request, including work performed by coding agents. Keep the process lightweight and welcoming to external contributors.
 
-- GitHub issues are mandatory for features, bug fixes, and significant refactoring.
-- Issues are optional for minor documentation changes, formatting, routine dependency updates, and trivial maintenance.
+- GitHub issues are mandatory for features, larger bug fixes, and significant refactoring.
+- Issues are optional for small, obvious bug fixes, minor documentation changes, formatting, routine dependency updates, and trivial maintenance. Small, obvious bug fixes may be submitted directly as a PR; describe the problem and fix in the PR.
 - Reuse an applicable existing issue. Do not create unnecessary issues solely to satisfy the workflow.
 
 1. Before implementation, find or create an issue when required. Keep its scope and intended outcome concrete; discuss large changes before starting them.
