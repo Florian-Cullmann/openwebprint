@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
+  Printer,
   ScanLine,
   FileCheck2,
   RotateCw,
@@ -35,6 +36,7 @@ export function ScanDialog({
   close,
   changed,
   demo,
+  print,
 }: {
   devices: Device[];
   initial?: string;
@@ -42,6 +44,7 @@ export function ScanDialog({
   close: () => void;
   changed: () => void;
   demo: boolean;
+  print: (job: Job) => void;
 }) {
   const scanners = devices.filter((d) => d.kind === 'scanner');
   const [deviceId, setDeviceId] = useState(initial ?? scanners[0]?.id ?? '');
@@ -437,6 +440,14 @@ export function ScanDialog({
                     <Download size={17} /> Download PDF
                   </a>
                 </div>
+                <button
+                  type="button"
+                  className={s.secondary}
+                  disabled={locked || job?.status !== 'completed'}
+                  onClick={() => print(job!)}
+                >
+                  <Printer size={17} /> Print
+                </button>
                 {pages.length === 1 && (
                   <p className={s.small}>
                     A scan must keep at least one page. To remove the document, close this preview

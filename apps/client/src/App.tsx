@@ -785,19 +785,25 @@ export function App() {
         <PrintDialog
           devices={devices}
           initial={dialog.deviceId}
+          source={dialog.job}
           demo={demo}
           close={() => setDialog(undefined)}
           changed={() => void refresh()}
         />
       )}
       {dialog?.type === 'document' && (
-        <JobPreviewDialog job={dialog.job} close={() => setDialog(undefined)} />
+        <JobPreviewDialog
+          job={dialog.job}
+          close={() => setDialog(undefined)}
+          print={(job) => setDialog({ type: 'print', job })}
+        />
       )}
       {dialog?.type === 'scan' && (
         <ScanDialog
           devices={devices}
           initial={dialog.deviceId}
           existing={dialog.job}
+          print={(job) => setDialog({ type: 'print', job })}
           demo={demo}
           close={() => setDialog(undefined)}
           changed={() => void refresh()}

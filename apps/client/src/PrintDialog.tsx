@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
-import { api, documentData } from './api';
+import { api, post, documentData, ApiError } from './api';
 import { DocumentPreview } from './DocumentPreview';
 import { Modal, Spinner } from './ui';
 import s from './App.module.css';
@@ -21,12 +21,14 @@ export function PrintDialog({
   close,
   changed,
   demo,
+  source,
 }: {
   devices: Device[];
   initial?: string;
   close: () => void;
   changed: () => void;
   demo: boolean;
+  source?: Job;
 }) {
   const printers = devices.filter((d) => d.kind === 'printer');
   const [deviceId, setDeviceId] = useState(initial ?? printers[0]?.id ?? '');
@@ -36,6 +38,8 @@ export function PrintDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [sent, setSent] = useState<Job>();
+  const [uncertain, setUncertain] = useState(false);
+  const submitting = useRef(false);
   const [dragging, setDragging] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const device = printers.find((d) => d.id === deviceId);
@@ -47,18 +51,23 @@ export function PrintDialog({
     media: 'iso_a4_210x297mm',
   });
   const validSides = !!supportedSides?.includes(options.sides);
+  const hasDocument = !!source || !!file;
   useEffect(() => {
-    if (!file) return;
+    if (!file && !source) return;
     const controller = new AbortController();
     setPreview(undefined);
     setPreviewing(true);
+    setError('');
     const form = new FormData();
-    form.set('file', file);
-    void documentData('/documents/preview', {
-      method: 'POST',
-      body: form,
-      signal: controller.signal,
-    })
+    if (file) form.set('file', file);
+    void documentData(
+      source
+        ? `/jobs/${source.id}/document${source.scanRevision ? `?revision=${encodeURIComponent(source.scanRevision)}` : ''}`
+        : '/documents/preview',
+      source
+        ? { signal: controller.signal }
+        : { method: 'POST', body: form, signal: controller.signal },
+    )
       .then(setPreview)
       .catch((e) => {
         if (!controller.signal.aborted) setError(e.message);
@@ -67,14 +76,14 @@ export function PrintDialog({
         if (!controller.signal.aborted) setPreviewing(false);
       });
     return () => controller.abort();
-  }, [file]);
+  }, [file, source?.id, source?.scanRevision]);
   useEffect(() => {
     setOptions((o) => ({
       ...o,
       color: 'monochrome',
       media: device?.capabilities?.media[0] ?? 'iso_a4_210x297mm',
     }));
-  }, [deviceId, device?.capabilities?.media.join(',')]);
+  }, [deviceId, device?.capabilities?.media.join(','), device?.capabilities?.color]);
   useEffect(() => {
     setOptions((o) => ({
       ...o,
@@ -96,20 +105,44 @@ export function PrintDialog({
   }
   async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!file || !device || !preview || previewing || !validSides) return;
+    if (
+      submitting.current ||
+      uncertain ||
+      !hasDocument ||
+      !device ||
+      !preview ||
+      previewing ||
+      !validSides ||
+      device.status === 'offline'
+    )
+      return;
+    submitting.current = true;
     setBusy(true);
     setError('');
     const data = new FormData();
     data.set('deviceId', device.id);
     data.set('options', JSON.stringify(options));
-    data.set('file', file);
+    if (file) data.set('file', file);
     try {
-      const job = await api<Job>('/print', { method: 'POST', body: data });
+      const job = source
+        ? await post<Job>(`/jobs/${source.id}/print`, {
+            deviceId: device.id,
+            options,
+            revision: source.scanRevision,
+          })
+        : await api<Job>('/print', { method: 'POST', body: data });
       setSent(job);
       changed();
     } catch (e) {
-      setError((e as Error).message);
+      const unknown = !(e instanceof ApiError) || e.status >= 500;
+      setUncertain(unknown);
+      setError(
+        unknown
+          ? 'The submission could not be confirmed. Check Jobs and the printer before printing again; another submission could produce duplicate output.'
+          : (e as Error).message,
+      );
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -123,12 +156,16 @@ export function PrintDialog({
           : 'Print document'
       }
       subtitle={
-        demo ? 'Demo mode: nothing will be physically printed.' : 'PDF, PNG or JPEG · up to 25 MB'
+        demo
+          ? 'Demo mode: nothing will be physically printed.'
+          : source
+            ? 'Print a saved document'
+            : 'PDF, PNG or JPEG · up to 25 MB'
       }
       close={() => {
         if (!busy) close();
       }}
-      wide={!!file && !sent}
+      wide={hasDocument && !sent}
     >
       {sent ? (
         <div className={`${s.successState} ${sent.status === 'unknown' ? s.uncertainState : ''}`}>
@@ -147,8 +184,14 @@ export function PrintDialog({
         </div>
       ) : (
         <form className={s.modalBody} onSubmit={submit}>
-          <div className={file ? s.printLayout : undefined}>
-            {file && (
+          {source?.kind === 'print' && source.status === 'unknown' && (
+            <p role="alert" className={s.error}>
+              The original print outcome is unknown. Check the printer and Jobs before continuing.
+              Printing again creates a new job and may produce duplicate output.
+            </p>
+          )}
+          <div className={hasDocument ? s.printLayout : undefined}>
+            {hasDocument && (
               <div>
                 {preview ? (
                   <DocumentPreview data={preview} monochrome={options.color === 'monochrome'} />
@@ -160,50 +203,62 @@ export function PrintDialog({
                         <p>Preparing preview…</p>
                       </>
                     ) : (
-                      <p>Preview unavailable. Choose a valid document.</p>
+                      <p>
+                        {source
+                          ? 'Saved document unavailable. Close this dialog and reopen the document, or create a new scan.'
+                          : 'Preview unavailable. Choose a valid document.'}
+                      </p>
                     )}
                   </div>
                 )}
               </div>
             )}
             <div className={s.printOptions}>
-              <div
-                className={`${s.dropzone} ${file ? s.compactDropzone : ''} ${dragging ? s.dragging : ''}`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setDragging(false);
-                  choose(e.dataTransfer.files[0]);
-                }}
-              >
-                {file ? <FileText size={32} /> : <UploadCloud size={34} />}
-                <h3>{file ? file.name : 'Choose a file to print'}</h3>
-                <p>
-                  {file
-                    ? `${file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 / 1024).toFixed(2)} MB`} · ${previewing ? 'preparing preview' : preview ? 'ready to print' : 'preview unavailable'}`
-                    : 'Drop a file here or select one from your device.'}
-                </p>
-                <button
-                  type="button"
-                  className={s.secondary}
-                  disabled={busy}
-                  onClick={() => input.current?.click()}
+              {source ? (
+                <div className={`${s.dropzone} ${s.compactDropzone}`}>
+                  <FileText size={32} />
+                  <h3>{source.title}</h3>
+                  <p>Saved document · a new print job will be created.</p>
+                </div>
+              ) : (
+                <div
+                  className={`${s.dropzone} ${file ? s.compactDropzone : ''} ${dragging ? s.dragging : ''}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragging(true);
+                  }}
+                  onDragLeave={() => setDragging(false)}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setDragging(false);
+                    choose(e.dataTransfer.files[0]);
+                  }}
                 >
-                  {file ? 'Choose another file' : 'Choose file'}
-                </button>
-                <input
-                  ref={input}
-                  type="file"
-                  aria-label="Select document"
-                  accept="application/pdf,image/png,image/jpeg"
-                  className={s.srOnly}
-                  onChange={(e) => choose(e.target.files?.[0])}
-                />
-              </div>
+                  {file ? <FileText size={32} /> : <UploadCloud size={34} />}
+                  <h3>{file ? file.name : 'Choose a file to print'}</h3>
+                  <p>
+                    {file
+                      ? `${file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 / 1024).toFixed(2)} MB`} · ${previewing ? 'preparing preview' : preview ? 'ready to print' : 'preview unavailable'}`
+                      : 'Drop a file here or select one from your device.'}
+                  </p>
+                  <button
+                    type="button"
+                    className={s.secondary}
+                    disabled={busy}
+                    onClick={() => input.current?.click()}
+                  >
+                    {file ? 'Choose another file' : 'Choose file'}
+                  </button>
+                  <input
+                    ref={input}
+                    type="file"
+                    aria-label="Select document"
+                    accept="application/pdf,image/png,image/jpeg"
+                    className={s.srOnly}
+                    onChange={(e) => choose(e.target.files?.[0])}
+                  />
+                </div>
+              )}
               <label>
                 Printer
                 <select
@@ -289,6 +344,16 @@ export function PrintDialog({
               {!printers.length && (
                 <p className={s.error}>Add a printer on the Devices page first.</p>
               )}
+              {!!printers.length && !!deviceId && !device && (
+                <p className={s.error}>
+                  This printer is no longer available. Select another printer.
+                </p>
+              )}
+              {device?.status === 'offline' && (
+                <p className={s.error}>
+                  This printer is offline. Check its connection or select another printer.
+                </p>
+              )}
               {device && !device.capabilities && (
                 <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
               )}
@@ -313,7 +378,9 @@ export function PrintDialog({
               className={s.primary}
               disabled={
                 busy ||
-                !file ||
+                uncertain ||
+                !hasDocument ||
+                device?.status === 'offline' ||
                 !preview ||
                 previewing ||
                 !validSides ||

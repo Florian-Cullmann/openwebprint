@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react';
-import { Download } from 'lucide-react';
+import { Download, Printer } from 'lucide-react';
 import type { Job } from '@openwebprint/shared';
 import { documentData } from './api';
 import { DocumentPreview } from './DocumentPreview';
 import { Modal, Spinner, JobBadge } from './ui';
 import s from './App.module.css';
-export function JobPreviewDialog({ job, close }: { job: Job; close: () => void }) {
+export function JobPreviewDialog({
+  job,
+  close,
+  print,
+}: {
+  job: Job;
+  close: () => void;
+  print: (job: Job) => void;
+}) {
   const [data, setData] = useState<Uint8Array>();
   const [error, setError] = useState('');
   useEffect(() => {
@@ -46,6 +54,9 @@ export function JobPreviewDialog({ job, close }: { job: Job; close: () => void }
         )}
         {job.hasFile && !error && (
           <div className={s.modalActions}>
+            <button className={s.primary} disabled={!data} onClick={() => print(job)}>
+              <Printer size={16} /> Print
+            </button>
             <a className={s.secondary} href={`/api/jobs/${job.id}/pdf`} download>
               <Download size={16} /> Download PDF
             </a>

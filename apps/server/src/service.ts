@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, writeFile, unlink, rm, readdir, chmod } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, unlink, rm, readdir, chmod } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type {
   Device,
@@ -213,9 +213,78 @@ export class Service {
     };
   }
   async print(deviceId: string, data: Buffer, mime: string, name: string, options: PrintOptions) {
-    let device = this.device(deviceId);
+    return this.submitPrint(deviceId, () => normalizeDocument(data, mime), name, options);
+  }
+  async document(id: string, revision?: string) {
+    const job = this.job(id);
+    if (
+      !job.hasFile ||
+      !job.filePath ||
+      Date.now() - new Date(job.createdAt).getTime() > 7 * 86400_000
+    )
+      throw new AppError(
+        410,
+        'This document has expired or was deleted. Upload it again or create a new scan.',
+      );
+    if (job.kind === 'scan' && job.status !== 'completed')
+      throw new AppError(409, 'Wait for the scan to finish before printing or downloading it.');
+    if (revision !== undefined && revision !== job.scanRevision)
+      throw new AppError(
+        409,
+        'This scan has changed. Close this dialog and reopen it to review the latest document.',
+      );
+    try {
+      return await readFile(job.filePath);
+    } catch (error) {
+      if (['ENOENT', 'ENOTDIR'].includes((error as NodeJS.ErrnoException).code ?? ''))
+        throw new AppError(
+          410,
+          'This document is no longer available. Upload it again or create a new scan.',
+        );
+      throw new AppError(
+        503,
+        'Cannot read the saved document. Check document storage permissions.',
+      );
+    }
+  }
+  async printSaved(id: string, deviceId: string, options: PrintOptions, revision?: string) {
+    const source = this.store.job(id, this.mode);
+    if (!source)
+      throw new AppError(
+        404,
+        'The saved document was deleted or is unavailable in this mode. Upload it again or create a new scan.',
+      );
+    if (source.kind === 'scan' && revision !== source.scanRevision)
+      throw new AppError(
+        409,
+        'This scan has changed. Close this dialog and reopen it to review the latest document.',
+      );
+    // Read a private snapshot before awaiting printer inspection. Deletion/expiration may
+    // then remove the source, but can neither alter this submission nor resurrect it.
+    const data = await this.document(id, revision);
+    // Retained PDFs were already normalized or exported internally; the upload
+    // size limit must not prevent printing a larger, server-generated scan.
+    return this.submitPrint(deviceId, async () => data, source.title, options);
+  }
+  private async submitPrint(
+    deviceId: string,
+    document: () => Promise<Buffer>,
+    name: string,
+    options: PrintOptions,
+  ) {
+    let device = this.store.device(deviceId, this.mode);
+    if (!device)
+      throw new AppError(
+        404,
+        'This printer is no longer available. Select another printer or add one on the Devices page.',
+      );
     if (device.kind !== 'printer') throw new AppError(400, 'The selected device is not a printer.');
     device = await this.provider.inspect(device);
+    if (device.status === 'offline')
+      throw new AppError(
+        409,
+        'This printer is offline. Check its connection or select another printer.',
+      );
     const caps = device.capabilities;
     if (!caps)
       throw new AppError(409, 'Unable to retrieve print options. Check the CUPS connection.');
@@ -231,7 +300,7 @@ export class Service {
     ) {
       throw new AppError(400, 'This device does not support the selected print options.');
     }
-    const normalized = await normalizeDocument(data, mime);
+    const normalized = await document();
     const title = name.replace(/[\x00-\x1f\x7f/\\]/g, '_').slice(0, 120) || 'Document';
     const job = this.createJob(device, 'print', title, options);
     job.filePath = join(this.filesDir, `${job.id}.pdf`);
