@@ -7,9 +7,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Crop,
+  RefreshCw,
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
+  FALLBACK_SCAN_RESOLUTIONS,
+  FALLBACK_SCAN_COLOR_MODES,
+  scanSettingsError,
+  supportsScanResolution,
   type Device,
   type Job,
   type ScanOptions,
@@ -46,6 +51,9 @@ export function ScanDialog({
   const [duplex, setDuplex] = useState(false);
   const [sourceError, setSourceError] = useState('');
   const [loadingSources, setLoadingSources] = useState(false);
+  const [loadedSettings, setLoadedSettings] = useState('');
+  const [refreshSettings, setRefreshSettings] = useState(0);
+  const refreshRequested = useRef(false);
   const [job, setJob] = useState(existing);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -62,6 +70,11 @@ export function ScanDialog({
   const cropIndex = pages.findIndex((page) => page.id === cropping);
   const locked = busy || running;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
+  const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
+  const settingsLoading = loadingSources || loadedSettings !== settingsKey;
+  const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
+  const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
+  const invalidSettings = !!scanSettingsError(sources, { resolution, color });
   useEffect(() => {
     if (!cropping && returnToPage.current) {
       cropButtons.current.get(returnToPage.current)?.focus();
@@ -73,30 +86,65 @@ export function ScanDialog({
   }, [deviceId, scanners[0]?.id]);
   useEffect(() => {
     let alive = true;
-    setSources({ sources: [], duplex: false });
-    setSource('');
-    setDuplex(false);
     setSourceError('');
     setLoadingSources(false);
     if (!deviceId || !scanners.some((d) => d.id === deviceId)) return;
     setLoadingSources(true);
-    api<ScanSources>(`/devices/${deviceId}/scan-sources`)
+    const query = new URLSearchParams();
+    if (source) query.set('source', source);
+    if (refreshRequested.current) query.set('refresh', 'true');
+    refreshRequested.current = false;
+    api<ScanSources>(`/devices/${deviceId}/scan-sources${query.size ? `?${query}` : ''}`)
       .then((data) => {
         if (alive) {
           setSources(data);
-          setSource(data.sources[0]?.name ?? '');
+          setSourceError(data.warning ?? '');
+          if (source && !data.sources.some((s) => s.name === source)) {
+            setSource('');
+            setDuplex(false);
+          }
+          const dpi = data.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
+          setResolution((current) => {
+            if (supportsScanResolution(dpi, current)) return current;
+            if (
+              data.defaultResolution !== undefined &&
+              supportsScanResolution(dpi, data.defaultResolution)
+            )
+              return data.defaultResolution;
+            if (supportsScanResolution(dpi, 300)) return 300;
+            return Array.isArray(dpi) ? (dpi[0] ?? 300) : dpi.min;
+          });
+          const modes = data.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
+          setColor((current) =>
+            modes.includes(current)
+              ? current
+              : data.defaultColorMode && modes.includes(data.defaultColorMode)
+                ? data.defaultColorMode
+                : modes.includes('Color')
+                  ? 'Color'
+                  : (modes[0] ?? 'Color'),
+          );
         }
       })
       .catch((e) => {
-        if (alive) setSourceError((e as Error).message);
+        if (alive) {
+          setSources({ sources: [], duplex: false });
+          setResolution(300);
+          setColor('Color');
+          setSourceError((e as Error).message);
+          setSource('');
+        }
       })
       .finally(() => {
-        if (alive) setLoadingSources(false);
+        if (alive) {
+          setLoadingSources(false);
+          setLoadedSettings(settingsKey);
+        }
       });
     return () => {
       alive = false;
     };
-  }, [deviceId]);
+  }, [deviceId, source, refreshSettings]);
   useEffect(() => {
     if (!running || !job) return;
     let alive = true;
@@ -123,7 +171,7 @@ export function ScanDialog({
     };
   }, [running, job?.id]);
   async function start(batch: boolean) {
-    if (requestActive.current || running) return;
+    if (requestActive.current || running || settingsLoading || invalidSettings) return;
     requestActive.current = true;
     setError('');
     setBusy(true);
@@ -370,7 +418,12 @@ export function ScanDialog({
                   required
                   value={deviceId}
                   disabled={complete}
-                  onChange={(e) => setDeviceId(e.target.value)}
+                  onChange={(e) => {
+                    setDeviceId(e.target.value);
+                    setSource('');
+                    setSources({ sources: [], duplex: false });
+                    setDuplex(false);
+                  }}
                 >
                   <option value="" disabled>
                     Select scanner
@@ -385,25 +438,53 @@ export function ScanDialog({
               <div className={s.formGrid}>
                 <label>
                   Resolution
-                  <select
-                    value={resolution}
-                    onChange={(e) =>
-                      setResolution(Number(e.target.value) as ScanOptions['resolution'])
-                    }
-                  >
-                    <option value={150}>150 dpi · compact</option>
-                    <option value={300}>300 dpi · recommended</option>
-                    <option value={600}>600 dpi · detailed</option>
-                  </select>
+                  {Array.isArray(resolutions) ? (
+                    <select
+                      value={resolution}
+                      disabled={settingsLoading || !resolutions.length}
+                      onChange={(e) => setResolution(Number(e.target.value))}
+                    >
+                      {!resolutions.length && (
+                        <option value={resolution}>No supported resolutions</option>
+                      )}
+                      {resolutions.map((dpi) => (
+                        <option key={dpi} value={dpi}>
+                          {dpi} dpi
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="number"
+                      required
+                      min={resolutions.min}
+                      max={resolutions.max}
+                      step={resolutions.step ?? 'any'}
+                      value={Number.isFinite(resolution) ? resolution : ''}
+                      disabled={settingsLoading}
+                      onChange={(e) => setResolution(e.target.valueAsNumber)}
+                    />
+                  )}
+                  {!Array.isArray(resolutions) && (
+                    <span className={s.small}>
+                      {resolutions.min}–{resolutions.max} dpi
+                      {resolutions.step ? ` · steps of ${resolutions.step}` : ''}
+                    </span>
+                  )}
                 </label>
                 <label>
                   Color mode
                   <select
                     value={color}
-                    onChange={(e) => setColor(e.target.value as ScanOptions['color'])}
+                    disabled={settingsLoading || !colorModes.length}
+                    onChange={(e) => setColor(e.target.value)}
                   >
-                    <option value="Color">Color</option>
-                    <option value="Gray">Grayscale</option>
+                    {!colorModes.length && <option value={color}>No supported color modes</option>}
+                    {colorModes.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode === 'Gray' ? 'Grayscale' : mode}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -411,7 +492,7 @@ export function ScanDialog({
                 Paper source
                 <select
                   value={source}
-                  disabled={loadingSources || !sources.sources.length}
+                  disabled={settingsLoading || !sources.sources.length}
                   onChange={(e) => {
                     setSource(e.target.value);
                     setDuplex(false);
@@ -436,10 +517,42 @@ export function ScanDialog({
                 </label>
               )}
             </fieldset>
-            {sourceError && (
-              <p className={s.small}>
-                Could not load paper sources: {sourceError} You can still scan one page with the
-                device default.
+            {deviceId && (
+              <div className={s.scanCapabilityActions}>
+                <p className={s.small}>Scanner settings are saved per paper source.</p>
+                <button
+                  type="button"
+                  className={s.textButton}
+                  disabled={locked || settingsLoading}
+                  onClick={() => {
+                    refreshRequested.current = true;
+                    setRefreshSettings((value) => value + 1);
+                  }}
+                >
+                  <RefreshCw size={14} /> Refresh scanner settings
+                </button>
+              </div>
+            )}
+            {settingsLoading && (
+              <p role="status" className={s.small}>
+                Loading scanner capabilities…
+              </p>
+            )}
+            {!settingsLoading &&
+              (sourceError ||
+                sources.resolutions === undefined ||
+                sources.colorModes === undefined) && (
+                <p className={s.small}>
+                  {sourceError} Some scanner capabilities are unknown. Unverified fallback options:
+                  {sources.resolutions === undefined && ' 150/300/600 dpi.'}
+                  {sources.colorModes === undefined && ' Color/Grayscale.'} The scanner may reject
+                  them.
+                </p>
+              )}
+            {!settingsLoading && invalidSettings && (
+              <p role="alert" className={s.error}>
+                Choose a supported resolution and color mode. This paper source may have no
+                supported scan settings.
               </p>
             )}
             {(error || job?.error) && (
@@ -456,7 +569,13 @@ export function ScanDialog({
               <button
                 type="button"
                 className={s.secondary}
-                disabled={locked || loadingSources || !feeder || pages.length >= MAX_SCAN_PAGES}
+                disabled={
+                  locked ||
+                  settingsLoading ||
+                  invalidSettings ||
+                  !feeder ||
+                  pages.length >= MAX_SCAN_PAGES
+                }
                 onClick={() => void start(true)}
               >
                 Scan multiple pages
@@ -465,7 +584,8 @@ export function ScanDialog({
                 className={s.primary}
                 disabled={
                   locked ||
-                  loadingSources ||
+                  settingsLoading ||
+                  invalidSettings ||
                   !scanners.some((d) => d.id === deviceId) ||
                   pages.length >= MAX_SCAN_PAGES
                 }

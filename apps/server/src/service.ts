@@ -24,6 +24,7 @@ import {
 import type { Provider } from './providers/types.js';
 import { demoDevices } from './providers/demo.js';
 import { normalizeDocument, exportScanPages } from './documents.js';
+import { ScannerCapabilities } from './scan-capabilities.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
 const DEVICE_STATUS_TTL = 5000;
@@ -46,6 +47,7 @@ export class Service {
   private polling?: Promise<void>;
   private deviceCache?: { result: Promise<DeviceState>; expiresAt: number };
   private deviceInspections = new Set<Promise<DeviceState>>();
+  private scannerCapabilities: ScannerCapabilities;
   constructor(
     readonly store: Store,
     readonly mode: Mode,
@@ -53,6 +55,7 @@ export class Service {
     private scanDirectory = join(store.directory, 'files'),
   ) {
     this.filesDir = join(store.directory, 'files');
+    this.scannerCapabilities = new ScannerCapabilities(store, mode, provider);
   }
   async initialize() {
     await mkdir(this.filesDir, { recursive: true, mode: 0o700 });
@@ -97,7 +100,10 @@ export class Service {
   }
   async addDevice(input: DeviceInput) {
     const existing = this.store.devices(this.mode).find((d) => d.address === input.address);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.kind === 'scanner') await this.scannerCapabilities.warm(existing);
+      return existing;
+    }
     if (this.mode === 'demo' && !input.address.startsWith('demo://'))
       throw new AppError(
         400,
@@ -106,6 +112,7 @@ export class Service {
     const device = await this.provider.add(input, randomUUID());
     this.store.putDevice(device);
     this.deviceCache = undefined;
+    if (device.kind === 'scanner') await this.scannerCapabilities.warm(device);
     return device;
   }
   deleteDevice(id: string) {
@@ -113,6 +120,7 @@ export class Service {
     if (this.store.jobs(this.mode).some((j) => j.deviceId === id && !terminal.has(j.status)))
       throw new AppError(409, 'This device still has active or unconfirmed jobs.');
     this.store.deleteDevice(id, this.mode);
+    this.scannerCapabilities.invalidate(id);
     this.deviceCache = undefined;
   }
   private deviceState(): Promise<DeviceState> {
@@ -242,12 +250,12 @@ export class Service {
     }
     return publicJob(job);
   }
-  async scanSources(deviceId: string) {
+  async scanSources(deviceId: string, source?: string, refresh = false) {
     const device = this.device(deviceId);
     if (device.kind !== 'scanner') throw new AppError(400, 'The selected device is not a scanner.');
     if (this.activeScanners.has(deviceId))
       throw new AppError(409, 'This scanner is already in use.');
-    return this.provider.scanSources(device);
+    return this.scannerCapabilities.get(device, source, refresh);
   }
   scan(deviceId: string, options: ScanOptions, jobId?: string) {
     const device = this.device(deviceId);
@@ -455,6 +463,7 @@ export class Service {
     this.store.deleteJob(id, this.mode);
   }
   async close() {
+    await this.scannerCapabilities.drain();
     await Promise.allSettled([...this.deviceInspections]);
     await Promise.all(this.tasks);
     await this.polling;

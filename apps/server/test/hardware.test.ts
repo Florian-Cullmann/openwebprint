@@ -279,7 +279,10 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
         source: 'Unadvertised ADF',
       }),
     ).rejects.toThrow('selected source');
-    run.mockRejectedValue(new CommandError('Disconnected'));
+    run.mockImplementation(async (_tool: string, args: string[]) => {
+      if (args.includes('--all-options')) throw new CommandError('Disconnected');
+      return '';
+    });
     await expect(
       provider.scan(scanner, '/private/page-%d.png', {
         resolution: 300,
@@ -287,7 +290,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
         batch: true,
         source: 'ADF',
       }),
-    ).rejects.toThrow('Disconnected');
+    ).rejects.toThrow('unavailable');
   });
   it('reads wrapped source lists without inventing duplex support (stubbed command)', async () => {
     const scanner = { ...device, kind: 'scanner' as const, target: 'airscan:e0:Brother' };

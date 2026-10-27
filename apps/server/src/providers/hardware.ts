@@ -8,7 +8,12 @@ import type {
   ScanOptions,
   JobStatus,
 } from '@openwebprint/shared';
-import { MAX_SCAN_PAGES, PRINT_SIDES } from '@openwebprint/shared';
+import {
+  MAX_SCAN_PAGES,
+  PRINT_SIDES,
+  scanSettingsError,
+  type ScanSources,
+} from '@openwebprint/shared';
 import { randomUUID } from 'node:crypto';
 import { dirname, basename, join } from 'node:path';
 import { AppError } from '../errors.js';
@@ -16,6 +21,7 @@ import type { StoredJob } from '../store.js';
 import { command, CommandError, type Command } from './command.js';
 import type { Provider } from './types.js';
 import { hostDiscovery } from './host-discovery.js';
+import { saneCapabilities } from './sane-capabilities.js';
 
 type Attributes = Record<string, unknown>;
 export type IppRequest = (
@@ -372,38 +378,49 @@ export class HardwareProvider implements Provider {
     if (!/^\d+$/.test(job.externalId ?? '')) throw new AppError(400, 'Invalid job ID.');
     await this.cups('cancel', [`${validateQueue(device.target!)}-${job.externalId}`]);
   }
-  async scanSources(device: Device) {
-    const output = await this.run(
-      'scanimage',
-      ['--device-name', validateScanner(device.target!), '--all-options'],
-      20_000,
-    );
-    const lines = output.split(/\r?\n/);
-    const index = lines.findIndex((line) => /--source[ \t]+/.test(line));
-    let source = index < 0 ? '' : lines[index].replace(/^.*?--source[ \t]+/, '');
-    for (
-      let next = index + 1;
-      index >= 0 && next < lines.length && !source.includes('[') && source.trimEnd().endsWith('|');
-      next++
-    ) {
-      if (lines[next].trimStart().startsWith('--')) break;
-      source += lines[next].trim();
+  async scanSources(device: Device, source?: string): Promise<ScanSources> {
+    const args = ['--device-name', validateScanner(device.target!)];
+    let capabilities: ScanSources;
+    try {
+      capabilities = saneCapabilities(
+        await this.run('scanimage', [...args, '--all-options'], 20_000),
+      );
+    } catch {
+      return {
+        sources: [],
+        duplex: false,
+        warning: 'Scanner capabilities could not be determined.',
+      };
     }
-    const choices = source.replace(/\s+\[[^\]]*\].*$/, '').split('|');
-    return {
-      sources: choices
-        .map((name) => name.trim())
-        .filter(Boolean)
-        .map((name) => ({ name, feeder: /adf|document feeder/i.test(name) })),
-      duplex: /--duplex(?:[\[= \t]|$)/m.test(output),
-    };
+    if (!source) return capabilities;
+    if (!capabilities.sources.some((s) => s.name === source))
+      throw new AppError(400, 'The scanner does not support the selected source.');
+    try {
+      const selected = saneCapabilities(
+        await this.run('scanimage', [...args, '--source', source, '--all-options'], 20_000),
+      );
+      return { ...selected, sources: capabilities.sources };
+    } catch {
+      return {
+        sources: capabilities.sources,
+        duplex: false,
+        warning: 'Capabilities for this paper source could not be determined.',
+      };
+    }
   }
   async scan(device: Device, outputPath: string, options: ScanOptions, pageLimit = MAX_SCAN_PAGES) {
     if (options.batch && !options.source)
       throw new AppError(400, 'Choose a document feeder source for batch scanning.');
+    const capabilities = await this.scanSources(device, options.source);
+    const settingsError = scanSettingsError(capabilities, options);
+    if (settingsError) throw new AppError(400, settingsError);
     if (options.source || options.duplex) {
-      const capabilities = await this.scanSources(device);
       const source = capabilities.sources.find((s) => s.name === options.source);
+      if (options.source && !source && capabilities.warning)
+        throw new AppError(
+          409,
+          'Scanner paper sources are unavailable. Retry discovery or use the device default.',
+        );
       if (options.source && !source)
         throw new AppError(400, 'The scanner does not support the selected source.');
       if (options.batch && !source?.feeder)

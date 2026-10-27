@@ -12,6 +12,7 @@ import {
   deviceInputSchema,
   printOptionsSchema,
   scanOptionsSchema,
+  scanChoiceSchema,
   scanPagesSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
@@ -281,9 +282,14 @@ export async function createApp(
         await workspace.run((service) => service.scan(input.deviceId, input.options, input.jobId)),
       );
   });
-  app.get('/api/devices/:id/scan-sources', async (req) =>
-    workspace.run((service) => service.scanSources(idParam.parse(req.params).id)),
-  );
+  app.get('/api/devices/:id/scan-sources', async (req) => {
+    const { source, refresh } = z
+      .object({ source: scanChoiceSchema.optional(), refresh: z.literal('true').optional() })
+      .parse(req.query);
+    return workspace.run((service) =>
+      service.scanSources(idParam.parse(req.params).id, source, refresh === 'true'),
+    );
+  });
   app.post('/api/scans/:id/pages', async (req) => {
     const input = scanPagesSchema.parse(req.body);
     return workspace.run((service) =>
