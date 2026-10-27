@@ -44,6 +44,7 @@ export class Service {
   private tasks = new Set<Promise<void>>();
   private activeJobs = new Set<string>();
   private activeScanners = new Set<string>();
+  private activeScans = new Map<string, { controller: AbortController; task: Promise<void> }>();
   private polling?: Promise<void>;
   private deviceCache?: { result: Promise<DeviceState>; expiresAt: number };
   private deviceInspections = new Set<Promise<DeviceState>>();
@@ -226,8 +227,6 @@ export class Service {
         410,
         'This document has expired or was deleted. Upload it again or create a new scan.',
       );
-    if (job.kind === 'scan' && job.status !== 'completed')
-      throw new AppError(409, 'Wait for the scan to finish before printing or downloading it.');
     if (revision !== undefined && revision !== job.scanRevision)
       throw new AppError(
         409,
@@ -254,6 +253,8 @@ export class Service {
         404,
         'The saved document was deleted or is unavailable in this mode. Upload it again or create a new scan.',
       );
+    if (source.kind === 'scan' && source.status !== 'completed')
+      throw new AppError(409, 'Wait for the scan to finish before printing it.');
     if (source.kind === 'scan' && revision !== source.scanRevision)
       throw new AppError(
         409,
@@ -344,11 +345,14 @@ export class Service {
     this.prepareScan(job);
     job.options = options;
     this.activeScanners.add(deviceId);
-    const task = this.performScan(job, device, options).finally(() => {
+    const controller = new AbortController();
+    const task = this.performScan(job, device, options, controller.signal).finally(() => {
+      this.activeScans.delete(job.id);
       this.activeScanners.delete(deviceId);
       this.activeJobs.delete(job.id);
       this.tasks.delete(task);
     });
+    this.activeScans.set(job.id, { controller, task });
     this.tasks.add(task);
     return publicJob(job);
   }
@@ -372,11 +376,15 @@ export class Service {
     )
       throw new AppError(409, 'Wait for a completed scan with available pages.');
   }
-  private async publishScan(job: StoredJob, pages: StoredScanPage[]) {
+  private async publishScan(job: StoredJob, pages: StoredScanPage[], signal?: AbortSignal) {
+    signal?.throwIfAborted();
     const filePath = join(job.scanWorkPath!, 'document.pdf');
     const previewPath = join(job.scanWorkPath!, 'preview.png');
     await exportScanPages(pages, filePath, previewPath);
     await chmod(previewPath, 0o600);
+    // Publication is synchronous from this check through putJob. Cancellation
+    // either discards the whole new operation or observes the committed result.
+    signal?.throwIfAborted();
     const previousFiles = new Set([
       job.filePath,
       job.previewPath,
@@ -407,25 +415,37 @@ export class Service {
       this.store.putJob(job);
     }
   }
-  private async failScan(job: StoredJob, error: unknown) {
+  private async failScan(job: StoredJob, error: unknown, signal?: AbortSignal) {
     if (job.scanWorkPath) await rm(job.scanWorkPath, { recursive: true, force: true });
     job.scanWorkPath = undefined;
-    job.status = job.hasFile ? 'completed' : 'failed';
-    job.error = error instanceof Error ? error.message : 'Scan failed.';
+    job.status = job.hasFile ? 'completed' : signal?.aborted ? 'canceled' : 'failed';
+    job.error = signal?.aborted
+      ? 'Scan canceled. New pages from this operation were discarded. Previously saved pages were kept.'
+      : error instanceof Error
+        ? error.message
+        : 'Scan failed.';
     if (!job.hasFile) await this.removeFiles(job);
     job.updatedAt = new Date().toISOString();
     this.store.putJob(job);
   }
-  private async performScan(job: StoredJob, device: Device, options: ScanOptions) {
+  private async performScan(
+    job: StoredJob,
+    device: Device,
+    options: ScanOptions,
+    signal: AbortSignal,
+  ) {
     try {
       const directory = job.scanWorkPath!;
       await mkdir(directory, { recursive: true, mode: 0o700 });
+      signal.throwIfAborted();
       await this.provider.scan(
         device,
         join(directory, options.batch ? 'page-%d.png' : 'page-1.png'),
         options,
         MAX_SCAN_PAGES - storedScanPages(job).length,
+        signal,
       );
+      signal.throwIfAborted();
       const files = (await readdir(directory))
         .filter((name) => /^page-[1-9]\d*\.png$/.test(name))
         .sort((a, b) => Number(a.slice(5, -4)) - Number(b.slice(5, -4)));
@@ -442,9 +462,9 @@ export class Service {
         await chmod(path, 0o600);
         pages.push({ id: randomUUID(), rotation: 0, path, resolution: options.resolution });
       }
-      await this.publishScan(job, pages);
+      await this.publishScan(job, pages, signal);
     } catch (error) {
-      await this.failScan(job, error);
+      await this.failScan(job, error, signal);
     }
   }
   editScan(id: string, revision: string, pages: ScanPage[]) {
@@ -527,7 +547,18 @@ export class Service {
   }
   async cancel(id: string) {
     const job = this.job(id);
-    if (job.kind !== 'print' || terminal.has(job.status) || !job.externalId)
+    if (job.kind === 'scan') {
+      const active = this.activeScans.get(id);
+      if (active) {
+        if (!terminal.has(job.status)) active.controller.abort();
+        await active.task;
+      } else if (!terminal.has(job.status)) {
+        throw new AppError(409, 'This scan operation cannot be canceled.');
+      }
+      // A completed publication wins a late cancel; never overwrite its state.
+      return publicJob(this.job(id));
+    }
+    if (terminal.has(job.status) || !job.externalId)
       throw new AppError(
         409,
         'This job cannot be canceled. Check unconfirmed submissions directly in CUPS.',

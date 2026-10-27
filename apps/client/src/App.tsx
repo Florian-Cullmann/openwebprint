@@ -238,7 +238,7 @@ export function App() {
   const openPrint = (deviceId?: string) => setDialog({ type: 'print', deviceId });
   const openScan = (deviceId?: string, job?: Job) => setDialog({ type: 'scan', deviceId, job });
   const openPreview = (job: Job) =>
-    job.kind === 'scan' && job.hasFile
+    job.kind === 'scan' && (job.hasFile || ['queued', 'processing'].includes(job.status))
       ? openScan(job.deviceId, job)
       : setDialog({ type: 'document', job });
   return (
@@ -572,7 +572,9 @@ export function App() {
                             <article className={s.scanCard} key={job.id}>
                               <button
                                 className={s.scanThumb}
-                                disabled={!job.hasFile}
+                                disabled={
+                                  !job.hasFile && !['queued', 'processing'].includes(job.status)
+                                }
                                 onClick={() => openScan(job.deviceId, job)}
                                 aria-label={`Open scan preview: ${job.title}`}
                               >

@@ -15,7 +15,7 @@ async function savedScan(page: Page) {
   await startDemo(page);
   await page.goto('/scans');
   await page.getByRole('button', { name: 'New scan', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Resolution', exact: true }).selectOption('150');
+  await page.getByRole('slider', { name: 'Resolution', exact: true }).fill('0');
   await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Print', exact: true })).toBeEnabled({
     timeout: 15_000,
@@ -51,7 +51,7 @@ test('scan → print → retained PDF reprint with explicit destination/options 
   await page
     .getByRole('combobox', { name: 'Printer', exact: true })
     .selectOption({ label: 'Epson EcoTank ET-4850' });
-  await page.getByRole('combobox', { name: 'Color mode', exact: true }).selectOption('color');
+  await page.getByRole('radio', { name: 'Color', exact: true }).check();
   await page
     .getByRole('combobox', { name: 'Sides', exact: true })
     .selectOption('two-sided-short-edge');

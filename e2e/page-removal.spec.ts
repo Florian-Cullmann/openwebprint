@@ -15,7 +15,7 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
   await page.getByRole('button', { name: 'Try demo', exact: true }).click();
   await page.goto('/scans');
   await page.getByRole('button', { name: 'New scan', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Resolution', exact: true }).selectOption('150');
+  await page.getByRole('slider', { name: 'Resolution', exact: true }).fill('0');
   await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();
   const list = page.getByRole('list', { name: 'Scanned pages' });
   const cards = list.locator('[data-page-id]');

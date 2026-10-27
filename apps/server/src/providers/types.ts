@@ -20,5 +20,11 @@ export interface Provider {
   poll(job: StoredJob, device: Device): Promise<JobUpdate>;
   cancel(job: StoredJob, device: Device): Promise<void>;
   scanSources(device: Device, source?: string): Promise<ScanSources>;
-  scan(device: Device, outputPath: string, options: ScanOptions, pageLimit?: number): Promise<void>;
+  scan(
+    device: Device,
+    outputPath: string,
+    options: ScanOptions,
+    pageLimit?: number,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }

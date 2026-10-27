@@ -338,11 +338,7 @@ export async function createApp(
       .extend({ format: z.enum(['pdf', 'preview', 'document']) })
       .parse(req.params);
     const job = workspace.service.job(id);
-    if (
-      !job.hasFile ||
-      (job.kind === 'scan' && job.status !== 'completed') ||
-      (format === 'preview' && job.kind !== 'scan')
-    )
+    if (!job.hasFile || (format === 'preview' && job.kind !== 'scan'))
       throw new AppError(
         404,
         'No document available. Files expire after 7 days; older print jobs may have no retained preview.',

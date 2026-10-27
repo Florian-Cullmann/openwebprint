@@ -84,7 +84,14 @@ export class DemoProvider implements Provider {
       defaultColorMode: 'Color',
     };
   }
-  async scan(_device: Device, outputPath: string, options: ScanOptions, pageLimit = 100) {
+  async scan(
+    _device: Device,
+    outputPath: string,
+    options: ScanOptions,
+    pageLimit = 100,
+    signal?: AbortSignal,
+  ) {
+    signal?.throwIfAborted();
     const settingsError = scanSettingsError(await this.scanSources(), options);
     if (settingsError) throw new AppError(400, settingsError);
     const image = await sharp(
@@ -109,7 +116,9 @@ export class DemoProvider implements Provider {
       .png()
       .toBuffer();
     const count = options.batch ? (options.duplex || options.source === 'ADF Duplex' ? 4 : 3) : 1;
-    for (let page = 1; page <= Math.min(count, pageLimit); page++)
+    for (let page = 1; page <= Math.min(count, pageLimit); page++) {
+      signal?.throwIfAborted();
       await writeFile(outputPath.replace('%d', String(page)), image, { mode: 0o600 });
+    }
   }
 }

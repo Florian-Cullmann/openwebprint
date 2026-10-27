@@ -27,9 +27,9 @@ openwebprint puts your printers, scanners, and documents in one browser workspac
 This is the first public beta, **v0.1.0-beta.1**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
-- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, color, duplex, supported paper sizes, and a paginated document preview.
-- **Scan documents:** discovered resolutions and color modes per paper source, explicit fallback when capabilities are unknown, multiple pages, reversible cropping, rotation and ordering, image preview, and a real downloadable PDF.
-- **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs; delete completed records and scan files.
+- **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, a two-position color toggle, duplex, supported paper sizes, and a paginated document preview.
+- **Scan documents:** a resolution slider that follows supported values, color modes per paper source, explicit fallback when capabilities are unknown, multiple pages, reversible cropping, rotation and ordering, image preview, and a real downloadable PDF.
+- **Follow your work:** queued, processing, completed, canceled, failed, and explicitly unknown job states. Cancel active print jobs and scans; delete completed records and scan files. Canceling a scan discards its new pages and keeps previously saved pages.
 - **Feel at home:** responsive React interface, CSS Modules, dark/system mode, keyboard-accessible dialogs, optional user accounts, and protected sessions.
 - **Develop without hardware:** deterministic demo devices including a Brother MFC-L2750DW printer/scanner pair. Demo labels remain visible throughout.
 
@@ -49,7 +49,9 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 ![Paginated document preview beside Brother printer selection and print options](docs/images/printing.png)
 
-Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. Choose **Print** in a saved scan or retained document preview to select a printer and review its current options without downloading and uploading the PDF. Each confirmed submission creates an independent job; changing or deleting the source does not change that job. Files are available for seven days. If the original print outcome is unknown, check Jobs and the printer first: reprinting may produce duplicate output. See [printing a saved scan](docs/images/saved-document-print.png). See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
+Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
+
+Choose **Print** in a saved scan or retained document preview to select a printer and review its current options without downloading and uploading the PDF. Each confirmed submission creates an independent job; changing or deleting the source does not change that job. Files are available for seven days. If the original print outcome is unknown, check Jobs and the printer first: reprinting may produce duplicate output. See [printing a saved scan](docs/images/saved-document-print.png).
 
 ### Preview and download a scan
 
