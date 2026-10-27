@@ -1,9 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { Spinner } from './ui';
 import s from './App.module.css';
+
+// Bound both the longest canvas edge and its total backing-store allocation.
+const MAX_CANVAS_EDGE = 4096;
+const MAX_CANVAS_PIXELS = 8_000_000;
+const ZOOM_LEVELS = [0.5, 0.75, 1, 1.5, 2, 3, 4];
 
 export function DocumentPreview({
   data,
@@ -12,6 +17,9 @@ export function DocumentPreview({
   data: Uint8Array;
   monochrome?: boolean;
 }) {
+  const instructionsId = useId();
+  const drag = useRef<{ x: number; y: number; left: number; top: number } | undefined>(undefined);
+  const [zoom, setZoom] = useState(1);
   const container = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [pdf, setPdf] = useState<PDFDocumentProxy>();
@@ -19,6 +27,15 @@ export function DocumentPreview({
   const [width, setWidth] = useState(360);
   const [error, setError] = useState('');
   const [rendering, setRendering] = useState(true);
+  function resetView() {
+    setZoom(1);
+    container.current?.scrollTo(0, 0);
+    drag.current = undefined;
+  }
+  function changePage(next: number) {
+    resetView();
+    setPage(next);
+  }
   useEffect(() => {
     const observer = new ResizeObserver(([entry]) =>
       setWidth(Math.max(100, entry.contentRect.width - 24)),
@@ -31,6 +48,8 @@ export function DocumentPreview({
     let task: PDFDocumentLoadingTask | undefined;
     setPdf(undefined);
     setPage(1);
+    resetView();
+    setRendering(true);
     setError('');
     void (async () => {
       try {
@@ -68,14 +87,20 @@ export function DocumentPreview({
         if (cancelled || !canvas.current) return;
         const base = documentPage.getViewport({ scale: 1 });
         const viewport = documentPage.getViewport({
-          scale: Math.min(width / base.width, 520 / base.height, 1.5),
+          scale: Math.min(width / base.width, 520 / base.height, 1.5) * zoom,
         });
-        const ratio = Math.min(window.devicePixelRatio || 1, 2);
+        const ratio = Math.min(
+          window.devicePixelRatio || 1,
+          2,
+          MAX_CANVAS_EDGE / viewport.width,
+          MAX_CANVAS_EDGE / viewport.height,
+          Math.sqrt(MAX_CANVAS_PIXELS / (viewport.width * viewport.height)),
+        );
         const element = canvas.current;
         const context = element.getContext('2d');
         if (!context) throw new Error('Canvas unavailable');
-        element.width = Math.ceil(viewport.width * ratio);
-        element.height = Math.ceil(viewport.height * ratio);
+        element.width = Math.max(1, Math.floor(viewport.width * ratio));
+        element.height = Math.max(1, Math.floor(viewport.height * ratio));
         element.style.width = `${viewport.width}px`;
         element.style.height = `${viewport.height}px`;
         task = documentPage.render({
@@ -96,7 +121,7 @@ export function DocumentPreview({
       cancelled = true;
       task?.cancel();
     };
-  }, [pdf, page, width]);
+  }, [pdf, page, width, zoom]);
   return (
     <section className={s.documentPreview} aria-label="Document preview">
       <div className={s.previewToolbar}>
@@ -105,47 +130,126 @@ export function DocumentPreview({
           className={s.iconButton}
           aria-label="Previous page"
           disabled={!pdf || page <= 1}
-          onClick={() => setPage(page - 1)}
+          onClick={() => changePage(page - 1)}
         >
           <ChevronLeft size={18} />
         </button>
         <span aria-live="polite">
-          {pdf ? `Page ${page} of ${pdf.numPages}` : 'Loading preview…'}
+          {error
+            ? 'Preview unavailable'
+            : pdf
+              ? `Page ${page} of ${pdf.numPages}`
+              : 'Loading preview…'}
         </span>
         <button
           type="button"
           className={s.iconButton}
           aria-label="Next page"
           disabled={!pdf || page >= pdf.numPages}
-          onClick={() => setPage(page + 1)}
+          onClick={() => changePage(page + 1)}
         >
           <ChevronRight size={18} />
         </button>
       </div>
-      <div ref={container} className={s.previewCanvas}>
-        {error ? (
-          <p role="alert" className={s.error}>
-            {error}
-          </p>
-        ) : (
-          <>
-            {(!pdf || rendering) && (
-              <span className={s.previewLoading}>
-                <Spinner />
-              </span>
-            )}
-            <canvas
-              ref={canvas}
-              role="img"
-              aria-label={`Document page ${page}`}
-              aria-busy={!pdf || rendering}
-              style={{
-                filter: monochrome ? 'grayscale(1)' : undefined,
-                visibility: !pdf || rendering ? 'hidden' : undefined,
-              }}
-            />
-          </>
-        )}
+      <div
+        className={`${s.previewToolbar} ${s.previewZoomToolbar}`}
+        role="group"
+        aria-label="Preview zoom controls"
+      >
+        <div className={s.previewZoomGroup}>
+          <button
+            type="button"
+            className={s.iconButton}
+            aria-label="Zoom out"
+            disabled={!pdf || zoom === ZOOM_LEVELS[0]}
+            onClick={() =>
+              setZoom([...ZOOM_LEVELS].reverse().find((level) => level < zoom) ?? zoom)
+            }
+          >
+            <ZoomOut size={18} />
+          </button>
+          <span className={s.previewZoomLevel} aria-live="polite" aria-label="Preview zoom">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            className={s.iconButton}
+            aria-label="Zoom in"
+            disabled={!pdf || zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+            onClick={() => setZoom(ZOOM_LEVELS.find((level) => level > zoom) ?? zoom)}
+          >
+            <ZoomIn size={18} />
+          </button>
+        </div>
+        <button type="button" className={s.secondary} disabled={!pdf} onClick={resetView}>
+          Fit page
+        </button>
+      </div>
+      <p id={instructionsId} className={s.previewHint}>
+        Scroll, swipe or use arrow keys to explore a zoomed page.
+      </p>
+      <div
+        ref={container}
+        className={s.previewCanvas}
+        role="region"
+        aria-label="Document page viewport"
+        aria-describedby={instructionsId}
+        tabIndex={0}
+        onPointerDown={(event) => {
+          // Touch keeps native scrolling; a mouse can also drag the enlarged page.
+          if (event.pointerType !== 'mouse' || event.button !== 0 || zoom <= 1) return;
+          const element = event.currentTarget;
+          drag.current = {
+            x: event.clientX,
+            y: event.clientY,
+            left: element.scrollLeft,
+            top: element.scrollTop,
+          };
+          element.setPointerCapture(event.pointerId);
+          element.focus({ preventScroll: true });
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          if (!drag.current) return;
+          event.currentTarget.scrollLeft = drag.current.left + drag.current.x - event.clientX;
+          event.currentTarget.scrollTop = drag.current.top + drag.current.y - event.clientY;
+        }}
+        onPointerUp={(event) => {
+          drag.current = undefined;
+          if (event.currentTarget.hasPointerCapture(event.pointerId))
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }}
+        onLostPointerCapture={() => {
+          drag.current = undefined;
+        }}
+        onPointerCancel={() => {
+          drag.current = undefined;
+        }}
+        style={{ cursor: zoom > 1 ? 'grab' : undefined }}
+      >
+        <div className={s.previewPage}>
+          {error && (
+            <p role="alert" className={s.error}>
+              {error}
+            </p>
+          )}
+          {!error && (!pdf || rendering) && (
+            <span className={s.previewLoading}>
+              <Spinner />
+            </span>
+          )}
+          <canvas
+            ref={canvas}
+            role="img"
+            aria-label={`Document page ${page}`}
+            aria-busy={!pdf || rendering}
+            style={{
+              filter: monochrome ? 'grayscale(1)' : undefined,
+              display: error ? 'none' : undefined,
+              visibility: !pdf || rendering ? 'hidden' : undefined,
+            }}
+          />
+        </div>
       </div>
     </section>
   );

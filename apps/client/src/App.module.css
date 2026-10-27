@@ -1517,18 +1517,50 @@
   font-size: 12px;
   color: var(--muted);
 }
-.previewCanvas {
-  position: relative;
-  min-height: 160px;
-  display: flex;
+.previewZoomToolbar {
+  flex-wrap: wrap;
+}
+.previewZoomGroup {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  padding: 12px;
+  gap: 4px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: var(--bg);
+}
+.previewZoomLevel {
+  min-width: 42px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.previewHint {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.previewCanvas {
+  max-height: 544px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+.previewCanvas:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.previewPage {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+  min-height: 160px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
 }
 .previewCanvas canvas {
   display: block;
-  max-width: 100%;
   box-shadow: 0 1px 8px #00000016;
 }
 .previewLoading {
