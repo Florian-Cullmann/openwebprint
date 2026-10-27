@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { PDFDocument, rgb } from 'pdf-lib';
-import type { Job, Snapshot } from '@openwebprint/shared';
+import type { Job, JobPage, Snapshot } from '@openwebprint/shared';
 import AxeBuilder from '@axe-core/playwright';
 
 // Exercise the backing-store limits on a high-density display in both layouts.
@@ -59,6 +59,11 @@ async function fixture(page: Page) {
     }),
   );
   await page.route('**/api/snapshot', (route) => route.fulfill({ json: snapshot }));
+  await page.route('**/api/jobs?**', (route) =>
+    route.fulfill({
+      json: { jobs: snapshot.jobs, total: snapshot.jobs.length, offset: 0 } satisfies JobPage,
+    }),
+  );
   await page.route('**/api/documents/preview', (route) =>
     route.fulfill({ contentType: 'application/pdf', body: buffer }),
   );
