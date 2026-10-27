@@ -347,6 +347,21 @@ it.each(['poll', 'cancel'])(
       hasFile: false,
       status: operation === 'poll' ? 'completed' : 'canceled',
     });
-    expect(f.service.job(job.id).filePath).toBeUndefined();
+    const current = f.service.job(job.id);
+    for (const field of [
+      'filePath',
+      'previewPath',
+      'scanDirectory',
+      'scanPages',
+      'scanWorkPath',
+    ] as const)
+      expect(current[field]).toBeUndefined();
+    for (const path of [job.filePath!, job.previewPath!, job.scanDirectory!])
+      await expect(access(path)).rejects.toMatchObject({ code: 'ENOENT' });
+    const response = await f.app.inject(`/api/jobs/${job.id}`);
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ hasFile: false, status: current.status });
+    expect(response.json().expiresAt).toBeUndefined();
+    expect((await f.app.inject(`/api/jobs/${job.id}/document`)).statusCode).toBe(404);
   },
 );
