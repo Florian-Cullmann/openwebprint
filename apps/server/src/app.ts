@@ -327,6 +327,17 @@ export async function createApp(
       service.editScan(idParam.parse(req.params).id, input.revision, input.pages),
     );
   });
+  app.post('/api/scans/:id/recovery', async (req) => {
+    const input = z
+      .object({
+        revision: z.string().min(1).max(80),
+        action: z.enum(['keep', 'discard']),
+      })
+      .parse(req.body);
+    return workspace.run((service) =>
+      service.resolveRecovery(idParam.parse(req.params).id, input.revision, input.action),
+    );
+  });
   app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
     const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
     const { rendered, thumbnail } = z

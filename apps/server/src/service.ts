@@ -29,6 +29,7 @@ import {
   exportScanPages,
   renderScanPage,
   SCAN_THUMBNAIL_SIZE,
+  validateScanImage,
 } from './documents.js';
 import { ScannerCapabilities } from './scan-capabilities.js';
 import { expired, retentionPolicy } from './retention.js';
@@ -90,7 +91,7 @@ export class Service {
           'The server restarted during this operation. Check the device before trying again.';
         if (job.scanWorkPath) await rm(job.scanWorkPath, { recursive: true, force: true });
         job.scanWorkPath = undefined;
-        if (!job.hasFile) await this.removeFiles(job);
+        if (!job.hasFile && !job.scanRecovery) await this.removeFiles(job);
         this.store.putJob(job);
       }
       if (job.kind === 'scan' && job.hasFile) await this.pruneThumbnails(job, true);
@@ -121,7 +122,7 @@ export class Service {
         !this.activeJobs.has(job.id) &&
         (terminal.has(job.status) || (job.kind === 'print' && job.status === 'unknown')) &&
         expired(job, retentionPolicy(this.store)) &&
-        job.hasFile
+        (job.hasFile || job.scanRecovery)
       ) {
         // Lock synchronously before filesystem awaits so an edit/append cannot race deletion.
         this.activeJobs.add(job.id);
@@ -466,6 +467,8 @@ export class Service {
       ? this.job(jobId)
       : this.createJob(device, 'scan', 'Scan · ' + new Date().toLocaleDateString('en-GB'), options);
     if (jobId) {
+      if (job.scanRecovery)
+        throw new AppError(409, 'Keep or discard recoverable pages before scanning again.');
       this.editableScan(job);
       if (job.deviceId !== deviceId)
         throw new AppError(400, 'Use the original scanner to add pages.');
@@ -503,6 +506,7 @@ export class Service {
       job.kind !== 'scan' ||
       !job.hasFile ||
       job.status !== 'completed' ||
+      !!job.scanRecovery ||
       this.activeJobs.has(job.id)
     )
       throw new AppError(409, 'Wait for a completed scan with available pages.');
@@ -530,6 +534,7 @@ export class Service {
       hasFile: true,
       status: 'completed',
       scanWorkPath: undefined,
+      scanRecovery: undefined,
       updatedAt: new Date().toISOString(),
     };
     // Keep the previous revision intact until its replacement is durably stored.
@@ -542,12 +547,21 @@ export class Service {
     ]);
     // A cleanup failure must not turn a successfully saved edit into a failed request.
     if (cleanup.some((result) => result.status === 'rejected')) {
-      job.error =
-        'The document was saved, but obsolete files could not be removed. Check scan storage permissions.';
+      job.error = [
+        job.error,
+        'The document was saved, but obsolete files could not be removed. Check scan storage permissions.',
+      ]
+        .filter(Boolean)
+        .join(' ');
       this.store.putJob(job);
     }
   }
   private async failScan(job: StoredJob, error: unknown, signal?: AbortSignal) {
+    // A cancel arriving while failed output is being decoded still discards it.
+    if (signal?.aborted && job.scanRecovery) {
+      job.scanWorkPath = job.scanRecovery.directory;
+      job.scanRecovery = undefined;
+    }
     if (job.scanWorkPath) await rm(job.scanWorkPath, { recursive: true, force: true });
     job.scanWorkPath = undefined;
     job.status = job.hasFile ? 'completed' : signal?.aborted ? 'canceled' : 'failed';
@@ -556,7 +570,7 @@ export class Service {
       : error instanceof Error
         ? error.message
         : 'Scan failed.';
-    if (!job.hasFile) await this.removeFiles(job);
+    if (!job.hasFile && !job.scanRecovery) await this.removeFiles(job);
     job.updatedAt = new Date().toISOString();
     this.store.putJob(job);
   }
@@ -591,13 +605,109 @@ export class Service {
         );
       for (const name of files) {
         const path = join(directory, name);
+        await validateScanImage(path);
         await chmod(path, 0o600);
         pages.push({ id: randomUUID(), rotation: 0, path, resolution: options.resolution });
       }
       await this.publishScan(job, pages, signal);
     } catch (error) {
+      if (!signal.aborted) await this.collectRecovery(job, options, error);
       await this.failScan(job, error, signal);
     }
+  }
+  private async collectRecovery(job: StoredJob, options: ScanOptions, error: unknown) {
+    const directory = job.scanWorkPath!;
+    const pages: NonNullable<StoredJob['scanRecovery']>['pages'] = [];
+    const names = await readdir(directory).catch(() => [] as string[]);
+    const candidates = names
+      .filter((name) => /^page-[1-9]\d*\.png$/.test(name))
+      .sort((a, b) => Number(a.slice(5, -4)) - Number(b.slice(5, -4)));
+    for (const name of candidates) {
+      const number = Number(name.slice(5, -4));
+      if (
+        !Number.isSafeInteger(number) ||
+        pages.length + storedScanPages(job).length >= MAX_SCAN_PAGES
+      )
+        continue;
+      const path = join(directory, name);
+      try {
+        await validateScanImage(path);
+        await chmod(path, 0o600);
+        pages.push({ id: randomUUID(), rotation: 0, path, resolution: options.resolution, number });
+      } catch {
+        // Missing, incomplete, oversized or undecodable output is never offered.
+      }
+    }
+    if (!pages.length) return;
+    const retained = new Set(pages.map((page) => page.path));
+    // Failure to remove unrelated output must not strand the scan in processing.
+    // Only validated originals are referenced/published; lifecycle cleanup retries
+    // removal of the whole private directory on discard, deletion or expiry.
+    await Promise.allSettled(
+      names
+        .filter((name) => !retained.has(join(directory, name)))
+        .map((name) => rm(join(directory, name), { recursive: true, force: true })),
+    );
+    job.scanRecovery = {
+      revision: randomUUID(),
+      baseRevision: job.scanRevision,
+      directory,
+      pages,
+      error: error instanceof Error ? error.message : 'Scan failed.',
+    };
+    job.scanWorkPath = undefined;
+  }
+  resolveRecovery(id: string, revision: string, action: 'keep' | 'discard') {
+    const job = this.job(id);
+    const recovery = job.scanRecovery;
+    if (this.activeJobs.has(id) || !terminal.has(job.status))
+      throw new AppError(409, 'Wait for the current scan operation to finish.');
+    if (!recovery || recovery.revision !== revision || recovery.baseRevision !== job.scanRevision)
+      throw new AppError(409, 'This recovery changed. Reopen the scan before trying again.');
+    if (expired(job, retentionPolicy(this.store)))
+      throw new AppError(410, 'These recoverable pages have expired. Start a new scan.');
+    this.activeJobs.add(id);
+    const task = (async () => {
+      if (action === 'discard') {
+        await rm(recovery.directory, { recursive: true, force: true });
+        job.scanRecovery = undefined;
+        job.updatedAt = new Date().toISOString();
+        if (!job.hasFile) await this.removeFiles(job);
+        this.store.putJob(job);
+      } else {
+        const work = join(job.scanDirectory!, randomUUID());
+        const previousStatus = job.status;
+        job.scanWorkPath = work;
+        job.status = 'processing';
+        this.store.putJob(job);
+        try {
+          // Revalidate retained images before publication, including after restart.
+          for (const page of recovery.pages) await validateScanImage(page.path);
+          await mkdir(work, { recursive: true, mode: 0o700 });
+          job.error = `Acquisition incomplete. Kept ${recovery.pages.length} recovered pages. ${recovery.error}`;
+          await this.publishScan(job, [...storedScanPages(job), ...recovery.pages]);
+        } catch (error) {
+          // Cleanup diagnostics after a durable publication cannot roll it back.
+          if (!job.scanRecovery) return this.publicJob(job);
+          await rm(work, { recursive: true, force: true });
+          job.scanWorkPath = undefined;
+          job.status = previousStatus;
+          job.error = recovery.error;
+          this.store.putJob(job);
+          // Publication failed: the previous PDF, revision and recovery remain intact.
+          throw error;
+        }
+      }
+      return this.publicJob(job);
+    })().finally(() => this.activeJobs.delete(id));
+    const tracked = task
+      .then(
+        () => {},
+        () => {},
+      )
+      .finally(() => this.tasks.delete(tracked));
+    this.tasks.add(tracked);
+    return task;
   }
   editScan(id: string, revision: string, pages: ScanPage[]) {
     const job = this.job(id);
@@ -653,6 +763,7 @@ export class Service {
     job.scanPages = undefined;
     job.scanDirectory = undefined;
     job.scanWorkPath = undefined;
+    job.scanRecovery = undefined;
     job.hasFile = false;
   }
   tick(): Promise<void> {
@@ -721,8 +832,13 @@ export class Service {
     const job = this.job(id);
     if (this.activeJobs.has(id) || (!terminal.has(job.status) && job.status !== 'unknown'))
       throw new AppError(409, 'Active jobs cannot be deleted.');
-    await this.removeFiles(job);
-    this.store.deleteJob(id, this.mode);
+    this.activeJobs.add(id);
+    try {
+      await this.removeFiles(job);
+      this.store.deleteJob(id, this.mode);
+    } finally {
+      this.activeJobs.delete(id);
+    }
   }
   async close() {
     await this.scannerCapabilities.drain();

@@ -1,6 +1,6 @@
 import { PDFDocument, degrees } from 'pdf-lib';
 import sharp from 'sharp';
-import { writeFile } from 'node:fs/promises';
+import { readFile, lstat, writeFile } from 'node:fs/promises';
 import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
 import { resolvePrintPages, type PrintOptions } from '@openwebprint/shared';
@@ -184,5 +184,32 @@ export async function renderScanPage(source: StoredScanPage, rotate = true, thum
       422,
       'The scanned pages could not be converted to PDF. Check scan storage and try again.',
     );
+  }
+}
+
+// Metadata alone accepts truncated images. Require complete PNG framing and a
+// full strict decode before offering an unpublished acquisition for recovery.
+export async function validateScanImage(path: string) {
+  try {
+    if (!(await lstat(path)).isFile()) throw new Error('Not a regular page image');
+    const data = await readFile(path);
+    if (!data.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])))
+      throw new Error('Not a PNG');
+    let offset = 8;
+    let complete = false;
+    while (offset + 12 <= data.length) {
+      const length = data.readUInt32BE(offset);
+      const type = data.toString('ascii', offset + 4, offset + 8);
+      offset += length + 12;
+      if (offset > data.length) break;
+      if (type === 'IEND') {
+        complete = length === 0 && offset === data.length;
+        break;
+      }
+    }
+    if (!complete) throw new Error('Incomplete PNG');
+    await sharp(data, { limitInputPixels: 80_000_000, failOn: 'warning' }).raw().toBuffer();
+  } catch {
+    throw new AppError(422, 'A scanned page is incomplete, damaged or exceeds 80 megapixels.');
   }
 }

@@ -78,7 +78,8 @@ export function ScanDialog({
   const complete = !!job?.hasFile;
   const pages = job?.pages ?? [];
   const cropIndex = pages.findIndex((page) => page.id === cropping);
-  const locked = busy || running;
+  const recovery = job?.recovery;
+  const locked = busy || running || !!recovery;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
   const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
   const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
@@ -188,7 +189,7 @@ export function ScanDialog({
     };
   }, [running, job?.id]);
   async function start(batch: boolean) {
-    if (requestActive.current || running || settingsLoading || invalidSettings) return;
+    if (requestActive.current || running || recovery || settingsLoading || invalidSettings) return;
     requestActive.current = true;
     setError('');
     setBusy(true);
@@ -230,8 +231,29 @@ export function ScanDialog({
       setCanceling(false);
     }
   }
+  async function resolveRecovery(action: 'keep' | 'discard') {
+    if (!job || !recovery || requestActive.current) return;
+    requestActive.current = true;
+    pollVersion.current++;
+    setBusy(true);
+    setError('');
+    try {
+      setJob(
+        await post<Job>(`/scans/${job.id}/recovery`, {
+          revision: recovery.revision,
+          action,
+        }),
+      );
+      changed();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      requestActive.current = false;
+    }
+  }
   async function edit(updated: ScanPage[], focusPage?: string) {
-    if (!job || requestActive.current || running) return;
+    if (!job || requestActive.current || running || recovery) return;
     requestActive.current = true;
     setBusy(true);
     setError('');
@@ -278,7 +300,9 @@ export function ScanDialog({
     );
   return (
     <Modal
-      title={complete && !running ? 'Scan complete' : 'Scan document'}
+      title={
+        recovery ? 'Scan incomplete' : complete && !running ? 'Scan complete' : 'Scan document'
+      }
       subtitle={demo ? 'Demo mode: the scan sample is simulated.' : 'Collect pages in one PDF.'}
       close={close}
       className={s.scanDialog}
@@ -289,9 +313,11 @@ export function ScanDialog({
             <span>
               {canceling
                 ? 'Canceling scan…'
-                : complete
-                  ? 'Adding pages…'
-                  : 'Scanning your document…'}
+                : recovery
+                  ? 'Saving recovered pages…'
+                  : complete
+                    ? 'Adding pages…'
+                    : 'Scanning your document…'}
             </span>
           </p>
         )
@@ -444,8 +470,12 @@ export function ScanDialog({
                 <ScanLine size={48} strokeWidth={1} />
                 {!running && (
                   <>
-                    <h3>Load your document</h3>
-                    <p>Place a page on the flatbed, or load the document feeder.</p>
+                    <h3>{recovery ? 'Review recovered pages' : 'Load your document'}</h3>
+                    <p>
+                      {recovery
+                        ? 'Review the batch page numbers and acquisition error, then keep or discard the complete pages.'
+                        : 'Place a page on the flatbed, or load the document feeder.'}
+                    </p>
                   </>
                 )}
               </div>
@@ -606,14 +636,46 @@ export function ScanDialog({
                 {error || job?.error}
               </p>
             )}
+            {recovery && (
+              <section aria-label="Recover scanned pages">
+                <p role="status">
+                  Acquisition failed. {recovery.pageNumbers.length} complete pages can be recovered.
+                  Batch page order: {recovery.pageNumbers.join(', ')}.
+                </p>
+                <p className={s.small}>
+                  Missing or incomplete pages were excluded. Previously saved pages remain
+                  available. Close and reopen this scan to decide later, even after a server
+                  restart. Recoverable pages expire {new Date(recovery.expiresAt).toLocaleString()}.
+                </p>
+                <div className={s.modalActions}>
+                  <button
+                    type="button"
+                    className={s.secondary}
+                    disabled={busy || running}
+                    onClick={() => void resolveRecovery('discard')}
+                  >
+                    Discard recovered pages
+                  </button>
+                  <button
+                    type="button"
+                    className={s.primary}
+                    disabled={busy || running}
+                    onClick={() => void resolveRecovery('keep')}
+                  >
+                    {busy && <Spinner />} Keep {recovery.pageNumbers.length} recovered pages
+                  </button>
+                </div>
+              </section>
+            )}
             {running && (
               <p className={s.small}>
-                Closing this dialog continues the scan in the background. Canceling discards all new
-                pages from this operation and keeps previously saved pages.
+                {recovery
+                  ? 'Saving recovered pages. Closing this dialog continues saving in the background.'
+                  : 'Closing this dialog continues the scan in the background. Canceling discards all new pages from this operation and keeps previously saved pages.'}
               </p>
             )}
             <div className={s.modalActions}>
-              {running && (
+              {running && !recovery && (
                 <button
                   type="button"
                   className={s.secondary}
@@ -623,7 +685,7 @@ export function ScanDialog({
                   {canceling ? 'Canceling scan…' : 'Cancel scan'}
                 </button>
               )}
-              {(!complete || running) && (
+              {(!complete || running || recovery) && (
                 <button type="button" className={s.secondary} onClick={close}>
                   {running ? 'Continue in background' : 'Close'}
                 </button>

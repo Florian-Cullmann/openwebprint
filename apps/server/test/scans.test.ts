@@ -375,6 +375,8 @@ it('keeps the previous PDF and all pages when a follow-up scan fails, including 
     error: 'Scanner disconnected',
   });
   expect(await download(job)).toEqual(before);
+  expect(failed.recovery?.pageNumbers).toEqual([1]);
+  await f.service.resolveRecovery(job.id, failed.recovery!.revision, 'discard');
   expect(await readdir(f.service.job(job.id).scanDirectory!)).toHaveLength(1);
   provider.fail = false;
   expect((await start(job.id)).pages).toHaveLength(2);
