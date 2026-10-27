@@ -94,6 +94,7 @@ it('queries source-specific settings and enforces them before acquisition (stubb
     'scanimage',
     ['--device-name', scanner.target, '--source', 'ADF', '--all-options'],
     20_000,
+    undefined,
   );
   for (const options of [
     { resolution: 150, color: 'Grayscale', source: 'ADF' },
@@ -206,6 +207,7 @@ it('rechecks capabilities after discovery instead of trusting previously adverti
     'scanimage',
     ['--device-name', scanner.target, '--all-options'],
     20_000,
+    undefined,
   );
 });
 
@@ -251,5 +253,6 @@ it('bypasses the persisted dialog cache before acquisition (stubbed SANE)', asyn
     'scanimage',
     ['--device-name', scanner.target, '--all-options'],
     20_000,
+    expect.any(AbortSignal),
   );
 });

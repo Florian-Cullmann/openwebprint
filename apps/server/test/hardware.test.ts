@@ -259,6 +259,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
         'Gray',
       ],
       600_000,
+      undefined,
     );
     await expect(
       provider.scan(scanner, '/private/page.png', { resolution: 300, color: 'Gray' }),
@@ -333,6 +334,7 @@ describe('CUPS/SANE contracts (stubbed transport, no physical device claims)', (
         'Gray',
       ],
       120_000,
+      undefined,
     );
     run.mockRejectedValue(new Error('Disconnected'));
     await expect(
