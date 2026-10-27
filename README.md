@@ -49,7 +49,7 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 ![Paginated document preview beside Brother printer selection and print options](docs/images/printing.png)
 
-Review a PDF or image before printing, browse its pages, and set printer, color, sides, paper size, and copies. Open the retained document again from Jobs after submission.
+Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
 
 ### Preview and download a scan
 
