@@ -133,6 +133,7 @@ it('requires confirmation before a shorter policy affects existing documents and
     `/api/jobs/${print.id}/document`,
     `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}`,
     `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}?rendered=1`,
+    `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}?thumbnail=1`,
   ])
     expect((await f.app.inject(url)).statusCode).toBe(410);
   await f.workspace.expireFiles();
@@ -181,7 +182,12 @@ it('keeps the original expiry through successful edits/appends and failed append
   for (const result of [appended, edited, failed])
     expect(result.expiresAt).toBe(original.expiresAt);
   expect(failed.pages).toEqual(edited.pages);
+  const thumbnailUrl = `/api/scans/${failed.id}/pages/${failed.pages![0].id}?thumbnail=1`;
+  expect((await f.app.inject(thumbnailUrl)).statusCode).toBe(200);
+  const thumbnailDirectory = join(f.service.filesDir, `${failed.id}.thumbnails`);
+  await access(thumbnailDirectory);
   vi.setSystemTime(START + 7 * DAY);
+  expect((await f.app.inject(thumbnailUrl)).statusCode).toBe(410);
   expect(() =>
     f!.service.scan(failed.deviceId, { resolution: 150, color: 'Gray' }, failed.id),
   ).toThrow('expired');

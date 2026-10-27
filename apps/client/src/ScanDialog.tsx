@@ -348,8 +348,10 @@ export function ScanDialog({
                     >
                       <div className={s.scanPageImage}>
                         <img
-                          src={`/api/scans/${job!.id}/pages/${page.id}?rendered=1&revision=${job!.scanRevision}`}
+                          src={`/api/scans/${job!.id}/pages/${page.id}?thumbnail=1&edit=${encodeURIComponent(JSON.stringify([page.rotation, page.crop]))}`}
                           alt={`Scanned page ${index + 1}`}
+                          loading="lazy"
+                          decoding="async"
                           draggable={false}
                         />
                       </div>

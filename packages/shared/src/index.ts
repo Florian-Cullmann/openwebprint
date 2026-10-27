@@ -1,7 +1,10 @@
 import { z } from 'zod';
+export { resolvePrintPages, formatPrintPages } from './print-pages.js';
 
 export const PRINT_SIDES = ['one-sided', 'two-sided-long-edge', 'two-sided-short-edge'] as const;
 export const printOptionsSchema = z.object({
+  pageRanges: z.string().max(2000).optional(),
+  pageParity: z.enum(['all', 'odd', 'even']).optional(),
   copies: z.number().int().min(1).max(99).default(1),
   color: z.enum(['color', 'monochrome']).default('monochrome'),
   sides: z.enum(PRINT_SIDES).default('one-sided'),

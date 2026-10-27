@@ -581,9 +581,10 @@ export function App() {
                               >
                                 {job.hasFile ? (
                                   <img
-                                    src={`/api/jobs/${job.id}/preview`}
+                                    src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
                                     alt="Scanned page"
                                     loading="lazy"
+                                    decoding="async"
                                   />
                                 ) : (
                                   <ScanLine size={44} strokeWidth={1} />

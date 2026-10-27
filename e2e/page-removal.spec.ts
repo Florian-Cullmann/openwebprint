@@ -104,7 +104,7 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
         (img as HTMLImageElement).naturalHeight,
       ]),
     )
-    .toEqual([1754, 1240]);
+    .toEqual([512, 362]);
   const pdf = await download();
   expect(pdf.getPageCount()).toBe(1);
   expect(pdf.getPage(0).getRotation().angle).toBe(90);
@@ -112,7 +112,7 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
     (job: Job) => job.kind === 'scan',
   ) as Job;
   const preview = await page.request.get(`/api/jobs/${scan.id}/preview`);
-  const rendered = await page.request.get(`/api/scans/${scan.id}/pages/${ids[2]}?rendered=1`);
+  const rendered = await page.request.get(`/api/scans/${scan.id}/pages/${ids[2]}?thumbnail=1`);
   expect(await preview.body()).toEqual(await rendered.body());
   const a11y = await new AxeBuilder({ page }).analyze();
   expect(a11y.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual(
