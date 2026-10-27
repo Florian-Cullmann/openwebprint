@@ -260,6 +260,25 @@ export async function createApp(
     );
     return reply.code(201).send(job);
   });
+  app.post('/api/jobs/:id/print', async (req, reply) => {
+    const input = z
+      .object({
+        deviceId: z.uuid(),
+        options: printOptionsSchema,
+        revision: z.string().min(1).max(80).optional(),
+      })
+      .strict()
+      .parse(req.body);
+    const job = await workspace.run((service) =>
+      service.printSaved(
+        idParam.parse(req.params).id,
+        input.deviceId,
+        input.options,
+        input.revision,
+      ),
+    );
+    return reply.code(201).send(job);
+  });
   app.post('/api/documents/preview', async (req, reply) => {
     let file: { data: Buffer; mime: string } | undefined;
     for await (const part of req.parts()) {
@@ -326,12 +345,17 @@ export async function createApp(
       );
     const path = format === 'preview' ? job.previewPath : job.filePath;
     if (!path) throw new AppError(404, 'File unavailable.');
+    const { revision } = z
+      .object({ revision: z.string().min(1).max(80).optional() })
+      .parse(req.query);
+    const data =
+      format === 'preview' ? await readFile(path) : await workspace.service.document(id, revision);
     reply.type(format === 'preview' ? 'image/png' : 'application/pdf');
     reply.header(
       'Content-Disposition',
       `${format === 'pdf' ? 'attachment' : 'inline'}; filename="${job.kind === 'scan' ? 'scan' : 'document'}-${id}.${format === 'preview' ? 'png' : 'pdf'}"`,
     );
-    return reply.send(await readFile(path));
+    return reply.send(data);
   });
   const staticDir = options.staticDir ?? resolve('apps/client/dist');
   if (existsSync(staticDir)) {

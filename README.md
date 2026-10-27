@@ -51,11 +51,13 @@ Check device status, start a print or scan, and follow recent jobs from one page
 
 Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](docs/images/preview-zoom.png) and [mobile](docs/images/preview-zoom-mobile.png).
 
+Choose **Print** in a saved scan or retained document preview to select a printer and review its current options without downloading and uploading the PDF. Each confirmed submission creates an independent job; changing or deleting the source does not change that job. Files are available for seven days. If the original print outcome is unknown, check Jobs and the printer first: reprinting may produce duplicate output. See [printing a saved scan](docs/images/saved-document-print.png).
+
 ### Preview and download a scan
 
 ![Completed demo scan with a document preview and Download PDF action](docs/images/scanning.png)
 
-Review, crop, rotate, reorder, or remove scanned pages, download the PDF, or scan another page. A scan must keep at least one page; delete the scan from Scans to remove the entire document. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
+Review, crop, rotate, reorder, or remove scanned pages, download or print the PDF, or scan another page. A scan must keep at least one page; delete the scan from Scans to remove the entire document. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output.
 
 ## Quick start
 
