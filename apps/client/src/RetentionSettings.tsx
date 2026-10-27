@@ -61,25 +61,27 @@ export function RetentionSettings() {
       <form onSubmit={submit} className={`${s.form} ${s.userForm}`}>
         {policy ? (
           <>
-            {(['scanDays', 'printDays'] as const).map((key) => (
-              <label key={key}>
-                {key === 'scanDays' ? 'Keep scans (days)' : 'Keep print PDFs (days)'}
-                <input
-                  type="number"
-                  min={1}
-                  max={3650}
-                  step={1}
-                  required
-                  disabled={busy}
-                  value={Number.isNaN(policy[key]) ? '' : policy[key]}
-                  onChange={(e) => {
-                    setPolicy({ ...policy, [key]: e.target.valueAsNumber });
-                    setImpact(undefined);
-                    setSaved(false);
-                  }}
-                />
-              </label>
-            ))}
+            <div className={s.formGrid}>
+              {(['scanDays', 'printDays'] as const).map((key) => (
+                <label key={key}>
+                  {key === 'scanDays' ? 'Keep scans (days)' : 'Keep print PDFs (days)'}
+                  <input
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    required
+                    disabled={busy}
+                    value={Number.isNaN(policy[key]) ? '' : policy[key]}
+                    onChange={(e) => {
+                      setPolicy({ ...policy, [key]: e.target.valueAsNumber });
+                      setImpact(undefined);
+                      setSaved(false);
+                    }}
+                  />
+                </label>
+              ))}
+            </div>
             <p className={s.small}>
               Use 1–3650 whole days. Indefinite retention is not offered. Cleanup runs at startup
               and hourly, waits for active operations, and preserves job records. Deleted files
