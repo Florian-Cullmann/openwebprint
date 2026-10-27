@@ -72,6 +72,7 @@ it('removes pages, publishes matching previews/PDFs, cleans obsolete files, and 
   expect(pdf.getPage(0).getWidth()).toBeCloseTo((70 * 72) / 300, 6);
   expect(pdf.getPage(1).getWidth()).toBeCloseTo((102 * 72) / 300, 6);
   const preview = await f.app.inject({ url: `/api/jobs/${saved.id}/preview`, headers: f.headers });
+  expect(preview.statusCode, preview.body).toBe(200);
   expect(await sharp(preview.rawPayload).metadata()).toMatchObject({ width: 120, height: 70 });
   for (const path of [previous.filePath!, previous.previewPath!, sources[0].path])
     await expect(access(path)).rejects.toThrow();
@@ -584,6 +585,7 @@ it('crops original pixels before every rotation, persists edits on restart, and 
     expect(job.pages![0]).toMatchObject({ crop, rotation });
     expect((await edit(previous)).statusCode).toBe(409);
     const preview = await f.app.inject({ url: `/api/jobs/${job.id}/preview`, headers: f.headers });
+    expect(preview.statusCode, preview.body).toBe(200);
     const expected = await cropped
       .clone()
       .rotate(rotation)

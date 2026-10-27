@@ -317,7 +317,11 @@ export async function createApp(
   });
   app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
     const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
-    const { rendered } = z.object({ rendered: z.literal('1').optional() }).parse(req.query);
+    const { rendered, thumbnail } = z
+      .object({ rendered: z.literal('1').optional(), thumbnail: z.literal('1').optional() })
+      .parse(req.query);
+    if (thumbnail)
+      return reply.type('image/png').send(await workspace.service.scanThumbnail(id, pageId));
     const job = workspace.service.job(id);
     if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
     const page = storedScanPages(job).find((page) => page.id === pageId);
@@ -349,7 +353,9 @@ export async function createApp(
       .object({ revision: z.string().min(1).max(80).optional() })
       .parse(req.query);
     const data =
-      format === 'preview' ? await readFile(path) : await workspace.service.document(id, revision);
+      format === 'preview'
+        ? await workspace.service.scanThumbnail(id)
+        : await workspace.service.document(id, revision);
     reply.type(format === 'preview' ? 'image/png' : 'application/pdf');
     reply.header(
       'Content-Disposition',

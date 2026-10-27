@@ -5,6 +5,7 @@ import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
+export const SCAN_THUMBNAIL_SIZE = 512;
 export async function normalizeDocument(buffer: Buffer, claimedType: string): Promise<Buffer> {
   if (buffer.length === 0 || buffer.length > MAX_UPLOAD)
     throw new AppError(413, 'The file must be between 1 byte and 25 MB.');
@@ -80,7 +81,17 @@ export async function exportScanPages(
       const page = pdf.addPage([width, height]);
       page.drawImage(png, { x: 0, y: 0, width, height });
       page.setRotation(degrees(source.rotation));
-      if (index === 0) await sharp(image).rotate(source.rotation).png().toFile(previewPath);
+      if (index === 0)
+        await sharp(image)
+          .rotate(source.rotation)
+          .resize({
+            width: SCAN_THUMBNAIL_SIZE,
+            height: SCAN_THUMBNAIL_SIZE,
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .png()
+          .toFile(previewPath);
     }
     await writeFile(pdfPath, await pdf.save(), { mode: 0o600 });
   } catch (error) {
@@ -98,7 +109,7 @@ function validResolution(value: number | undefined) {
     : undefined;
 }
 
-export async function renderScanPage(source: StoredScanPage, rotate = true) {
+export async function renderScanPage(source: StoredScanPage, rotate = true, thumbnail = false) {
   try {
     const pipeline = sharp(source.path, { limitInputPixels: 80_000_000 });
     const { width, height, density } = await pipeline.metadata();
@@ -117,10 +128,29 @@ export async function renderScanPage(source: StoredScanPage, rotate = true) {
         throw new AppError(400, 'The crop must be a non-empty rectangle within the original page.');
       pipeline.extract({ left: crop.x, top: crop.y, width: crop.width, height: crop.height });
     }
-    const image = await pipeline
-      .rotate(rotate ? source.rotation : 0)
-      .png()
-      .toBuffer();
+    let image: Buffer;
+    if (thumbnail) {
+      // Sharp can move rotation before extraction when resizing in the same
+      // pipeline. Finish crop/resize first, then rotate only the small bitmap.
+      const { data, info } = await pipeline
+        .resize({
+          width: SCAN_THUMBNAIL_SIZE,
+          height: SCAN_THUMBNAIL_SIZE,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      image = await sharp(data, { raw: info })
+        .rotate(rotate ? source.rotation : 0)
+        .png()
+        .toBuffer();
+    } else {
+      image = await pipeline
+        .rotate(rotate ? source.rotation : 0)
+        .png()
+        .toBuffer();
+    }
     return {
       image,
       originalWidth: width,
