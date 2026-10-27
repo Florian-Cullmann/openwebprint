@@ -279,7 +279,7 @@ export async function setupHardware({
     log(`OS package changes:\n${steps.commands.map((args) => `  ${args.join(' ')}`).join('\n')}`);
     if (
       await confirm(
-        'Install/verify these hardware packages? Administrative commands may request your OS password.',
+        'Install/verify these hardware packages? OS package scripts may also enable/start services. Administrative commands may request your OS password.',
       )
     ) {
       try {
