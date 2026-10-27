@@ -359,8 +359,9 @@ async function hardware() {
   const c = await config();
   const launcher = join(root, 'openwebprint').replaceAll("'", "'\\''");
   return setupHardware({
-    check: () =>
+    check: (options) =>
       checkHardware({
+        ...options,
         server: c.cupsServer || 'localhost:631',
         setupCommand: `'${launcher}' hardware`,
       }),

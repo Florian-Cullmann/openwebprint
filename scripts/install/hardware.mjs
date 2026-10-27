@@ -67,6 +67,8 @@ export async function checkHardware({
   setupCommand,
   run = probe,
   has = available,
+  serviceAttempts = 1,
+  pause = (ms) => new Promise((done) => setTimeout(done, ms)),
 } = {}) {
   const checks = [];
   for (const tool of ['lp', 'lpadmin', 'lpstat', 'cancel', 'scanimage']) {
@@ -77,7 +79,16 @@ export async function checkHardware({
     });
   }
   if (checks.find((check) => check.id === 'lpstat').state === 'ok') {
-    const scheduler = await run('lpstat', ['-h', server, '-r']);
+    let scheduler;
+    for (let attempt = 0; attempt < serviceAttempts; attempt++) {
+      scheduler = await run('lpstat', ['-h', server, '-r'], 2000);
+      if (
+        scheduler.state !== 'unavailable' &&
+        !(scheduler.state === 'ok' && scheduler.stdout?.trim() !== 'scheduler is running')
+      )
+        break;
+      if (attempt + 1 < serviceAttempts) await pause(500);
+    }
     // lpstat -r can exit successfully while reporting a stopped scheduler.
     const running = scheduler.state === 'ok' && scheduler.stdout?.trim() === 'scheduler is running';
     checks.push({
@@ -282,6 +293,7 @@ export async function setupHardware({
     } else log('Package changes skipped. No consent received.');
     if (packagesChanged) report = await check();
   }
+  let serviceChanged = false;
   if (
     (packagesChanged ||
       report.checks.some((item) => item.id === 'cups' && item.state === 'unavailable')) &&
@@ -291,6 +303,7 @@ export async function setupHardware({
     if (await confirm('Enable/start these OS services? sudo may request your OS password.')) {
       try {
         for (const args of steps.service) await execute(args);
+        serviceChanged = true;
       } catch {
         log(
           'Service setup failed or was canceled. Use your OS service/printer settings, then retry.',
@@ -298,7 +311,9 @@ export async function setupHardware({
       }
     } else log('Service changes skipped. No consent received.');
   }
-  report = await check();
+  // launchctl/systemctl can return before CUPS accepts connections. Only
+  // retry the read-only scheduler probe after a successful consented start.
+  report = await check({ serviceAttempts: serviceChanged ? 10 : 1 });
   printHardware(report, log);
   return report;
 }

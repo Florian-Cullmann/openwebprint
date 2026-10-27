@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { checkHardware, setupHardware } from './install/hardware.mjs';
+import { checkHardware, setupHardware, probe } from './install/hardware.mjs';
 
 // This test deliberately changes ONLY a disposable CI runner. It is separate
 // from npm test/test:install and is never shipped in an end-user release.
@@ -18,6 +18,13 @@ const result = await setupHardware({
     return true;
   },
 });
+if (!result.ready && process.platform === 'darwin') {
+  console.log(
+    'Disposable runner scheduler probe after startup:',
+    await probe('lpstat', ['-h', 'localhost:631', '-r']),
+  );
+  console.log('Disposable runner default scheduler probe:', await probe('lpstat', ['-r']));
+}
 assert.equal(
   result.ready,
   true,

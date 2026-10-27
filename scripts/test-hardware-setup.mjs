@@ -69,6 +69,32 @@ test('stopped scheduler, permission failure, timeout and recovery remain distinc
   assert.equal(stopped.checks.find((item) => item.id === 'cups').state, 'unavailable');
   assert.equal((await check()).ready, true);
 });
+test('service startup rechecks CUPS until reachable, with a bounded retry budget', async () => {
+  let attempts = 0;
+  const pauses = [];
+  const result = await check({
+    serviceAttempts: 3,
+    pause: async (ms) => pauses.push(ms),
+    run: async (tool, args) =>
+      args.includes('-r') && ++attempts < 3
+        ? { state: 'ok', stdout: 'scheduler is not running' }
+        : healthy(tool, args),
+  });
+  assert.equal(result.ready, true);
+  assert.equal(attempts, 3);
+  assert.deepEqual(pauses, [500, 500]);
+  attempts = 0;
+  const failed = await check({
+    serviceAttempts: 3,
+    pause: async () => {},
+    run: async () => {
+      attempts++;
+      return { state: 'unavailable' };
+    },
+  });
+  assert.equal(failed.ready, false);
+  assert.equal(attempts, 4); // three scheduler probes plus one scanner listing
+});
 test('native and container recovery guidance respects installation boundaries', async () => {
   const native = await check({
     platform: 'darwin',
@@ -128,8 +154,9 @@ test('consented install and service startup recheck prerequisites and recover', 
   let started = false;
   const commands = [];
   const result = await setupHardware({
-    check: () =>
+    check: (options) =>
       check({
+        ...options,
         has: async (tool) => installed && tool !== 'dpkg-query',
         run: async (tool, args) => (started ? healthy(tool, args) : { state: 'unavailable' }),
       }),

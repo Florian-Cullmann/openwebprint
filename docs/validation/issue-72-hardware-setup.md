@@ -4,7 +4,7 @@ This records software setup evidence separately from physical device compatibili
 
 ## Automated checks
 
-- `node --test scripts/test-hardware-setup.mjs`: controlled Linux/macOS command and OS fixtures cover absent/present tools, healthy empty discovery, stopped CUPS (including exit 0), permission errors, timeouts, consent refusal, package failure and successful repair. A real child-process boundary tests missing executables, timeout termination and redaction. No packages/services are changed by these fixture tests.
+- `node --test scripts/test-hardware-setup.mjs`: controlled Linux/macOS command and OS fixtures cover absent/present tools, healthy empty discovery, stopped CUPS (including exit 0) and bounded service-start readiness retries, permission errors, timeouts, consent refusal, package failure and successful repair. A real child-process boundary tests missing executables, timeout termination and redaction. No packages/services are changed by these fixture tests.
 - `npm test`: includes hardware API authentication/origin protection, concurrent-check coalescing, retry and isolation from snapshot polling; existing CUPS/SANE provider tests remain hardware fixtures.
 - `npx playwright test e2e/hardware-prerequisites.spec.ts e2e/workflow.spec.ts`: production onboarding on desktop/mobile, controlled API results for missing dependencies and successful repair, accessible results, no native-install Docker advice, no horizontal overflow, and continuation without devices.
 - `npm run test:install`: release archive/private runtime/application lifecycle checks. The first install performs actual noninteractive prerequisite probes and verifies that software readiness and application startup are reported separately. Repeated lifecycle operations skip probes explicitly. No OS changes are authorized by this smoke test.
@@ -12,7 +12,7 @@ This records software setup evidence separately from physical device compatibili
 
 ## Local verification
 
-Development host: macOS Apple Silicon. Production build and automated checks run locally. The 12 installer fixture checks also pass in a disposable Linux Node 24 container; this does not exercise a real systemd installation. A read-only system CUPS check reproduced localized output despite `LANG=C`; setting `SOFTWARE=openwebprint` makes macOS CUPS honor the fixed locale. No host packages, CUPS queues, service configuration or permissions were changed. A disposable Linux container also passed the production Docker build, real CUPS/SANE prerequisite API, hardware API smoke test and CUPS PDF-to-PWG-Raster filter check; this performs no physical printing.
+Development host: macOS Apple Silicon. Production build and automated checks run locally. The 13 installer fixture checks also pass in a disposable Linux Node 24 container; this does not exercise a real systemd installation. A read-only system CUPS check reproduced localized output despite `LANG=C`; setting `SOFTWARE=openwebprint` makes macOS CUPS honor the fixed locale. No host packages, CUPS queues, service configuration or permissions were changed. A disposable Linux container also passed the production Docker build, real CUPS/SANE prerequisite API, hardware API smoke test and CUPS PDF-to-PWG-Raster filter check; this performs no physical printing.
 
 The screenshot below shows the actual onboarding UI with controlled missing-software API results, not a physical discovery result:
 
