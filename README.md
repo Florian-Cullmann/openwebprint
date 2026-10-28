@@ -30,7 +30,7 @@ openwebprint puts your printers, scanners, and documents in one browser workspac
 - **Manage documents:** search scan titles, browse grid/list history, download PDFs or selected scans as a ZIP, and follow jobs with optional browser notifications. Scan and print files expire after **seven days by default**, configurable in Settings.
 - **Try without hardware:** clearly labeled demo devices generate sample output. **Hardware mode never falls back to simulation.**
 
-This README describes the current `main` branch. The latest packaged release is **[v0.1.0-beta.2](docs/releases/v0.1.0-beta.2.md)**; some features on `main` are awaiting the next release. Hardware compatibility depends on device protocols and host drivers; see the [hardware guide](docs/hardware.md).
+This README describes the current `main` branch. The latest packaged release is **[v0.1.0-beta.3](docs/releases/v0.1.0-beta.3.md)**. Hardware compatibility depends on device protocols and host drivers; see the [hardware guide](docs/hardware.md).
 
 ## Quick start
 
@@ -41,8 +41,8 @@ This README describes the current `main` branch. The latest packaged release is 
 Paste into Terminal as your normal user, **without sudo**:
 
 ```sh
-curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.2/install.sh -o install-openwebprint.sh
-OPENWEBPRINT_VERSION=v0.1.0-beta.2 sh install-openwebprint.sh
+curl -fsSL https://github.com/Florian-Cullmann/openwebprint/releases/download/v0.1.0-beta.3/install.sh -o install-openwebprint.sh
+OPENWEBPRINT_VERSION=v0.1.0-beta.3 sh install-openwebprint.sh
 ```
 
 Open **http://127.0.0.1:3001**, then choose **Try demo** or **Start setup**. The commands pin the published beta explicitly. See the [installation guide](docs/installation.md) for supported OS versions, hardware prerequisites, updates, backups, logs, and uninstall.
