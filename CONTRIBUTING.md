@@ -84,10 +84,13 @@ or storing notifications, so changing languages updates an existing view. Keep u
 filenames, device names, addresses, and protocol option values unchanged; translate only
 their presentation labels. React renders interpolated text as text, never HTML.
 
-The language menu is available during setup, sign-in, and normal use. A valid explicit
+The compact language button shows the current language code and cycles through supported
+languages during setup, sign-in, and normal use. To add a language, import its catalog and
+register its code, native name, locale and messages in `languages` in `i18n.ts`; the button,
+preference detection, translations and formatting use this registry. A valid explicit
 choice in this origin's `localStorage` (`owp-language`) wins; otherwise the first supported
 language in the browser's ordered preferences is used (`de-*` → German, `en-*` → English).
-If none is supported, English is used. Missing German keys fall back to their English
+If none is supported, English is used. Missing translation keys fall back to their English
 phrase. Formatting uses `de-DE` or `en-GB`, with dates in the browser's time zone.
 Preferences apply to this browser, persist across sign-in/out, and synchronize between
 tabs. If storage is blocked, the choice lasts for the current tab's lifetime.

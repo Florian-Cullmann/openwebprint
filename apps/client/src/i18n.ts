@@ -8,17 +8,25 @@ import {
 import { useSyncExternalStore } from 'react';
 import de from './de.json';
 
-export type Language = 'en' | 'de';
+// Add languages here; the picker, browser preference detection and formatting use this registry.
+export const languages = {
+  en: { name: 'English', locale: 'en-GB', messages: {} as Record<string, string> },
+  de: { name: 'Deutsch', locale: 'de-DE', messages: de as Record<string, string> },
+};
+export type Language = keyof typeof languages;
+export const supportedLanguages = Object.keys(languages) as Language[];
 type Params = Record<string, string | number | boolean | null | undefined>;
 const storageKey = 'owp-language';
-const translations: Record<string, string> = de;
 const listeners = new Set<() => void>();
 
+function isLanguage(value: string | null): value is Language {
+  return value !== null && Object.hasOwn(languages, value);
+}
 export function initialLanguage(saved: string | null, languages: readonly string[]): Language {
-  if (saved === 'en' || saved === 'de') return saved;
+  if (isLanguage(saved)) return saved;
   for (const language of languages) {
     const base = language.toLowerCase().split('-')[0];
-    if (base === 'en' || base === 'de') return base;
+    if (isLanguage(base)) return base;
   }
   return 'en';
 }
@@ -30,7 +38,7 @@ try {
 }
 let language = initialLanguage(saved, typeof navigator === 'undefined' ? [] : navigator.languages);
 export const getLanguage = () => language;
-export const getLocale = () => (language === 'de' ? 'de-DE' : 'en-GB');
+export const getLocale = () => languages[language].locale;
 function applyLanguage(next: Language) {
   language = next;
   if (typeof document !== 'undefined') document.documentElement.lang = next;
@@ -85,7 +93,8 @@ export function t(key: string, params: Params = {}): string {
       params = { status: Number(http[1]) };
     }
   }
-  const text = language === 'de' && Object.hasOwn(translations, key) ? translations[key] : key;
+  const translations = languages[language].messages;
+  const text = Object.hasOwn(translations, key) ? translations[key] : key;
   return text.replace(/\{(\w+)\}/g, (match, name: string) => {
     if (!Object.hasOwn(params, name)) return match;
     const value = params[name];

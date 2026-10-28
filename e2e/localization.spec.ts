@@ -169,7 +169,13 @@ for (const language of ['en', 'de'] as const) {
       await expect(page.getByRole('heading', { name: labels.users, exact: true })).toBeVisible();
       // A manual choice overrides the browser locale and survives navigation/reload.
       const other = language === 'de' ? 'en' : 'de';
-      await page.getByRole('combobox', { name: labels.language, exact: true }).selectOption(other);
+      const picker = page.getByRole('button', { name: new RegExp(`^${labels.language}:`) });
+      await expect(picker).toHaveText(language.toUpperCase());
+      await picker.focus();
+      await page.keyboard.press('Enter');
+      await expect(
+        page.getByRole('button', { name: new RegExp(`^${text[other].language}:`) }),
+      ).toHaveText(other.toUpperCase());
       await expect(
         page.getByRole('heading', { name: text[other].users, exact: true }),
       ).toBeVisible();
@@ -193,13 +199,17 @@ test('synchronizes a language change across tabs without resetting an open print
   context,
 }) => {
   await page.goto('/overview');
-  await page.getByRole('combobox', { name: 'Language', exact: true }).selectOption('en');
+  if ((await page.locator('html').getAttribute('lang')) === 'de')
+    await page.getByRole('button', { name: 'Sprache: DE (Deutsch)', exact: true }).click();
   await page.getByRole('button', { name: 'Try demo', exact: true }).click();
   await page.getByRole('button', { name: 'Print', exact: true }).first().click();
   await page.getByLabel('Copies', { exact: true }).fill('3');
   const second = await context.newPage();
   await second.goto(new URL('/overview', page.url()).href);
-  await second.getByRole('combobox', { name: 'Language', exact: true }).selectOption('de');
+  await second.getByRole('button', { name: 'Language: EN (English)', exact: true }).click();
+  await expect(
+    second.getByRole('button', { name: 'Sprache: DE (Deutsch)', exact: true }),
+  ).toHaveText('DE');
   await expect(page.getByRole('heading', { name: 'Dokument drucken', exact: true })).toBeVisible();
   await expect(page.getByLabel('Kopien', { exact: true })).toHaveValue('3');
   await second.close();

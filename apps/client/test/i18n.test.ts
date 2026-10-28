@@ -25,6 +25,7 @@ describe('language preferences and presentation', () => {
     expect(initialLanguage('de', ['en-US'])).toBe('de');
     expect(initialLanguage('invalid', ['fr-FR', 'de-AT', 'en-US'])).toBe('de');
     expect(initialLanguage(null, ['fr-FR'])).toBe('en');
+    expect(initialLanguage('constructor', ['toString', 'de-DE'])).toBe('de');
   });
   it('uses the selected locale for numbers, dates, file sizes, plural forms and safe errors', () => {
     setLanguage('de');
