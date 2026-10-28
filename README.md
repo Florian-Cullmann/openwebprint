@@ -61,6 +61,14 @@ Print all pages by default, or choose **Custom range** (for example, `1-3, 7`) a
 
 Review, crop, rotate, reorder, or remove scanned pages, download or print the PDF, or scan another page. A scan must keep at least one page; delete the scan from Scans to remove the entire document. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output. See the multi-page editor with bounded thumbnails on [desktop](docs/images/scan-thumbnails.png) and [mobile](docs/images/scan-thumbnails-mobile.png).
 
+### Optional job notifications
+
+In **Settings → General → Job notifications**, choose **Enable notifications** to request browser permission. HTTPS (or localhost) and a supporting browser are required. Blocked, unavailable and unsupported notifications fall back to in-app job updates. Some mobile browsers cannot display these system notifications; the app reports display failures. No external push service is used. See the [notification settings](docs/images/job-notifications.png).
+
+Keep the application open: each tab follows only print and scan operations started there, polling those jobs every five seconds even in a background tab when notifications are enabled and permission is granted. Browsers may delay background timers or suspend tabs. Reconnection reconciles tracked jobs once, without importing historical jobs. Demo messages are explicitly marked. Clicking a notification opens its job; messages omit document titles, device names and error details. Provider-reported print completion does not confirm physical output; unknown outcomes are reported as unconfirmed. Each operation produces at most one outcome notification; consult Jobs for subsequent status changes.
+
+Preferences apply to this browser and current user/mode. Tabs own separate jobs, preventing duplicate notifications without a tab leader or takeover. Reloading/closing the originating tab ends tracking. Signing out, removing demo data or changing the preference clears pending updates and closes existing system notifications (also in other open tabs). Re-enabling starts fresh and never replays old outcomes. In-app updates retain the latest five outcomes until dismissed or tracking is reset. The browser’s notification permission remains under its site settings.
+
 ## Quick start
 
 ### Install for everyday use

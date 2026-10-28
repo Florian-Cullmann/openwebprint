@@ -17,22 +17,24 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
       <Routes>
-        <Route path="/settings" element={<Navigate to="/settings/general" replace />} />
         <Route path="/" element={<Navigate to="/overview" replace />} />
-        {[
-          'overview',
-          'devices',
-          'jobs',
-          'scans',
-          'login',
-          'setup',
-          'settings/general',
-          'settings/users',
-          'settings/appearance',
-          'settings/hardware',
-        ].map((path) => (
-          <Route key={path} path={`/${path}`} element={<App />} />
-        ))}
+        <Route element={<App />}>
+          {[
+            'overview',
+            'devices',
+            'jobs',
+            'scans',
+            'login',
+            'setup',
+            'settings',
+            'settings/general',
+            'settings/users',
+            'settings/appearance',
+            'settings/hardware',
+          ].map((path) => (
+            <Route key={path} path={`/${path}`} element={null} />
+          ))}
+        </Route>
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
