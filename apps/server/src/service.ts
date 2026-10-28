@@ -33,6 +33,7 @@ import {
 } from './documents.js';
 import { ScannerCapabilities } from './scan-capabilities.js';
 import { expired, retentionPolicy } from './retention.js';
+import { ScanExports } from './scan-export.js';
 
 const terminal = new Set(['completed', 'canceled', 'failed']);
 const DEVICE_STATUS_TTL = 5000;
@@ -71,6 +72,7 @@ export class Service {
   private deviceCache?: { result: Promise<DeviceState>; expiresAt: number };
   private deviceInspections = new Set<Promise<DeviceState>>();
   private scannerCapabilities: ScannerCapabilities;
+  readonly scanExports: ScanExports;
   private thumbnailTasks = new Map<string, Promise<Buffer>>();
   private removingFiles = new Set<string>();
   constructor(
@@ -80,6 +82,7 @@ export class Service {
     private scanDirectory = join(store.directory, 'files'),
   ) {
     this.filesDir = join(store.directory, 'files');
+    this.scanExports = new ScanExports(store, mode, this.activeJobs);
     this.scannerCapabilities = new ScannerCapabilities(store, mode, provider);
   }
   async initialize() {
@@ -842,6 +845,7 @@ export class Service {
     }
   }
   async close() {
+    await this.scanExports.close();
     await this.scannerCapabilities.drain();
     await Promise.allSettled([...this.deviceInspections]);
     await Promise.all(this.tasks);

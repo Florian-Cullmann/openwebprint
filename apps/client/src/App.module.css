@@ -504,6 +504,15 @@
   border-radius: 10px;
   overflow: hidden;
 }
+.scanThumbWrap {
+  position: relative;
+}
+.scanSelection {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+}
 .scanThumb {
   width: 100%;
   height: 240px;
