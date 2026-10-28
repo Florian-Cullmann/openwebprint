@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
+  MAX_SCAN_PIXELS,
+  scanPixelCount,
   FALLBACK_SCAN_RESOLUTIONS,
   FALLBACK_SCAN_COLOR_MODES,
   scanSettingsError,
@@ -86,7 +88,8 @@ export function ScanDialog({
   const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
   const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
   const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
-  const invalidSettings = !!scanSettingsError(sources, { resolution, color });
+  const settingsError = scanSettingsError(sources, { resolution, color });
+  const invalidSettings = !!settingsError;
   useEffect(() => {
     if (!locked && focusAfterRemoval.current) {
       cropButtons.current.get(focusAfterRemoval.current)?.focus();
@@ -633,10 +636,17 @@ export function ScanDialog({
                       reject them.
                     </p>
                   )}
+                {!running && !settingsLoading && (
+                  <p className={s.small}>
+                    {sources.acquisitionArea
+                      ? `Scan area: ${Number(sources.acquisitionArea.widthMm.toFixed(1))} × ${Number(sources.acquisitionArea.heightMm.toFixed(1))} mm · ${Number((scanPixelCount(sources.acquisitionArea, resolution) / 1_000_000).toFixed(1))} megapixels at ${resolution} dpi.`
+                      : 'Scan area is unknown. Large originals may need a lower resolution.'}{' '}
+                    Limit: {MAX_SCAN_PIXELS / 1_000_000} megapixels per page before cropping.
+                  </p>
+                )}
                 {!running && !settingsLoading && invalidSettings && (
                   <p role="alert" className={s.error}>
-                    Choose a supported resolution and color mode. This paper source may have no
-                    supported scan settings.
+                    {settingsError}
                   </p>
                 )}
               </>

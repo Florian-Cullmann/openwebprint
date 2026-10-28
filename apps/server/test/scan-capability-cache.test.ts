@@ -210,3 +210,21 @@ it('removes demo capability records along with demo devices', async () => {
   await f.workspace.removeDemo();
   expect(f.store.setting(`scan-capabilities:demo:${device.id}`)).toBeUndefined();
 });
+
+it('rediscovers geometry after upgrading a cache created before area discovery', async () => {
+  const { provider, read } = controlled();
+  f = await fixture({ provider });
+  const device = scanner();
+  const key = `scan-capabilities:demo:${device.id}`;
+  const legacy = JSON.parse(f.store.setting(key)!);
+  legacy.version = 1;
+  f.store.set(key, JSON.stringify(legacy));
+  read.mockClear();
+  const withArea = { ...defaults, acquisitionArea: { widthMm: 210, heightMm: 297 } };
+  read.mockResolvedValue(withArea);
+  expect((await get()).json()).toEqual(withArea);
+  expect(read).toHaveBeenCalledOnce();
+  read.mockClear();
+  expect((await get()).json()).toEqual(withArea);
+  expect(read).not.toHaveBeenCalled();
+});

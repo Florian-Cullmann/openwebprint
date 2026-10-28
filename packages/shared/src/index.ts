@@ -15,6 +15,10 @@ export const printOptionsSchema = z.object({
 });
 export const MAX_SCAN_PAGES = 100;
 export const MAX_SCAN_RESOLUTION = 9600;
+// Per original page, before cropping/rotation; retain a bounded decoder budget.
+export const MAX_SCAN_PIXELS = 80_000_000;
+export const SCAN_SIZE_ERROR =
+  'A scanned page exceeds the 80-megapixel limit. Choose a lower resolution or a smaller scan area on the scanner, refresh scanner settings and try again. Cropping after scanning does not reduce acquisition size.';
 export const FALLBACK_SCAN_RESOLUTIONS = [150, 300, 600];
 export const FALLBACK_SCAN_COLOR_MODES = ['Color', 'Gray'];
 export const scanChoiceSchema = z
@@ -83,7 +87,20 @@ export interface ScanPage {
   crop?: ScanCrop;
 }
 export type ScanResolutions = number[] | { min: number; max: number; step?: number };
+export interface ScanArea {
+  widthMm: number;
+  heightMm: number;
+}
+export function scanPixelCount(area: ScanArea, resolution: number): number {
+  // Round up each axis so fractional device pixels never understate the budget.
+  return (
+    Math.ceil((area.widthMm * resolution) / 25.4) * Math.ceil((area.heightMm * resolution) / 25.4)
+  );
+}
 export interface ScanCapabilities {
+  // Current source area in mm, explicitly applied by the provider on acquisition.
+  // Missing geometry is unknown, never assumed to be A4.
+  acquisitionArea?: ScanArea;
   // Undefined means unknown; [] means no selectable values within application limits.
   resolutions?: ScanResolutions;
   colorModes?: string[];
@@ -113,6 +130,11 @@ export function scanSettingsError(capabilities: ScanCapabilities, options: ScanO
     return capabilities.resolutions === undefined
       ? 'Scanner resolutions are unknown. Choose a fallback resolution (150, 300 or 600 dpi), or retry discovery.'
       : 'The scanner does not support the selected resolution for this paper source.';
+  if (
+    capabilities.acquisitionArea &&
+    scanPixelCount(capabilities.acquisitionArea, options.resolution) > MAX_SCAN_PIXELS
+  )
+    return SCAN_SIZE_ERROR;
   if (!(capabilities.colorModes ?? FALLBACK_SCAN_COLOR_MODES).includes(options.color))
     return capabilities.colorModes === undefined
       ? 'Scanner color modes are unknown. Choose Color or Gray, or retry discovery.'

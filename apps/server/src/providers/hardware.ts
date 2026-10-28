@@ -464,6 +464,15 @@ export class HardwareProvider implements Provider {
           String(options.resolution),
           '--mode',
           options.color,
+          // Apply the exact area checked above, after source/resolution/mode.
+          ...(capabilities.acquisitionArea
+            ? [
+                '-x',
+                String(capabilities.acquisitionArea.widthMm),
+                '-y',
+                String(capabilities.acquisitionArea.heightMm),
+              ]
+            : []),
         ],
         options.batch ? 600_000 : 120_000,
         signal,

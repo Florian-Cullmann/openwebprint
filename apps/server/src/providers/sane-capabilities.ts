@@ -10,11 +10,12 @@ import {
 // See https://gitlab.com/sane-project/backends/-/blob/master/frontend/scanimage.c
 function option(output: string, name: string) {
   const lines = output.split(/\r?\n/);
-  const index = lines.findIndex((line) => line.trimStart().startsWith(`--${name} `));
+  const flag = name.length === 1 ? `-${name}` : `--${name}`;
+  const index = lines.findIndex((line) => line.trimStart().startsWith(`${flag} `));
   if (index < 0) return;
-  let value = lines[index].trimStart().slice(name.length + 3);
+  let value = lines[index].trimStart().slice(flag.length + 1);
   for (let next = index + 1; next < lines.length && value.trimEnd().endsWith('|'); next++) {
-    if (lines[next].trimStart().startsWith('--')) break;
+    if (lines[next].trimStart().startsWith('-')) break;
     value += lines[next].trim();
   }
   return {
@@ -50,6 +51,15 @@ function resolutions(value: string): ScanResolutions | undefined {
     .filter((dpi) => dpi >= 1 && dpi <= MAX_SCAN_RESOLUTION)
     .sort((a, b) => a - b);
 }
+// Only writable, finite millimetre extents can be reapplied safely. Pixel units,
+// auto lengths, inactive/read-only options and partial geometry stay unknown.
+function extent(output: string, axis: string) {
+  const value = option(output, axis);
+  if (!value || value.unavailable || !/mm(?: |$)/.test(value.values)) return;
+  if (!/^\d+(?:\.\d+)?$/.test(value.current ?? '')) return;
+  const mm = Number(value.current);
+  return Number.isFinite(mm) && mm > 0 ? mm : undefined;
+}
 export function saneCapabilities(output: string): ScanSources {
   const source = option(output, 'source');
   const resolution = option(output, 'resolution');
@@ -57,7 +67,10 @@ export function saneCapabilities(output: string): ScanSources {
   const dpi = resolution?.unavailable ? [] : resolution && resolutions(resolution.values);
   const colors = mode?.unavailable ? [] : mode && choices(mode.values);
   const defaultResolution = Number(resolution?.current);
+  const widthMm = extent(output, 'x');
+  const heightMm = extent(output, 'y');
   return {
+    ...(widthMm && heightMm ? { acquisitionArea: { widthMm, heightMm } } : {}),
     sources: (source?.unavailable ? [] : (source && choices(source.values)) || []).map((name) => ({
       name,
       feeder: /adf|document feeder/i.test(name),
