@@ -42,7 +42,10 @@ test('native hardware setup explains missing requirements and recovers after ter
   await page.goto('/setup');
   await page.getByRole('button', { name: 'Start setup', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Connect your devices' })).toBeVisible();
-  const requirements = page.getByRole('region', { name: 'Printing and scanning prerequisites' });
+  const requirements = page.getByRole('region', { name: 'Hardware diagnostics' });
+  await expect(requirements).toContainText('Software access has not been checked.');
+  expect(checks).toBe(0);
+  await requirements.getByRole('button', { name: 'Run diagnostics' }).click();
   await expect(requirements).toContainText('Hardware setup needs attention');
   await expect(requirements.getByText('Software missing', { exact: false })).toHaveCount(2);
   await expect(requirements).toContainText(
@@ -62,7 +65,7 @@ test('native hardware setup explains missing requirements and recovers after ter
     fullPage: true,
   });
   repaired = true;
-  await requirements.getByRole('button', { name: 'Check prerequisites again' }).click();
+  await requirements.getByRole('button', { name: 'Run diagnostics' }).click();
   await expect(requirements).toContainText('Software checks passed');
   await expect(requirements).toContainText('Search succeeded; no devices found');
   expect(checks).toBe(2);

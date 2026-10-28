@@ -157,6 +157,11 @@ export async function createApp(
   });
   let hardwareCheck: ReturnType<typeof checkHardware> | undefined;
   app.post('/api/hardware/prerequisites', async () => {
+    if (workspace.mode === 'demo')
+      throw new AppError(
+        409,
+        'Hardware diagnostics are disabled in demo mode. Start hardware setup first.',
+      );
     hardwareCheck ??= checkHardware({
       server: config.cupsServer,
       method: config.installRoot ? 'native' : existsSync('/.dockerenv') ? 'container' : 'source',

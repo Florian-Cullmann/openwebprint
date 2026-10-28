@@ -37,6 +37,27 @@ test('present software with empty discovery is usable but does not certify hardw
   assert.equal(result.checks.find((item) => item.id === 'printers').state, 'empty');
   assert.match(result.note, /not device compatibility/);
 });
+test('successful read-only checks use fixed bounded commands and omit private discovery output', async () => {
+  const calls = [];
+  const result = await check({
+    platform: 'linux',
+    run: async (tool, args, timeout = 10_000) => {
+      calls.push([tool, args, timeout]);
+      return args.includes('-r')
+        ? { state: 'ok', stdout: 'scheduler is running\n' }
+        : { state: 'ok', stdout: 'private-device private-network-address\n' };
+    },
+  });
+  assert.deepEqual(calls, [
+    ['lpstat', ['-h', 'localhost:631', '-r'], 2000],
+    ['lpstat', ['-h', 'localhost:631', '-v'], 10_000],
+    ['scanimage', ['--formatted-device-list=%d%n'], 35_000],
+  ]);
+  assert.equal(result.ready, true);
+  assert.ok(result.checks.every((item) => item.state === 'ok'));
+  assert.ok(!JSON.stringify(result).includes('private-'));
+  assert.ok(Number.isFinite(Date.parse(result.checkedAt)));
+});
 test('present CLI tools do not hide absent Debian print filters and scanner backends', async () => {
   const result = await check({
     platform: 'linux',
