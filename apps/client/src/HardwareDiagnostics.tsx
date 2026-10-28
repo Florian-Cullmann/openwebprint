@@ -1,3 +1,4 @@
+import { t, hardwareText, formatDateTime } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import type { HardwareReport, Mode } from '@openwebprint/shared';
@@ -68,61 +69,61 @@ export function HardwareDiagnostics({ mode }: { mode: Mode }) {
   return (
     <section
       className={s.setupPrerequisites}
-      aria-label="Hardware diagnostics"
+      aria-label={t('Hardware diagnostics')}
       aria-busy={checking}
     >
-      <h2>Hardware diagnostics</h2>
+      <h2>{t('Hardware diagnostics')}</h2>
       {mode === 'demo' ? (
         <p>
-          Demo mode uses simulated devices and needs no CUPS or SANE. Hardware diagnostics are
-          disabled here; remove demo data to begin hardware setup. No real hardware is contacted.
+          {t(
+            'Demo mode uses simulated devices and needs no CUPS or SANE. Hardware diagnostics are disabled here; remove demo data to begin hardware setup. No real hardware is contacted.',
+          )}
         </p>
       ) : (
         <>
           <p>
-            Check printing tools, the CUPS service and scanner discovery on the server running
-            openwebprint. These read-only checks never print, acquire a scan, change queues or
-            install software. They may take about a minute.
+            {t(
+              'Check printing tools, the CUPS service and scanner discovery on the server running openwebprint. These read-only checks never print, acquire a scan, change queues or install software. They may take about a minute.',
+            )}
           </p>
           <p role="status">
             {checking
-              ? 'Checking software and service access…'
+              ? t('Checking software and service access…')
               : error
-                ? 'Diagnostics failed. Any results below are from the previous check.'
+                ? t('Diagnostics failed. Any results below are from the previous check.')
                 : report
                   ? report.ready
-                    ? 'Software checks passed'
-                    : 'Hardware setup needs attention'
-                  : 'Software access has not been checked.'}
+                    ? t('Software checks passed')
+                    : t('Hardware setup needs attention')
+                  : t('Software access has not been checked.')}
           </p>
           {report && (
             <>
               <p className={s.small}>
-                {checking || error ? 'Previous check' : 'Checked'}:{' '}
-                <time dateTime={report.checkedAt}>
-                  {new Date(report.checkedAt).toLocaleString()}
-                </time>
+                {checking || error ? t('Previous check') : t('Checked')}:{' '}
+                <time dateTime={report.checkedAt}>{formatDateTime(report.checkedAt)}</time>
                 {' · '}
                 {report.method === 'container'
-                  ? 'Container'
+                  ? t('Container')
                   : report.platform === 'darwin'
-                    ? 'macOS server'
-                    : 'Linux server'}
+                    ? t('macOS server')
+                    : t('Linux server')}
               </p>
               <ul className={s.diagnosticChecks}>
                 {report.checks.map((check) => (
                   <li key={check.id}>
-                    <strong>{check.label}:</strong> {stateLabels[check.state]}
-                    {nextStep(check) && <p>{nextStep(check)}</p>}
+                    <strong>{hardwareText(check.label)}:</strong> {t(stateLabels[check.state])}
+                    {nextStep(check) && <p>{t(nextStep(check)!)}</p>}
                   </li>
                 ))}
               </ul>
-              <p>{report.guidance}</p>
+              <p>{hardwareText(report.guidance)}</p>
               {report.setupCommand ? (
                 <>
                   <p>
-                    Run the integrated setup in Terminal on the server to repair dependencies. It
-                    shows each OS change and asks for consent. Then run diagnostics again.
+                    {t(
+                      'Run the integrated setup in Terminal on the server to repair dependencies. It shows each OS change and asks for consent. Then run diagnostics again.',
+                    )}
                   </p>
                   <pre className={s.setupCommand}>
                     <code>{report.setupCommand}</code>
@@ -131,16 +132,20 @@ export function HardwareDiagnostics({ mode }: { mode: Mode }) {
               ) : (
                 <p>
                   {report.method === 'container'
-                    ? 'These results describe the container, not its host. Host-installed tools and queues are separate. Repair the container image/services and its network or USB access on the host.'
-                    : 'Install dependencies on this server, not on the computer displaying the browser. Linux needs CUPS client/server, print filters and SANE utilities; sane-airscan supports network scanners where available. macOS supplies CUPS; install sane-backends using existing Homebrew. Vendor-only scanner drivers are not SANE drivers.'}
+                    ? t(
+                        'These results describe the container, not its host. Host-installed tools and queues are separate. Repair the container image/services and its network or USB access on the host.',
+                      )
+                    : t(
+                        'Install dependencies on this server, not on the computer displaying the browser. Linux needs CUPS client/server, print filters and SANE utilities; sane-airscan supports network scanners where available. macOS supplies CUPS; install sane-backends using existing Homebrew. Vendor-only scanner drivers are not SANE drivers.',
+                      )}
                 </p>
               )}
-              <p className={s.small}>{report.note}</p>
+              <p className={s.small}>{hardwareText(report.note)}</p>
             </>
           )}
           {error && (
             <p role="alert" className={s.error}>
-              {error}
+              {t(error)}
             </p>
           )}
         </>
@@ -150,7 +155,7 @@ export function HardwareDiagnostics({ mode }: { mode: Mode }) {
         disabled={checking || mode === 'demo'}
         onClick={() => void run()}
       >
-        {checking ? <Spinner /> : <RefreshCw size={16} />} Run diagnostics
+        {checking ? <Spinner /> : <RefreshCw size={16} />} {t('Run diagnostics')}
       </button>
     </section>
   );

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useId, useRef, useState, type PointerEvent } from 'react';
 import type { ScanCrop, ScanPage } from '@openwebprint/shared';
 import { Spinner } from './ui';
@@ -154,10 +155,11 @@ export function ScanCropEditor({
         }
       }}
     >
-      <h3>Crop page {number}</h3>
+      <h3>{t('Crop page {value1}', { value1: number })}</h3>
       <p id={help} className={app.small}>
-        Drag a corner to resize, or drag inside to move. Drag outside to draw a new crop. You can
-        also enter pixels below, measured from the top-left of the original before rotation.
+        {t(
+          'Drag a corner to resize, or drag inside to move. Drag outside to draw a new crop. You can also enter pixels below, measured from the top-left of the original before rotation.',
+        )}
       </p>
       <img
         className={s.loader}
@@ -173,7 +175,7 @@ export function ScanCropEditor({
       />
       {loadError ? (
         <p role="alert" className={app.error}>
-          Could not load the original page. Close and reopen the crop editor to try again.
+          {t('Could not load the original page. Close and reopen the crop editor to try again.')}
         </p>
       ) : !size ? (
         <Spinner />
@@ -183,7 +185,7 @@ export function ScanCropEditor({
             <svg
               ref={svg}
               role="img"
-              aria-label={`Crop selection for page ${number}`}
+              aria-label={t('Crop selection for page {value1}', { value1: number })}
               aria-describedby={help}
               className={s.canvas}
               viewBox={`0 0 ${view!.width} ${view!.height}`}
@@ -251,7 +253,9 @@ export function ScanCropEditor({
           <fieldset disabled={busy} className={s.fields}>
             {(['x', 'y', 'width', 'height'] as const).map((key) => (
               <label key={key}>
-                {{ x: 'Left', y: 'Top', width: 'Width', height: 'Height' }[key]} (px)
+                {t('{value1} (px)', {
+                  value1: t({ x: 'Left', y: 'Top', width: 'Width', height: 'Height' }[key]),
+                })}
                 <input
                   type="number"
                   autoFocus={key === 'x'}
@@ -275,14 +279,17 @@ export function ScanCropEditor({
           </fieldset>
           {!valid && (
             <p role="alert" className={app.error}>
-              Enter a non-empty rectangle within the {size.width} × {size.height} pixel original.
+              {t('Enter a non-empty rectangle within the {value1} × {value2} pixel original.', {
+                value1: size.width,
+                value2: size.height,
+              })}
             </p>
           )}
         </>
       )}
       <div className={app.modalActions}>
         <button type="button" className={app.secondary} disabled={busy} onClick={cancel}>
-          Cancel crop
+          {t('Cancel crop')}
         </button>
         <button
           type="button"
@@ -290,10 +297,11 @@ export function ScanCropEditor({
           disabled={busy || !size || loadError}
           onClick={() => void apply(undefined)}
         >
-          Reset crop
+          {t('Reset crop')}
         </button>
         <button className={app.primary} disabled={busy || !valid || loadError}>
-          {busy && <Spinner />} Apply crop
+          {busy && <Spinner />}
+          {t('Apply crop')}
         </button>
       </div>
     </form>

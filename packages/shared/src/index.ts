@@ -13,6 +13,21 @@ export const printOptionsSchema = z.object({
     .enum(['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'])
     .default('iso_a4_210x297mm'),
 });
+export const MAX_SCAN_EXPORT_DOCUMENTS = 50;
+export const MAX_SCAN_EXPORT_BYTES = 100 * 1024 * 1024;
+export const scanExportSchema = z
+  .object({
+    scans: z
+      .array(z.object({ id: z.uuid(), revision: z.string().min(1).max(80) }).strict())
+      .min(1)
+      .max(MAX_SCAN_EXPORT_DOCUMENTS)
+      .refine(
+        (scans) => new Set(scans.map((scan) => scan.id)).size === scans.length,
+        'Select each scan only once.',
+      ),
+  })
+  .strict();
+export type ScanExportSelection = z.infer<typeof scanExportSchema>['scans'][number];
 export const MAX_SCAN_PAGES = 100;
 export const MAX_SCAN_RESOLUTION = 9600;
 export const FALLBACK_SCAN_RESOLUTIONS = [150, 300, 600];
@@ -164,6 +179,7 @@ export interface Job {
   mode: Mode;
   options: PrintOptions | ScanOptions;
   error?: string;
+  errorMessages?: import('./public-messages.js').PublicMessage[];
   hasFile: boolean;
   expiresAt?: string;
   pages?: ScanPage[];
@@ -223,3 +239,12 @@ export interface HardwareReport {
   setupCommand?: string;
   note: string;
 }
+
+export {
+  publicMessages,
+  publicMessage,
+  publicMessageText,
+  publicErrorBody,
+  publicMessageParts,
+} from './public-messages.js';
+export type { PublicMessageCode, MessageParams, PublicMessage } from './public-messages.js';

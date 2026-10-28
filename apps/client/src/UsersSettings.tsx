@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Plus, Trash2, Users } from 'lucide-react';
 import type { SessionInfo, User } from '@openwebprint/shared';
@@ -85,12 +86,14 @@ export function UsersSettings({
     <section className={s.settingsCard} aria-labelledby="users-title">
       <div className={s.settingsTitle}>
         <Users size={20} />
-        <h2 id="users-title">Users</h2>
+        <h2 id="users-title">{t('Users')}</h2>
       </div>
       <p>
         {session.authenticationRequired
-          ? 'Sign-in is enabled. All users can manage this instance and its devices.'
-          : 'There are no users. This instance opens without signing in. Adding the first user enables sign-in for everyone.'}
+          ? t('Sign-in is enabled. All users can manage this instance and its devices.')
+          : t(
+              'There are no users. This instance opens without signing in. Adding the first user enables sign-in for everyone.',
+            )}
       </p>
       {users.length > 0 && (
         <ul className={s.userList}>
@@ -98,11 +101,11 @@ export function UsersSettings({
             <li key={user.id}>
               <span>
                 {user.username}
-                {user.id === session.user?.id && <small> (you)</small>}
+                {user.id === session.user?.id && <small>{t('(you)')}</small>}
               </span>
               <button
                 className={s.iconButton}
-                aria-label={`Remove user: ${user.username}`}
+                aria-label={t('Remove user: {value1}', { value1: user.username })}
                 onClick={() => setRemoving(user)}
                 disabled={busy}
               >
@@ -113,14 +116,14 @@ export function UsersSettings({
         </ul>
       )}
       <form onSubmit={create} className={`${s.form} ${s.userForm}`}>
-        <h3>Add user</h3>
+        <h3>{t('Add user')}</h3>
         <label>
-          Username
+          {t('Username')}
           <input name="username" autoComplete="off" required maxLength={80} disabled={busy} />
         </label>
         <div className={s.formGrid}>
           <label>
-            Password
+            {t('Password')}
             <input
               name="password"
               type="password"
@@ -130,7 +133,7 @@ export function UsersSettings({
             />
           </label>
           <label>
-            Confirm password
+            {t('Confirm password')}
             <input
               name="confirmPassword"
               type="password"
@@ -141,15 +144,16 @@ export function UsersSettings({
           </label>
         </div>
         {!session.authenticationRequired && (
-          <p className={s.small}>You will be asked to sign in after creating this user.</p>
+          <p className={s.small}>{t('You will be asked to sign in after creating this user.')}</p>
         )}
         {error && (
           <p className={s.error} role="alert">
-            {error}
+            {t(error)}
           </p>
         )}
         <button className={s.primary} disabled={busy}>
-          {busy ? <Spinner /> : <Plus size={16} />} Add user
+          {busy ? <Spinner /> : <Plus size={16} />}
+          {t('Add user')}
         </button>
       </form>
       {session.user && (
@@ -158,12 +162,14 @@ export function UsersSettings({
           className={`${s.form} ${s.userForm}`}
           aria-labelledby="password-title"
         >
-          <h3 id="password-title">Change your password</h3>
+          <h3 id="password-title">{t('Change your password')}</h3>
           <p>
-            You will stay signed in here. All other sessions for your account will be signed out.
+            {t(
+              'You will stay signed in here. All other sessions for your account will be signed out.',
+            )}
           </p>
           <label>
-            Current password
+            {t('Current password')}
             <input
               name="currentPassword"
               type="password"
@@ -174,7 +180,7 @@ export function UsersSettings({
           </label>
           <div className={s.formGrid}>
             <label>
-              New password
+              {t('New password')}
               <input
                 name="newPassword"
                 type="password"
@@ -184,7 +190,7 @@ export function UsersSettings({
               />
             </label>
             <label>
-              Confirm new password
+              {t('Confirm new password')}
               <input
                 name="confirmNewPassword"
                 type="password"
@@ -196,18 +202,19 @@ export function UsersSettings({
           </div>
           {passwordError && (
             <p className={s.error} role="alert">
-              {passwordError}
+              {t(passwordError)}
             </p>
           )}
-          {passwordMessage && <p role="status">{passwordMessage}</p>}
+          {passwordMessage && <p role="status">{t(passwordMessage)}</p>}
           <button className={s.primary} disabled={busy}>
-            {busy && <Spinner />} Change password
+            {busy && <Spinner />}
+            {t('Change password')}
           </button>
         </form>
       )}
       {removing && (
         <Modal
-          title="Remove user?"
+          title={t('Remove user?')}
           subtitle={removing.username}
           close={() => {
             if (!busy) setRemoving(undefined);
@@ -216,8 +223,10 @@ export function UsersSettings({
           <div className={s.modalBody}>
             <p>
               {users.length === 1
-                ? 'Removing the last user disables sign-in. Anyone who can reach this instance will be able to use it.'
-                : 'This user will lose access and their active sessions will be revoked.'}
+                ? t(
+                    'Removing the last user disables sign-in. Anyone who can reach this instance will be able to use it.',
+                  )
+                : t('This user will lose access and their active sessions will be revoked.')}
             </p>
             <div className={s.modalActions}>
               <button
@@ -225,10 +234,11 @@ export function UsersSettings({
                 disabled={busy}
                 onClick={() => setRemoving(undefined)}
               >
-                Cancel
+                {t('Cancel')}
               </button>
               <button className={s.danger} disabled={busy} onClick={() => void remove()}>
-                {busy ? <Spinner /> : <Trash2 size={16} />} Remove user
+                {busy ? <Spinner /> : <Trash2 size={16} />}
+                {t('Remove user')}
               </button>
             </div>
           </div>

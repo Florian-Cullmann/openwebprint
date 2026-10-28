@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { checkHardware } from '../../../scripts/install/hardware.mjs';
 import Fastify, { LogController } from 'fastify';
 import cookie from '@fastify/cookie';
@@ -15,6 +16,7 @@ import {
   scanOptionsSchema,
   scanChoiceSchema,
   scanPagesSchema,
+  scanExportSchema,
   retentionSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
@@ -79,21 +81,22 @@ export async function createApp(
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof z.ZodError)
       return reply.code(400).send({
-        error: 'Please check your input.',
+        ...publicErrorBody('Please check your input.'),
         details: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
       });
     if (error instanceof AppError)
-      return reply.code(error.statusCode).send({ error: error.message });
+      return reply.code(error.statusCode).send(publicErrorBody(error.message));
     const e = error as { statusCode?: number; code?: string };
     if (e.statusCode && e.statusCode < 500)
       return reply.code(e.statusCode).send({
-        error:
+        ...publicErrorBody(
           e.statusCode === 413
             ? 'File too large. Maximum size: 25 MB.'
             : 'Invalid request or too many requests. Please try again.',
+        ),
       });
     app.log.error({ code: e.code }, 'Request failed');
-    return reply.code(500).send({ error: 'The operation failed. Check the server logs.' });
+    return reply.code(500).send(publicErrorBody('The operation failed. Check the server logs.'));
   });
   const publicPaths = new Set(['/api/health', '/api/session', '/api/login']);
   app.addHook('onRequest', async (req, reply) => {
@@ -209,7 +212,8 @@ export async function createApp(
         limit: z.coerce.number().int().min(1).max(100).default(50),
         kind: z.enum(['print', 'scan']).optional(),
         filter: z.enum(['all', 'active', 'completed']).default('all'),
-        cursor: z.string().min(1).max(1024).optional(),
+        search: z.string().trim().max(200).default(''),
+        cursor: z.string().min(1).max(2048).optional(),
       })
       .strict()
       .parse(req.query);
@@ -223,13 +227,15 @@ export async function createApp(
             mode: z.enum(['demo', 'hardware']),
             kind: z.enum(['print', 'scan']).optional(),
             filter: z.enum(['all', 'active', 'completed']),
+            search: z.string().trim().max(200).default(''),
           })
           .strict()
           .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
         if (
           cursor.mode !== workspace.mode ||
           cursor.kind !== query.kind ||
-          cursor.filter !== query.filter
+          cursor.filter !== query.filter ||
+          cursor.search !== query.search
         )
           throw new Error('Cursor belongs to another listing');
         before = cursor;
@@ -324,6 +330,33 @@ export async function createApp(
     const document = await workspace.run(() => normalizeDocument(file.data, file.mime));
     return reply.type('application/pdf').send(document);
   });
+  app.post('/api/scans/export', async (req, reply) => {
+    const { scans } = scanExportSchema.parse(req.body);
+    const controller = new AbortController();
+    const abort = () => {
+      if (!reply.raw.writableFinished) controller.abort();
+    };
+    req.raw.once('aborted', abort);
+    reply.raw.once('close', abort);
+    const detach = () => {
+      req.raw.removeListener('aborted', abort);
+      reply.raw.removeListener('close', abort);
+    };
+    try {
+      const archive = await workspace.run((service) =>
+        service.scanExports.create(scans, controller.signal),
+      );
+      archive.once('close', detach);
+      return reply
+        .type('application/zip')
+        .header('Content-Disposition', 'attachment; filename="openwebprint-scans.zip"')
+        .send(archive);
+    } catch (error) {
+      detach();
+      controller.abort();
+      throw error;
+    }
+  });
   app.post('/api/scans', async (req, reply) => {
     const input = z
       .object({ deviceId: z.uuid(), options: scanOptionsSchema, jobId: z.uuid().optional() })
@@ -414,7 +447,7 @@ export async function createApp(
     await app.register(fastifyStatic, { root: staticDir });
     app.setNotFoundHandler(async (req, reply) =>
       req.url.startsWith('/api/')
-        ? reply.code(404).send({ error: 'Endpoint not found.' })
+        ? reply.code(404).send(publicErrorBody('Endpoint not found.'))
         : reply.sendFile('index.html'),
     );
   }

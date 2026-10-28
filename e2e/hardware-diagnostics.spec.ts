@@ -40,8 +40,9 @@ test('hardware settings runs explicit diagnostics, blocks duplicates and preserv
           { id: 'cups', label: 'CUPS printing service', state: 'unavailable' },
           { id: 'scanners', label: 'Scanner search', state: 'timeout' },
         ],
-        guidance: 'Repair CUPS/SANE inside this container.',
-        note: 'Successful checks verify software access, not device compatibility.',
+        guidance:
+          'Checks describe this container. Rebuild the hardware image with CUPS/SANE and start its CUPS service. Check container network and USB access; Docker Desktop may require Local Network permission.',
+        note: 'Successful checks verify software access, not device compatibility. An empty search means no devices were found; no page was printed or scanned.',
       },
     });
   });
@@ -80,13 +81,23 @@ test('hardware settings runs explicit diagnostics, blocks duplicates and preserv
     path: `test-results/${info.project.name}-hardware-diagnostics.png`,
     fullPage: true,
   });
+  await page.getByRole('button', { name: 'Language: EN (English)', exact: true }).click();
+  const german = page.getByRole('region', { name: 'Hardwarediagnose', exact: true });
+  await expect(german).toContainText('Hardwareeinrichtung benötigt Aufmerksamkeit');
+  await expect(german).toContainText('Installiere oder repariere die CUPS-Clientwerkzeuge');
+  await expect(german).toContainText('Zeitüberschreitung');
+  await expect(german.locator('time')).toContainText('28.10.2026');
+  expect(runs).toBe(1);
+  await page.screenshot({
+    path: `test-results/${info.project.name}-hardware-diagnostics-de.png`,
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Sprache: DE (Deutsch)', exact: true }).click();
   // Snapshot refreshes do not launch more diagnostics.
   await page.request.get('/api/snapshot');
   expect(runs).toBe(1);
   await run.click();
-  await expect(diagnostics.getByRole('alert')).toHaveText(
-    'Diagnostics are temporarily unavailable.',
-  );
+  await expect(diagnostics.getByRole('alert')).toHaveText('The request failed (HTTP 503).');
   await expect(diagnostics).toContainText('Previous check:');
   await expect(diagnostics).toContainText('Check timed out');
   await run.click();

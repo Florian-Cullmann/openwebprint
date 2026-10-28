@@ -1,3 +1,4 @@
+import { t, formatNumber } from './i18n';
 import { useId } from 'react';
 import type { ScanResolutions } from '@openwebprint/shared';
 import s from './CapabilityControls.module.css';
@@ -7,7 +8,7 @@ export function ColorModeControl({
   value,
   onChange,
   disabled,
-  emptyLabel = 'No supported color modes',
+  emptyLabel = t('No supported color modes'),
 }: {
   modes: { value: string; label: string }[];
   value: string;
@@ -19,11 +20,11 @@ export function ColorModeControl({
   if (modes.length > 2)
     return (
       <label>
-        Color mode
+        {t('Color mode')}
         <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)}>
           {modes.map((mode) => (
             <option key={mode.value} value={mode.value}>
-              {mode.label}
+              {t(mode.label)}
             </option>
           ))}
         </select>
@@ -31,7 +32,7 @@ export function ColorModeControl({
     );
   return (
     <fieldset className={s.colorMode} disabled={disabled}>
-      <legend>Color mode</legend>
+      <legend>{t('Color mode')}</legend>
       {modes.length === 2 ? (
         <div className={s.toggle}>
           {modes.map((mode) => (
@@ -43,12 +44,12 @@ export function ColorModeControl({
                 checked={value === mode.value}
                 onChange={() => onChange(mode.value)}
               />
-              <span>{mode.label}</span>
+              <span>{t(mode.label)}</span>
             </label>
           ))}
         </div>
       ) : (
-        <p className={s.fixedValue}>{modes[0]?.label ?? emptyLabel}</p>
+        <p className={s.fixedValue}>{t(modes[0]?.label ?? emptyLabel)}</p>
       )}
     </fieldset>
   );
@@ -105,15 +106,17 @@ export function ResolutionControl({
     <div className={s.resolution}>
       {fixed ? (
         <div className={s.fixedResolution}>
-          <span>Resolution</span>
-          <p className={s.fixedValue}>{empty ? 'No supported resolutions' : `${dpi(min)} dpi`}</p>
+          <span>{t('Resolution')}</span>
+          <p className={s.fixedValue}>
+            {empty ? t('No supported resolutions') : t('{value1} dpi', { value1: dpi(min) })}
+          </p>
         </div>
       ) : (
         <>
           <div className={s.resolutionHeading}>
-            <label htmlFor={id}>Resolution</label>
+            <label htmlFor={id}>{t('Resolution')}</label>
             <output htmlFor={id} aria-live="off">
-              {value} dpi
+              {t('{value1} dpi', { value1: value })}
             </output>
           </div>
           <input
@@ -124,14 +127,14 @@ export function ResolutionControl({
             max={max}
             step={indexed ? 1 : 'any'}
             value={position}
-            aria-valuetext={`${value} dpi`}
+            aria-valuetext={t('{value1} dpi', { value1: value })}
             disabled={disabled}
             onChange={(e) => onChange(dpi(e.target.valueAsNumber))}
           />
           <div className={s.anchors} aria-hidden="true">
             {anchors.map((anchor) => (
               <span key={anchor} style={{ left: `${((anchor - min) / (max - min)) * 100}%` }}>
-                {dpi(anchor)}
+                {formatNumber(dpi(anchor))}
               </span>
             ))}
           </div>

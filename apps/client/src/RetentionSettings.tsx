@@ -1,3 +1,4 @@
+import { t, plural } from './i18n';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Clock } from 'lucide-react';
 import type { RetentionImpact, RetentionPolicy } from '@openwebprint/shared';
@@ -51,12 +52,15 @@ export function RetentionSettings() {
     <section className={s.settingsCard}>
       <div className={s.settingsTitle}>
         <Clock size={20} />
-        <h2>Document retention</h2>
+        <h2>{t('Document retention')}</h2>
       </div>
-      <p>Choose how long this instance keeps scans and print PDFs, including demo documents.</p>
       <p>
-        Periods run from job creation. Editing or adding scan pages does not extend them. Policy
-        changes also apply to existing documents.
+        {t('Choose how long this instance keeps scans and print PDFs, including demo documents.')}
+      </p>
+      <p>
+        {t(
+          'Periods run from job creation. Editing or adding scan pages does not extend them. Policy changes also apply to existing documents.',
+        )}
       </p>
       <form onSubmit={submit} className={`${s.form} ${s.userForm}`}>
         {policy ? (
@@ -64,7 +68,7 @@ export function RetentionSettings() {
             <div className={s.formGrid}>
               {(['scanDays', 'printDays'] as const).map((key) => (
                 <label key={key}>
-                  {key === 'scanDays' ? 'Keep scans (days)' : 'Keep print PDFs (days)'}
+                  {key === 'scanDays' ? t('Keep scans (days)') : t('Keep print PDFs (days)')}
                   <input
                     type="number"
                     min={1}
@@ -83,16 +87,22 @@ export function RetentionSettings() {
               ))}
             </div>
             <p className={s.small}>
-              Use 1–3650 whole days. Indefinite retention is not offered. Cleanup runs at startup
-              and hourly, waits for active operations, and preserves job records. Deleted files
-              cannot be recovered by extending these periods.
+              {t(
+                'Use 1–3650 whole days. Indefinite retention is not offered. Cleanup runs at startup and hourly, waits for active operations, and preserves job records. Deleted files cannot be recovered by extending these periods.',
+              )}
             </p>
             {impact && (
               <div role="alert">
                 <p>
-                  This shorter policy makes {impact.scans} {impact.scans === 1 ? 'scan' : 'scans'}{' '}
-                  and {impact.prints} {impact.prints === 1 ? 'print PDF' : 'print PDFs'} eligible
-                  for deletion at the next cleanup. This cannot be undone after deletion.
+                  {t(
+                    'This shorter policy makes {value1} {value2} and {value3} {value4} eligible for deletion at the next cleanup. This cannot be undone after deletion.',
+                    {
+                      value1: impact.scans,
+                      value2: plural('scan', 'scans', impact.scans),
+                      value3: impact.prints,
+                      value4: plural('print PDF', 'print PDFs', impact.prints),
+                    },
+                  )}
                 </p>
                 <div className={s.modalActions}>
                   <button
@@ -101,7 +111,7 @@ export function RetentionSettings() {
                     disabled={busy}
                     onClick={() => void save(true)}
                   >
-                    Confirm shorter retention
+                    {t('Confirm shorter retention')}
                   </button>
                   <button
                     type="button"
@@ -109,14 +119,15 @@ export function RetentionSettings() {
                     disabled={busy}
                     onClick={() => setImpact(undefined)}
                   >
-                    Cancel change
+                    {t('Cancel change')}
                   </button>
                 </div>
               </div>
             )}
             {!impact && (
               <button className={s.secondary} disabled={busy}>
-                {busy ? <Spinner /> : <Clock size={16} />} Save retention
+                {busy ? <Spinner /> : <Clock size={16} />}
+                {t('Save retention')}
               </button>
             )}
           </>
@@ -125,12 +136,12 @@ export function RetentionSettings() {
         )}
         {error && (
           <p role="alert" className={s.error}>
-            {error}
+            {t(error)}
           </p>
         )}
         {saved && (
           <p role="status" className={s.small}>
-            Document retention updated.
+            {t('Document retention updated.')}
           </p>
         )}
       </form>

@@ -1,3 +1,5 @@
+import { LanguagePicker } from './LanguagePicker';
+import { t, serverMessage } from './i18n';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Check, FolderOpen, Plus, Printer, Radar, ScanLine } from 'lucide-react';
 import type { DeviceInput, DiscoveryResult, OnboardingState } from '@openwebprint/shared';
@@ -14,6 +16,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
   const [searching, setSearching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [deviceErrors, setDeviceErrors] = useState<{ address: string; error: string }[]>([]);
   const [manual, setManual] = useState(false);
   const [path, setPath] = useState('');
   const alive = useRef(true);
@@ -49,6 +52,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
   async function choose(endpoint: '/onboarding/demo' | '/onboarding/start') {
     setBusy(true);
     setError('');
+    setDeviceErrors([]);
     try {
       setState(await post<OnboardingState>(endpoint));
       await changed();
@@ -61,6 +65,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
   async function devicesNext() {
     setBusy(true);
     setError('');
+    setDeviceErrors([]);
     try {
       const devices =
         discovery?.devices.filter((device) => selected.includes(device.address)) ?? [];
@@ -70,8 +75,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
       );
       setState(result);
       setPath(result.scanRoot);
-      if (result.errors.length)
-        setError(result.errors.map((failure) => `${failure.address}: ${failure.error}`).join('\n'));
+      setDeviceErrors(result.errors);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -82,6 +86,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
     e.preventDefault();
     setBusy(true);
     setError('');
+    setDeviceErrors([]);
     try {
       await post('/onboarding/storage', { path });
       await changed();
@@ -97,73 +102,95 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
         <span className={s.brand}>
           <Brand />
         </span>
+        <LanguagePicker />
       </div>
       <div className={s.setupContent}>
+        {deviceErrors.map((failure) => (
+          <p role="alert" className={s.error} key={failure.address}>
+            {failure.address}: {serverMessage(failure.error)}
+          </p>
+        ))}
         {!state || state.phase === 'complete' ? (
           <>
             <Spinner />
             {error && (
               <p role="alert" className={s.error}>
-                {error}
+                {t(error)}
               </p>
             )}
           </>
         ) : state.phase === 'welcome' ? (
           <>
-            <h1>Welcome to openwebprint</h1>
+            <h1>{t('Welcome to openwebprint')}</h1>
             <p className={s.setupDescription}>
-              Try it with simulated devices, or connect your own printers and scanners.
+              {t('Try it with simulated devices, or connect your own printers and scanners.')}
             </p>
             <div className={s.setupChoices}>
               <section className={s.setupChoice}>
                 <Printer size={25} />
-                <h2>Set up your devices</h2>
+                <h2>{t('Set up your devices')}</h2>
                 <p>
-                  Find compatible devices on your network and choose where your scans are saved.
+                  {t(
+                    'Find compatible devices on your network and choose where your scans are saved.',
+                  )}
                 </p>
                 <button
                   className={s.primary}
                   disabled={busy}
                   onClick={() => void choose('/onboarding/start')}
                 >
-                  {busy ? <Spinner /> : <ArrowRight size={16} />} Start setup
+                  {busy ? <Spinner /> : <ArrowRight size={16} />}
+                  {t('Start setup')}
                 </button>
               </section>
               <section className={s.setupChoice}>
                 <ScanLine size={25} />
-                <h2>Explore the demo</h2>
-                <p>Try printing and scanning with sample devices. No real hardware is contacted.</p>
+                <h2>{t('Explore the demo')}</h2>
+                <p>
+                  {t(
+                    'Try printing and scanning with sample devices. No real hardware is contacted.',
+                  )}
+                </p>
                 <button
                   className={s.secondary}
                   disabled={busy}
                   onClick={() => void choose('/onboarding/demo')}
                 >
-                  Try demo <ArrowRight size={16} />
+                  {t('Try demo')}
+                  <ArrowRight size={16} />
                 </button>
               </section>
             </div>
             {error && (
               <p role="alert" className={s.error}>
-                {error}
+                {t(error)}
               </p>
             )}
           </>
         ) : (
           <>
-            <div className={s.setupSteps} aria-label="Setup progress">
-              <span aria-current={state.phase === 'devices' ? 'step' : undefined}>1. Devices</span>
+            <div className={s.setupSteps} aria-label={t('Setup progress')}>
+              <span aria-current={state.phase === 'devices' ? 'step' : undefined}>
+                {t('1. Devices')}
+              </span>
               <ArrowRight size={14} />
               <span aria-current={state.phase === 'storage' ? 'step' : undefined}>
-                2. Scan storage
+                {t('2. Scan storage')}
               </span>
             </div>
             <h1>
-              {state.phase === 'devices' ? 'Connect your devices' : 'Where should scans be saved?'}
+              {state.phase === 'devices'
+                ? t('Connect your devices')
+                : t('Where should scans be saved?')}
             </h1>
             <p className={s.setupDescription}>
               {state.phase === 'devices'
-                ? 'Select the printers and scanners you want to use. You can add or remove devices later on the Devices page.'
-                : 'Choose the root folder on this server for scanned documents and their previews.'}
+                ? t(
+                    'Select the printers and scanners you want to use. You can add or remove devices later on the Devices page.',
+                  )
+                : t(
+                    'Choose the root folder on this server for scanned documents and their previews.',
+                  )}
             </p>
             {state.phase === 'devices' ? (
               <>
@@ -172,12 +199,13 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                   <p>
                     {searching ? (
                       <>
-                        <Spinner /> Searching your network…
+                        <Spinner />
+                        {t('Searching your network…')}
                       </>
                     ) : discovery ? (
                       `${discovery.devices.length} devices found`
                     ) : (
-                      'Ready to search'
+                      t('Ready to search')
                     )}
                   </p>
                   <button
@@ -185,16 +213,17 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                     disabled={busy || searching}
                     onClick={() => void discover()}
                   >
-                    <Radar size={16} /> Search again
+                    <Radar size={16} />
+                    {t('Search again')}
                   </button>
                 </div>
                 {discovery?.warnings.map((warning) => (
-                  <p key={warning} className={s.warning}>
-                    {warning}
+                  <p key={t(warning)} className={s.warning}>
+                    {t(warning)}
                   </p>
                 ))}
                 {discovery?.hostDiscovery && (
-                  <p className={s.small}>Network discovery via macOS Bonjour.</p>
+                  <p className={s.small}>{t('Network discovery via macOS Bonjour.')}</p>
                 )}
                 <div className={s.setupDevices}>
                   {discovery?.devices.map((device: DeviceInput) => {
@@ -220,26 +249,29 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                         <span>
                           <strong>{device.name}</strong>
                           <small>
-                            {device.kind === 'printer' ? 'Printer' : 'Scanner'} · {device.address}
+                            {device.kind === 'printer' ? t('Printer') : t('Scanner')} ·{' '}
+                            {device.address}
                           </small>
                         </span>
-                        {connected && <Check size={17} aria-label="Connected" />}
+                        {connected && <Check size={17} aria-label={t('Connected')} />}
                       </label>
                     );
                   })}
                 </div>
                 {!searching && discovery && !discovery.devices.length && (
                   <p className={s.small}>
-                    No devices found. Check your network, add a device manually, or continue and add
-                    devices later.
+                    {t(
+                      'No devices found. Check your network, add a device manually, or continue and add devices later.',
+                    )}
                   </p>
                 )}
                 <button className={s.textButton} disabled={busy} onClick={() => setManual(true)}>
-                  <Plus size={16} /> Add manually
+                  <Plus size={16} />
+                  {t('Add manually')}
                 </button>
                 {error && (
                   <p className={s.error} role="alert">
-                    {error}
+                    {t(error)}
                   </p>
                 )}
                 <div className={s.setupActions}>
@@ -250,15 +282,15 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                   >
                     {busy ? <Spinner /> : <ArrowRight size={16} />}{' '}
                     {selected.length || state.devices.length
-                      ? 'Continue'
-                      : 'Continue without devices'}
+                      ? t('Continue')
+                      : t('Continue without devices')}
                   </button>
                 </div>
               </>
             ) : (
               <form className={s.form} onSubmit={finish}>
                 <label>
-                  Scan storage folder
+                  {t('Scan storage folder')}
                   <input
                     value={path}
                     onChange={(e) => setPath(e.target.value)}
@@ -269,18 +301,19 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
                   />
                 </label>
                 <p className={s.small}>
-                  This is a server path, not a folder on your browser device. In Docker, use a
-                  mounted folder such as /data/scans. The folder will be created if it does not
-                  exist and must be writable by openwebprint.
+                  {t(
+                    'This is a server path, not a folder on your browser device. In Docker, use a mounted folder such as /data/scans. The folder will be created if it does not exist and must be writable by openwebprint.',
+                  )}
                 </p>
                 {error && (
                   <p className={s.error} role="alert">
-                    {error}
+                    {t(error)}
                   </p>
                 )}
                 <div className={s.setupActions}>
                   <button className={s.primary} disabled={busy}>
-                    {busy ? <Spinner /> : <FolderOpen size={16} />} Finish setup
+                    {busy ? <Spinner /> : <FolderOpen size={16} />}
+                    {t('Finish setup')}
                   </button>
                 </div>
               </form>
