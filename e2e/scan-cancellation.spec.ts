@@ -50,6 +50,7 @@ for (const saved of [false, true]) {
     const polled = gate();
     const stalePoll = gate();
     const finishCancel = gate();
+    await page.route('**/api/devices/*/profiles', (route) => route.fulfill({ json: [] }));
     await page.route('**/api/session', (route) =>
       route.fulfill({
         json: {

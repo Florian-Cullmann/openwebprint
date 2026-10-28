@@ -41,6 +41,7 @@ async function setup(page: Page) {
       status: 'ready',
     })),
   };
+  await page.route('**/api/devices/*/profiles', (route) => route.fulfill({ json: [] }));
   await page.route('**/api/session', (route) =>
     route.fulfill({
       json: {

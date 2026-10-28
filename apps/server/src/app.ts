@@ -16,6 +16,7 @@ import {
   scanChoiceSchema,
   scanPagesSchema,
   retentionSchema,
+  profileInputSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
 import { Store, storedScanPages } from './store.js';
@@ -254,6 +255,30 @@ export async function createApp(
   });
   app.delete('/api/devices/:id', async (req) => {
     await workspace.run((service) => service.deleteDevice(idParam.parse(req.params).id));
+    return { ok: true };
+  });
+  const profileParams = z.object({ id: z.uuid(), profileId: z.uuid() });
+  app.get('/api/devices/:id/profiles', async (req) =>
+    workspace.run((service) => service.profiles(idParam.parse(req.params).id)),
+  );
+  app.post('/api/devices/:id/profiles', async (req, reply) => {
+    const id = idParam.parse(req.params).id;
+    const input = profileInputSchema.parse(req.body);
+    const profile = await workspace.run((service) => service.saveProfile(id, input));
+    return reply.code(201).send(profile);
+  });
+  app.put('/api/devices/:id/profiles/:profileId', async (req) => {
+    const { id, profileId } = profileParams.parse(req.params);
+    const input = profileInputSchema.parse(req.body);
+    return workspace.run((service) => service.saveProfile(id, input, profileId));
+  });
+  app.post('/api/devices/:id/profiles/:profileId/apply', async (req) => {
+    const { id, profileId } = profileParams.parse(req.params);
+    return workspace.run((service) => service.applyProfile(id, profileId));
+  });
+  app.delete('/api/devices/:id/profiles/:profileId', async (req) => {
+    const { id, profileId } = profileParams.parse(req.params);
+    await workspace.run((service) => service.deleteProfile(id, profileId));
     return { ok: true };
   });
   app.post('/api/print', async (req, reply) => {

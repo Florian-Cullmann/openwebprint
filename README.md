@@ -200,6 +200,10 @@ Current scope:
 
 ## Pages and settings
 
+Print and scan dialogs offer **Settings profiles** for each device: name and save the current settings, select and apply a saved profile, update it (including its name), or delete it. Profiles are stored in SQLite across restarts and shared instance-wide by all users, including when login is disabled. They contain settings only, never uploaded documents or job identifiers. Print profiles save copies, color mode, sides, and paper size; page ranges and odd/even filters remain with the current document. Scan profiles save resolution, color mode, paper source, and duplex; single-page versus batch scanning remains an explicit action.
+
+Saving, updating, and applying a profile query the device capabilities again, including the selected scan source. Unsupported or incomplete capabilities produce an error without substituting settings or changing the saved profile. If capabilities change after applying, unavailable settings remain visible and submission is blocked until corrected. Deleting a device deletes its profiles; adding it again starts without profiles. Removing demo data also removes demo profiles. Each device can have up to 50 profiles.
+
 Pages have shareable URLs and support refresh and browser back/forward navigation: `/overview`, `/devices`, `/jobs`, `/scans`, `/setup` (during onboarding), and `/login` (when login is enabled). `/` redirects to `/overview`.
 
 Settings use a horizontal menu with their own URLs:

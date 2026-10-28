@@ -93,6 +93,7 @@ async function setup(page: Page) {
     })),
   };
   // Only these browser responses are simulated; render the real production print dialog.
+  await page.route('**/api/devices/*/profiles', (route) => route.fulfill({ json: [] }));
   await page.route('**/api/session', (route) =>
     route.fulfill({
       json: {

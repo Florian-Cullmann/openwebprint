@@ -44,6 +44,39 @@ export const deviceInputSchema = z.object({
 export type Mode = 'demo' | 'hardware';
 export type PrintOptions = z.infer<typeof printOptionsSchema>;
 export type ScanOptions = z.infer<typeof scanOptionsSchema>;
+// Document page selections and batch acquisition belong to the current job.
+export const profileInputSchema = z.discriminatedUnion('kind', [
+  z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1)
+        .max(80)
+        .regex(/^[^\x00-\x1f\x7f]+$/),
+      kind: z.literal('print'),
+      options: printOptionsSchema.omit({ pageRanges: true, pageParity: true }).strict(),
+    })
+    .strict(),
+  z
+    .object({
+      name: z
+        .string()
+        .trim()
+        .min(1)
+        .max(80)
+        .regex(/^[^\x00-\x1f\x7f]+$/),
+      kind: z.literal('scan'),
+      options: scanOptionsSchema.omit({ batch: true }).strict(),
+    })
+    .strict(),
+]);
+export type ProfileInput = z.infer<typeof profileInputSchema>;
+export type SettingsProfile = ProfileInput & { id: string; deviceId: string };
+export interface AppliedProfile {
+  profile: SettingsProfile;
+  scanSources?: ScanSources;
+}
 export type DeviceInput = z.infer<typeof deviceInputSchema>;
 export type DeviceStatus = 'ready' | 'busy' | 'offline' | 'unknown';
 export type JobStatus = 'queued' | 'processing' | 'completed' | 'canceled' | 'failed' | 'unknown';
@@ -68,6 +101,18 @@ export interface Device {
   target?: string;
   capabilities?: Capabilities;
   detail?: string;
+}
+export function printProfileError(capabilities: Capabilities | undefined, options: PrintOptions) {
+  if (!capabilities || !capabilities.sides || !capabilities.colorModes)
+    return 'Print capabilities are unavailable. Check the device connection and retry.';
+  const unsupported: string[] = [];
+  if (!capabilities.colorModes.includes(options.color))
+    unsupported.push(`color mode (${options.color})`);
+  if (!capabilities.sides.includes(options.sides)) unsupported.push(`sides (${options.sides})`);
+  if (!capabilities.media.includes(options.media))
+    unsupported.push(`paper size (${options.media})`);
+  if (unsupported.length)
+    return `This printer does not support: ${unsupported.join(', ')}. Edit the settings and update the profile.`;
 }
 // Integer pixels in the original, unrotated image, measured from its top-left corner.
 // Crop before rotating; omitting crop restores the complete original image.
@@ -117,6 +162,23 @@ export function scanSettingsError(capabilities: ScanCapabilities, options: ScanO
     return capabilities.colorModes === undefined
       ? 'Scanner color modes are unknown. Choose Color or Gray, or retry discovery.'
       : 'The scanner does not support the selected color mode for this paper source.';
+}
+export function scanProfileError(capabilities: ScanSources, options: ScanOptions) {
+  if (
+    capabilities.warning ||
+    capabilities.resolutions === undefined ||
+    capabilities.colorModes === undefined
+  )
+    return 'Scanner capabilities are unavailable or incomplete. Refresh scanner settings and retry.';
+  if (options.source && !capabilities.sources.some((source) => source.name === options.source))
+    return `This scanner no longer supports paper source "${options.source}". Choose another source and update the profile.`;
+  if (
+    options.duplex &&
+    (!capabilities.duplex ||
+      !capabilities.sources.find((source) => source.name === options.source)?.feeder)
+  )
+    return 'This scanner does not support scanning both sides for the selected paper source. Update the profile.';
+  return scanSettingsError(capabilities, options);
 }
 export const scanPagesSchema = z.object({
   revision: z.string().min(1).max(80),

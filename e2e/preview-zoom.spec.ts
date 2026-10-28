@@ -53,6 +53,7 @@ async function fixture(page: Page) {
     ],
   };
   // Simulate API responses, but exercise the actual production dialog and PDF.js renderer.
+  await page.route('**/api/devices/*/profiles', (route) => route.fulfill({ json: [] }));
   await page.route('**/api/session', (route) =>
     route.fulfill({
       json: {

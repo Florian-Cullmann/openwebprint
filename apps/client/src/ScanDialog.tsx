@@ -17,6 +17,7 @@ import {
   FALLBACK_SCAN_RESOLUTIONS,
   FALLBACK_SCAN_COLOR_MODES,
   scanSettingsError,
+  scanProfileError,
   supportsScanResolution,
   type Device,
   type Job,
@@ -31,6 +32,7 @@ import { useScanPageDrag } from './useScanPageDrag';
 import { ScanCropEditor } from './ScanCropEditor';
 import { ColorModeControl, ResolutionControl } from './CapabilityControls';
 import { DocumentExpiry } from './DocumentExpiry';
+import { ProfileSettings } from './ProfileSettings';
 import s from './App.module.css';
 export function ScanDialog({
   devices,
@@ -61,12 +63,15 @@ export function ScanDialog({
   const [loadedSettings, setLoadedSettings] = useState('');
   const [refreshSettings, setRefreshSettings] = useState(0);
   const refreshRequested = useRef(false);
+  const appliedSettingsKey = useRef<string | undefined>(undefined);
+  const profileDevice = useRef<string | undefined>(undefined);
   const [job, setJob] = useState(existing);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const cancelRequest = useRef(false);
   const pollVersion = useRef(0);
+  const [profileBusy, setProfileBusy] = useState(false);
   const [cropping, setCropping] = useState<string>();
   const cropButtons = useRef(new Map<string, HTMLButtonElement>());
   const returnToPage = useRef<string | undefined>(undefined);
@@ -80,13 +85,17 @@ export function ScanDialog({
   const pages = job?.pages ?? [];
   const cropIndex = pages.findIndex((page) => page.id === cropping);
   const recovery = job?.recovery;
-  const locked = busy || running || !!recovery;
+  const locked = busy || running || profileBusy || !!recovery;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
   const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
   const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
   const resolutions = sources.resolutions ?? FALLBACK_SCAN_RESOLUTIONS;
   const colorModes = sources.colorModes ?? FALLBACK_SCAN_COLOR_MODES;
-  const invalidSettings = !!scanSettingsError(sources, { resolution, color });
+  const profileError =
+    profileDevice.current === deviceId
+      ? scanProfileError(sources, { resolution, color, source: source || undefined, duplex })
+      : undefined;
+  const invalidSettings = !!profileError || !!scanSettingsError(sources, { resolution, color });
   useEffect(() => {
     if (!locked && focusAfterRemoval.current) {
       cropButtons.current.get(focusAfterRemoval.current)?.focus();
@@ -103,6 +112,10 @@ export function ScanDialog({
     if (!deviceId && scanners.length) setDeviceId(scanners[0].id);
   }, [deviceId, scanners[0]?.id]);
   useEffect(() => {
+    if (appliedSettingsKey.current === settingsKey) {
+      appliedSettingsKey.current = undefined;
+      return;
+    }
     let alive = true;
     setSourceError('');
     setLoadingSources(false);
@@ -117,6 +130,7 @@ export function ScanDialog({
         if (alive) {
           setSources(data);
           setSourceError(data.warning ?? '');
+          if (profileDevice.current === deviceId) return;
           if (source && !data.sources.some((s) => s.name === source)) {
             setSource('');
             setDuplex(false);
@@ -147,10 +161,12 @@ export function ScanDialog({
       .catch((e) => {
         if (alive) {
           setSources({ sources: [], duplex: false });
-          setResolution(300);
-          setColor('Color');
           setSourceError((e as Error).message);
-          setSource('');
+          if (profileDevice.current !== deviceId) {
+            setResolution(300);
+            setColor('Color');
+            setSource('');
+          }
         }
       })
       .finally(() => {
@@ -190,7 +206,7 @@ export function ScanDialog({
     };
   }, [running, job?.id]);
   async function start(batch: boolean) {
-    if (requestActive.current || running || recovery || settingsLoading || invalidSettings) return;
+    if (requestActive.current || locked || settingsLoading || invalidSettings) return;
     requestActive.current = true;
     setError('');
     setBusy(true);
@@ -534,6 +550,7 @@ export function ScanDialog({
                       value={deviceId}
                       disabled={complete}
                       onChange={(e) => {
+                        profileDevice.current = undefined;
                         setDeviceId(e.target.value);
                         setSource('');
                         setSources({ sources: [], duplex: false });
@@ -550,6 +567,33 @@ export function ScanDialog({
                       ))}
                     </select>
                   </label>
+                  {deviceId && (
+                    <ProfileSettings
+                      key={deviceId}
+                      deviceId={deviceId}
+                      settings={{
+                        kind: 'scan',
+                        options: { resolution, color, source: source || undefined, duplex },
+                      }}
+                      disabled={locked || settingsLoading}
+                      setBusy={setProfileBusy}
+                      applied={({ profile, scanSources }) => {
+                        if (profile.kind !== 'scan' || !scanSources) return;
+                        const nextSource = profile.options.source ?? '';
+                        const nextKey = JSON.stringify([deviceId, nextSource, refreshSettings]);
+                        appliedSettingsKey.current = nextSource !== source ? nextKey : undefined;
+                        profileDevice.current = deviceId;
+                        setSources(scanSources);
+                        setLoadedSettings(nextKey);
+                        setSourceError('');
+                        setSource(nextSource);
+                        setResolution(profile.options.resolution);
+                        setColor(profile.options.color);
+                        setDuplex(profile.options.duplex ?? false);
+                      }}
+                    />
+                  )}
+
                   <ResolutionControl
                     resolutions={resolutions}
                     value={resolution}
@@ -576,11 +620,15 @@ export function ScanDialog({
                       value={source}
                       disabled={settingsLoading || !sources.sources.length}
                       onChange={(e) => {
+                        profileDevice.current = undefined;
                         setSource(e.target.value);
                         setDuplex(false);
                       }}
                     >
                       <option value="">Device default</option>
+                      {source && !sources.sources.some((item) => item.name === source) && (
+                        <option value={source}>{source} (unavailable)</option>
+                      )}
                       {sources.sources.map((s) => (
                         <option key={s.name} value={s.name}>
                           {s.name}
@@ -588,7 +636,7 @@ export function ScanDialog({
                       ))}
                     </select>
                   </label>
-                  {feeder && sources.duplex && (
+                  {((feeder && sources.duplex) || duplex) && (
                     <label className={s.scanDuplex}>
                       <input
                         type="checkbox"
@@ -635,8 +683,8 @@ export function ScanDialog({
                   )}
                 {!running && !settingsLoading && invalidSettings && (
                   <p role="alert" className={s.error}>
-                    Choose a supported resolution and color mode. This paper source may have no
-                    supported scan settings.
+                    {profileError ??
+                      'Choose a supported resolution and color mode. This paper source may have no supported scan settings.'}
                   </p>
                 )}
               </>

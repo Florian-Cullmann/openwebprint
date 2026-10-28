@@ -10,6 +10,7 @@ import {
   type Mode,
   type ScanPage,
   type RetentionPolicy,
+  type SettingsProfile,
 } from '@openwebprint/shared';
 import { expiry } from './retention.js';
 
@@ -49,6 +50,8 @@ export class Store {
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, mode TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS profiles (id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS profiles_device ON profiles (device_id);
       CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, mode TEXT NOT NULL, created TEXT NOT NULL, data TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS jobs_history ON jobs (mode, created DESC, id DESC);
       CREATE INDEX IF NOT EXISTS jobs_kind_history ON jobs (mode, json_extract(data, '$.kind'), created DESC, id DESC);
@@ -110,11 +113,31 @@ export class Store {
   }
   putDevice(device: Device) {
     this.db
-      .prepare('INSERT OR REPLACE INTO devices VALUES (?, ?, ?)')
+      .prepare(
+        'INSERT INTO devices VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET mode=excluded.mode, data=excluded.data',
+      )
       .run(device.id, device.mode, JSON.stringify(device));
   }
   deleteDevice(id: string, mode: Mode) {
     this.db.prepare('DELETE FROM devices WHERE id=? AND mode=?').run(id, mode);
+  }
+  profiles(deviceId: string, mode: Mode): SettingsProfile[] {
+    return this.db
+      .prepare(
+        'SELECT profiles.data FROM profiles JOIN devices ON devices.id=profiles.device_id WHERE device_id=? AND devices.mode=? ORDER BY profiles.rowid',
+      )
+      .all(deviceId, mode)
+      .map((row) => JSON.parse(String(row.data)));
+  }
+  putProfile(profile: SettingsProfile) {
+    this.db
+      .prepare(
+        'INSERT INTO profiles VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data=excluded.data',
+      )
+      .run(profile.id, profile.deviceId, JSON.stringify(profile));
+  }
+  deleteProfile(id: string) {
+    this.db.prepare('DELETE FROM profiles WHERE id=?').run(id);
   }
   jobs(mode: Mode): StoredJob[] {
     return this.db

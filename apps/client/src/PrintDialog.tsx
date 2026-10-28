@@ -3,6 +3,8 @@ import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'luc
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
 import { resolvePrintPages, formatPrintPages } from '@openwebprint/shared';
 import { api, post, documentData, ApiError } from './api';
+import { printProfileError } from '@openwebprint/shared';
+import { ProfileSettings } from './ProfileSettings';
 import { DocumentPreview } from './DocumentPreview';
 import { ColorModeControl } from './CapabilityControls';
 import { Modal, Spinner } from './ui';
@@ -43,6 +45,8 @@ export function PrintDialog({
   const [pageCount, setPageCount] = useState<number>();
   const [previewing, setPreviewing] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const profileDevice = useRef<string | undefined>(undefined);
   const [error, setError] = useState('');
   const [sent, setSent] = useState<Job>();
   const [uncertain, setUncertain] = useState(false);
@@ -70,6 +74,10 @@ export function PrintDialog({
       selectionError = (e as Error).message;
     }
   }
+  const profileError =
+    profileDevice.current === deviceId
+      ? printProfileError(device?.capabilities, options)
+      : undefined;
   useEffect(() => {
     if (!file && !source) return;
     const controller = new AbortController();
@@ -97,12 +105,14 @@ export function PrintDialog({
     return () => controller.abort();
   }, [file, source?.id, source?.scanRevision]);
   useEffect(() => {
+    if (profileDevice.current === deviceId) return;
     setOptions((o) => ({
       ...o,
       media: device?.capabilities?.media[0] ?? 'iso_a4_210x297mm',
     }));
   }, [deviceId, device?.capabilities?.media.join(',')]);
   useEffect(() => {
+    if (profileDevice.current === deviceId) return;
     setOptions((o) => ({
       ...o,
       color: supportedColorModes?.includes(o.color)
@@ -111,6 +121,7 @@ export function PrintDialog({
     }));
   }, [deviceId, supportedColorModes?.join(',')]);
   useEffect(() => {
+    if (profileDevice.current === deviceId) return;
     setOptions((o) => ({
       ...o,
       sides: supportedSides?.includes(o.sides) ? o.sides : (supportedSides?.[0] ?? 'one-sided'),
@@ -135,6 +146,8 @@ export function PrintDialog({
     e.preventDefault();
     if (
       submitting.current ||
+      profileBusy ||
+      profileError ||
       uncertain ||
       !hasDocument ||
       !device ||
@@ -193,7 +206,7 @@ export function PrintDialog({
             : 'PDF, PNG or JPEG · up to 25 MB'
       }
       close={() => {
-        if (!busy) close();
+        if (!busy && !profileBusy) close();
       }}
       wide={hasDocument && !sent}
     >
@@ -283,7 +296,7 @@ export function PrintDialog({
                   <button
                     type="button"
                     className={s.secondary}
-                    disabled={busy}
+                    disabled={busy || profileBusy}
                     onClick={() => input.current?.click()}
                   >
                     {file ? 'Choose another file' : 'Choose file'}
@@ -302,9 +315,12 @@ export function PrintDialog({
                 Printer
                 <select
                   value={deviceId}
-                  onChange={(e) => setDeviceId(e.target.value)}
+                  onChange={(e) => {
+                    profileDevice.current = undefined;
+                    setDeviceId(e.target.value);
+                  }}
                   required
-                  disabled={busy}
+                  disabled={busy || profileBusy}
                 >
                   <option value="" disabled>
                     Select printer
@@ -316,6 +332,28 @@ export function PrintDialog({
                   ))}
                 </select>
               </label>
+              {deviceId && (
+                <ProfileSettings
+                  key={deviceId}
+                  deviceId={deviceId}
+                  settings={{
+                    kind: 'print',
+                    options: {
+                      copies: options.copies,
+                      color: options.color,
+                      sides: options.sides,
+                      media: options.media,
+                    },
+                  }}
+                  disabled={busy || profileBusy}
+                  setBusy={setProfileBusy}
+                  applied={({ profile }) => {
+                    if (profile.kind !== 'print') return;
+                    profileDevice.current = deviceId;
+                    setOptions((current) => ({ ...current, ...profile.options }));
+                  }}
+                />
+              )}
               {hasDocument && (
                 <div className={s.pageSelection}>
                   <div className={s.formGrid}>
@@ -323,7 +361,7 @@ export function PrintDialog({
                       Pages
                       <select
                         value={options.pageRanges === undefined ? 'all' : 'custom'}
-                        disabled={busy}
+                        disabled={busy || profileBusy}
                         onChange={(e) =>
                           setOptions({
                             ...options,
@@ -339,7 +377,7 @@ export function PrintDialog({
                       Page filter
                       <select
                         value={options.pageParity ?? 'all'}
-                        disabled={busy}
+                        disabled={busy || profileBusy}
                         onChange={(e) =>
                           setOptions({
                             ...options,
@@ -360,7 +398,7 @@ export function PrintDialog({
                         value={options.pageRanges}
                         placeholder="1-3, 7"
                         maxLength={2000}
-                        disabled={busy}
+                        disabled={busy || profileBusy}
                         aria-invalid={!!selectionError}
                         aria-describedby={`print-page-help${selectionError ? ' print-page-error' : ''}`}
                         onChange={(e) => setOptions({ ...options, pageRanges: e.target.value })}
@@ -403,7 +441,7 @@ export function PrintDialog({
                     supportedColorModes ? 'No supported color modes' : 'Color modes unavailable'
                   }
                   value={options.color}
-                  disabled={busy || !supportedColorModes?.length}
+                  disabled={busy || profileBusy || !supportedColorModes?.length}
                   onChange={(color) =>
                     setOptions({ ...options, color: color as PrintOptions['color'] })
                   }
@@ -411,12 +449,17 @@ export function PrintDialog({
                 <label>
                   Sides
                   <select
-                    value={validSides ? options.sides : ''}
-                    disabled={busy || !supportedSides?.length}
+                    value={validSides || profileError ? options.sides : ''}
+                    disabled={busy || profileBusy || !supportedSides?.length}
                     onChange={(e) =>
                       setOptions({ ...options, sides: e.target.value as PrintOptions['sides'] })
                     }
                   >
+                    {profileError && !validSides && (
+                      <option value={options.sides}>
+                        {sidesLabels[options.sides]} (unavailable)
+                      </option>
+                    )}
                     {!supportedSides?.length && (
                       <option value="">
                         {supportedSides ? 'No supported sides' : 'Sides unavailable'}
@@ -433,11 +476,16 @@ export function PrintDialog({
                   Paper size
                   <select
                     value={options.media}
-                    disabled={busy}
+                    disabled={busy || profileBusy}
                     onChange={(e) =>
                       setOptions({ ...options, media: e.target.value as PrintOptions['media'] })
                     }
                   >
+                    {profileError && !device?.capabilities?.media.includes(options.media) && (
+                      <option value={options.media}>
+                        {mediaLabels[options.media]} (unavailable)
+                      </option>
+                    )}
                     {(device?.capabilities?.media ?? []).map((m) => (
                       <option key={m} value={m}>
                         {mediaLabels[m]}
@@ -453,11 +501,16 @@ export function PrintDialog({
                     max={99}
                     required
                     value={options.copies}
-                    disabled={busy}
+                    disabled={busy || profileBusy}
                     onChange={(e) => setOptions({ ...options, copies: Number(e.target.value) })}
                   />
                 </label>
               </div>
+              {profileError && (
+                <p role="alert" className={s.error}>
+                  {profileError}
+                </p>
+              )}
               {!printers.length && (
                 <p className={s.error}>Add a printer on the Devices page first.</p>
               )}
@@ -496,7 +549,12 @@ export function PrintDialog({
             </p>
           )}
           <div className={s.modalActions}>
-            <button type="button" className={s.secondary} disabled={busy} onClick={close}>
+            <button
+              type="button"
+              className={s.secondary}
+              disabled={busy || profileBusy}
+              onClick={close}
+            >
               Cancel
             </button>
             <button
@@ -506,6 +564,8 @@ export function PrintDialog({
                 uncertain ||
                 !hasDocument ||
                 device?.status === 'offline' ||
+                profileBusy ||
+                !!profileError ||
                 !preview ||
                 previewing ||
                 !validColor ||

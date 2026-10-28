@@ -7,11 +7,14 @@ import type {
   JobPage,
   Mode,
   PrintOptions,
+  ProfileInput,
+  SettingsProfile,
+  AppliedProfile,
   ScanOptions,
   ScanPage,
   Snapshot,
 } from '@openwebprint/shared';
-import { MAX_SCAN_PAGES } from '@openwebprint/shared';
+import { MAX_SCAN_PAGES, printProfileError, scanProfileError } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
 import {
   Store,
@@ -247,6 +250,56 @@ export class Service {
     this.store.deleteDevice(id, this.mode);
     this.scannerCapabilities.invalidate(id);
     this.deviceCache = undefined;
+  }
+  profiles(deviceId: string) {
+    this.device(deviceId);
+    return this.store.profiles(deviceId, this.mode);
+  }
+  private profile(deviceId: string, id: string) {
+    const profile = this.profiles(deviceId).find((profile) => profile.id === id);
+    if (!profile) throw new AppError(404, 'Settings profile not found.');
+    return profile;
+  }
+  private async validateProfile(deviceId: string, input: ProfileInput) {
+    const device = this.device(deviceId);
+    if ((input.kind === 'print') !== (device.kind === 'printer'))
+      throw new AppError(400, 'The profile kind does not match this device.');
+    if (input.kind === 'print') {
+      const inspected = await this.provider.inspect(device);
+      const error = printProfileError(inspected.capabilities, input.options);
+      if (error) throw new AppError(409, error);
+    } else {
+      // A saved capability cache cannot establish that an old profile still works.
+      const sources = await this.scanSources(deviceId, input.options.source, true);
+      const error = scanProfileError(sources, input.options);
+      if (error) throw new AppError(409, error);
+      return sources;
+    }
+  }
+  async saveProfile(deviceId: string, input: ProfileInput, id?: string): Promise<SettingsProfile> {
+    if (id) this.profile(deviceId, id);
+    await this.validateProfile(deviceId, input);
+    // Device/profile deletion may have happened while the provider was queried.
+    const profiles = this.profiles(deviceId);
+    if (id) this.profile(deviceId, id);
+    else if (profiles.length >= 50)
+      throw new AppError(409, 'This device already has 50 profiles. Delete a profile first.');
+    const profile = { ...input, id: id ?? randomUUID(), deviceId };
+    this.store.putProfile(profile);
+    return profile;
+  }
+  async applyProfile(deviceId: string, id: string): Promise<AppliedProfile> {
+    const profile = this.profile(deviceId, id);
+    const scanSources = await this.validateProfile(deviceId, profile);
+    this.device(deviceId);
+    // Do not apply a profile that was changed or removed during capability discovery.
+    if (JSON.stringify(this.profile(deviceId, id)) !== JSON.stringify(profile))
+      throw new AppError(409, 'This profile changed. Select it again and retry.');
+    return { profile, ...(scanSources ? { scanSources } : {}) };
+  }
+  deleteProfile(deviceId: string, id: string) {
+    this.profile(deviceId, id);
+    this.store.deleteProfile(id);
   }
   private deviceState(): Promise<DeviceState> {
     if (this.deviceCache && Date.now() < this.deviceCache.expiresAt) return this.deviceCache.result;

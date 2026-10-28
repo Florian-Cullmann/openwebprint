@@ -680,6 +680,26 @@
 .scanSettings .formGrid {
   align-items: start;
 }
+.profileSettings {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.profileSettings legend {
+  padding: 0 5px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.profileActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
 .scanCapabilityActions {
   display: grid;
   justify-items: start;
