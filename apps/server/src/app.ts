@@ -15,6 +15,7 @@ import {
   scanOptionsSchema,
   scanChoiceSchema,
   scanPagesSchema,
+  scanExportSchema,
   retentionSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
@@ -318,6 +319,33 @@ export async function createApp(
     if (!file) throw new AppError(400, 'Choose a file.');
     const document = await workspace.run(() => normalizeDocument(file.data, file.mime));
     return reply.type('application/pdf').send(document);
+  });
+  app.post('/api/scans/export', async (req, reply) => {
+    const { scans } = scanExportSchema.parse(req.body);
+    const controller = new AbortController();
+    const abort = () => {
+      if (!reply.raw.writableFinished) controller.abort();
+    };
+    req.raw.once('aborted', abort);
+    reply.raw.once('close', abort);
+    const detach = () => {
+      req.raw.removeListener('aborted', abort);
+      reply.raw.removeListener('close', abort);
+    };
+    try {
+      const archive = await workspace.run((service) =>
+        service.scanExports.create(scans, controller.signal),
+      );
+      archive.once('close', detach);
+      return reply
+        .type('application/zip')
+        .header('Content-Disposition', 'attachment; filename="openwebprint-scans.zip"')
+        .send(archive);
+    } catch (error) {
+      detach();
+      controller.abort();
+      throw error;
+    }
   });
   app.post('/api/scans', async (req, reply) => {
     const input = z

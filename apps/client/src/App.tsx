@@ -34,6 +34,8 @@ import { StorageSettings } from './StorageSettings';
 import { RetentionSettings } from './RetentionSettings';
 import { JobPreviewDialog } from './JobPreviewDialog';
 import { JobHistory } from './JobHistory';
+import { ScanExport } from './ScanExport';
+
 import { useJobNotifications } from './useJobNotifications';
 import { NotificationSettings } from './NotificationSettings';
 import { UsersSettings } from './UsersSettings';
@@ -605,93 +607,101 @@ export function App() {
                   </div>
                   <span className={s.small}>30 scans per page</span>
                 </div>
-                <JobHistory kind="scan" revision={historyRevision}>
-                  {(scans) => (
-                    <>
-                      {scans.length && scanLayout === 'list' ? (
-                        <JobList
-                          jobs={scans}
-                          busy={busy}
-                          scanList
-                          preview={openPreview}
-                          remove={(job) => setDeleting({ job })}
-                        />
-                      ) : scans.length ? (
-                        <div className={s.scanGrid}>
-                          {scans.map((job) => (
-                            <article className={s.scanCard} key={job.id}>
-                              <button
-                                className={s.scanThumb}
-                                disabled={
-                                  !job.hasFile &&
-                                  !job.recovery &&
-                                  !['queued', 'processing'].includes(job.status)
-                                }
-                                onClick={() => openScan(job.deviceId, job)}
-                                aria-label={`Open scan preview: ${job.title}`}
-                              >
-                                {job.hasFile ? (
-                                  <img
-                                    src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
-                                    alt="Scanned page"
-                                    loading="lazy"
-                                    decoding="async"
-                                  />
-                                ) : (
-                                  <ScanLine size={44} strokeWidth={1} />
-                                )}
-                              </button>
-                              <div className={s.scanCardBody}>
-                                <JobBadge status={job.status} />
-                                <h3>{job.title}</h3>
-                                <p>{job.deviceName}</p>
-                                <span className={s.small}>{formatDate(job.createdAt)}</span>
-                                {job.error && <p className={s.error}>{job.error}</p>}
-                                <div className={s.scanCardActions}>
-                                  {job.hasFile ? (
-                                    <a
-                                      className={s.secondary}
-                                      href={`/api/jobs/${job.id}/pdf`}
-                                      download
+                <ScanExport key={snapshot?.mode}>
+                  {(selectScan) => (
+                    <JobHistory kind="scan" revision={historyRevision}>
+                      {(scans) => (
+                        <>
+                          {scans.length && scanLayout === 'list' ? (
+                            <JobList
+                              jobs={scans}
+                              busy={busy}
+                              scanList
+                              selection={selectScan}
+                              preview={openPreview}
+                              remove={(job) => setDeleting({ job })}
+                            />
+                          ) : scans.length ? (
+                            <div className={s.scanGrid}>
+                              {scans.map((job) => (
+                                <article className={s.scanCard} key={job.id}>
+                                  <div className={s.scanThumbWrap}>
+                                    <div className={s.scanSelection}>{selectScan(job)}</div>
+                                    <button
+                                      className={s.scanThumb}
+                                      disabled={
+                                        !job.hasFile &&
+                                        !job.recovery &&
+                                        !['queued', 'processing'].includes(job.status)
+                                      }
+                                      onClick={() => openScan(job.deviceId, job)}
+                                      aria-label={`Open scan preview: ${job.title}`}
                                     >
-                                      <ArrowDownToLine size={16} /> Save PDF
-                                    </a>
-                                  ) : (
-                                    <span className={s.small}>
-                                      {job.status === 'completed'
-                                        ? 'File already deleted'
-                                        : 'No file yet'}
-                                    </span>
-                                  )}
-                                  <button
-                                    className={s.iconButton}
-                                    disabled={!completed.has(job.status)}
-                                    aria-label={`Delete scan: ${job.title}`}
-                                    onClick={() => setDeleting({ job })}
-                                  >
-                                    <Trash2 size={17} />
-                                  </button>
-                                </div>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <Empty
-                          icon={<ScanLine />}
-                          title="No scans yet"
-                          action={
-                            <button className={s.primary} onClick={() => openScan()}>
-                              <ScanLine size={17} /> Start first scan
-                            </button>
-                          }
-                        >
-                          Scan a page and download it as a PDF.
-                        </Empty>
+                                      {job.hasFile ? (
+                                        <img
+                                          src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
+                                          alt="Scanned page"
+                                          loading="lazy"
+                                          decoding="async"
+                                        />
+                                      ) : (
+                                        <ScanLine size={44} strokeWidth={1} />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <div className={s.scanCardBody}>
+                                    <JobBadge status={job.status} />
+                                    <h3>{job.title}</h3>
+                                    <p>{job.deviceName}</p>
+                                    <span className={s.small}>{formatDate(job.createdAt)}</span>
+                                    {job.error && <p className={s.error}>{job.error}</p>}
+                                    <div className={s.scanCardActions}>
+                                      {job.hasFile ? (
+                                        <a
+                                          className={s.secondary}
+                                          href={`/api/jobs/${job.id}/pdf`}
+                                          download
+                                        >
+                                          <ArrowDownToLine size={16} /> Save PDF
+                                        </a>
+                                      ) : (
+                                        <span className={s.small}>
+                                          {job.status === 'completed'
+                                            ? 'File already deleted'
+                                            : 'No file yet'}
+                                        </span>
+                                      )}
+                                      <button
+                                        className={s.iconButton}
+                                        disabled={!completed.has(job.status)}
+                                        aria-label={`Delete scan: ${job.title}`}
+                                        onClick={() => setDeleting({ job })}
+                                      >
+                                        <Trash2 size={17} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </article>
+                              ))}
+                            </div>
+                          ) : (
+                            <Empty
+                              icon={<ScanLine />}
+                              title="No scans yet"
+                              action={
+                                <button className={s.primary} onClick={() => openScan()}>
+                                  <ScanLine size={17} /> Start first scan
+                                </button>
+                              }
+                            >
+                              Scan a page and download it as a PDF.
+                            </Empty>
+                          )}
+                        </>
                       )}
-                    </>
+                    </JobHistory>
                   )}
-                </JobHistory>
+                </ScanExport>
               </>
             )}
             {view === 'settings' && (
@@ -984,6 +994,7 @@ function JobList({
   remove,
   busy,
   scanList = false,
+  selection,
 }: {
   jobs: Job[];
   cancel?: (id: string) => void;
@@ -991,6 +1002,7 @@ function JobList({
   remove?: (job: Job) => void;
   busy: boolean;
   scanList?: boolean;
+  selection?: (job: Job) => ReactNode;
 }) {
   if (!jobs.length)
     return (
@@ -1017,6 +1029,7 @@ function JobList({
             <tr key={job.id}>
               <td>
                 <div className={s.documentCell}>
+                  {selection && selection(job)}
                   <span className={s.documentIcon}>
                     {job.kind === 'print' ? <FileText size={19} /> : <ScanLine size={19} />}
                   </span>
