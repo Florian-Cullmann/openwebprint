@@ -9,11 +9,13 @@ export function JobHistory({
   kind,
   filter = 'all',
   revision,
+  viewControls,
   children,
 }: {
   kind?: Job['kind'];
   filter?: JobFilter;
   revision: number;
+  viewControls?: ReactNode;
   children: (jobs: Job[]) => ReactNode;
 }) {
   const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
@@ -76,8 +78,10 @@ export function JobHistory({
   return (
     <>
       {kind === 'scan' && (
-        <div className={s.historySearch}>
-          <label htmlFor="scan-history-search">Search scans</label>
+        <div className={s.historyToolbar}>
+          <label className={s.srOnly} htmlFor="scan-history-search">
+            Search scans
+          </label>
           <div className={s.historySearchControls}>
             <div className={s.search}>
               <Search size={17} aria-hidden="true" />
@@ -86,7 +90,6 @@ export function JobHistory({
                 ref={searchInput}
                 type="search"
                 placeholder="Search scan titles…"
-                aria-describedby="scan-history-search-help"
                 maxLength={200}
                 value={search}
                 onChange={(event) => {
@@ -109,9 +112,7 @@ export function JobHistory({
               </button>
             )}
           </div>
-          <p id="scan-history-search-help" className={s.small}>
-            Search all saved scan titles. Results update as you type.
-          </p>
+          {viewControls}
         </div>
       )}
       {error && (
