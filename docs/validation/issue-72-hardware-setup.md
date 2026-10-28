@@ -1,6 +1,6 @@
 # Hardware setup validation (#72)
 
-This records software setup evidence separately from physical device compatibility. The guided flow is unreleased (after v0.1.0-beta.2).
+This records software setup evidence separately from physical device compatibility. The guided flow is included in v0.1.0-beta.3.
 
 ## Automated checks
 

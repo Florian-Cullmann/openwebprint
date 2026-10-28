@@ -92,7 +92,16 @@ test('loads bounded editor images on demand, keeps unchanged URLs, and crops ori
   expect(requests.some((url) => url.includes(`/pages/${id(30)}?`))).toBe(false);
   const firstUrl = await first.getAttribute('src');
   const secondUrl = await page.getByAltText('Scanned page 2', { exact: true }).getAttribute('src');
-  await page.getByRole('button', { name: 'Rotate page 1 clockwise', exact: true }).click();
+  // Saving all 30 full-resolution pages can exceed the image assertion timeout on CI.
+  const [rotation] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === `/api/scans/${jobId}/pages` &&
+        response.request().method() === 'POST',
+    ),
+    page.getByRole('button', { name: 'Rotate page 1 clockwise', exact: true }).click(),
+  ]);
+  expect(rotation.status()).toBe(200);
   await expect
     .poll(() => first.evaluate((img) => (img as HTMLImageElement).naturalWidth))
     .toBe(512);

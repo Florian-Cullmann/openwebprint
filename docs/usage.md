@@ -2,7 +2,7 @@
 
 [Back to the README](../README.md) · [Installation](installation.md) · [Self-hosting](self-hosting.md)
 
-This guide describes the current `main` branch. Packaged releases may have fewer features; check the [beta.2 release notes](releases/v0.1.0-beta.2.md).
+This guide describes the current `main` branch. For the current packaged release, see the [beta.3 release notes](releases/v0.1.0-beta.3.md).
 
 ## Setup and language
 
