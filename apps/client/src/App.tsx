@@ -1,3 +1,5 @@
+import { t, displayJobTitle, jobError, useLanguage, getLocale, formatNumber, plural } from './i18n';
+import { LanguagePicker } from './LanguagePicker';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownToLine,
@@ -55,7 +57,7 @@ const navigation: { id: View; label: string; icon: typeof Printer }[] = [
   { id: 'settings', label: 'Settings', icon: Settings2 },
 ];
 const formatDate = (date: string) =>
-  new Intl.DateTimeFormat('en-GB', {
+  new Intl.DateTimeFormat(getLocale(), {
     day: '2-digit',
     month: 'short',
     hour: '2-digit',
@@ -63,6 +65,7 @@ const formatDate = (date: string) =>
   }).format(new Date(date));
 const completed = new Set(['completed', 'canceled', 'failed']);
 export function App() {
+  const language = useLanguage();
   const [session, setSession] = useState<SessionInfo>();
   const [snapshot, setSnapshot] = useState<Snapshot>();
   const location = useLocation();
@@ -98,12 +101,22 @@ export function App() {
     setDialog(undefined);
     setQuery('');
     setJobFilter('all');
+  }, [location.pathname]);
+  useEffect(() => {
+    const labels: Record<string, string> = {
+      general: 'General',
+      users: 'Users',
+      appearance: 'Appearance',
+      hardware: 'Hardware',
+      login: 'Sign in',
+      setup: 'Setup',
+    };
     document.title = `openwebprint · ${location.pathname
       .split('/')
       .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .map((part) => t(labels[part] ?? navigation.find((item) => item.id === part)?.label ?? part))
       .join(' / ')}`;
-  }, [location.pathname]);
+  }, [location.pathname, language]);
   const loadSession = useCallback(async () => {
     setSession(await api<SessionInfo>('/session'));
   }, []);
@@ -178,12 +191,12 @@ export function App() {
         <Brand />
         {error ? (
           <>
-            <p role="alert">{error}</p>
+            <p role="alert">{t(error)}</p>
             <button
               className={s.secondary}
               onClick={() => void loadSession().catch((e) => setError(e.message))}
             >
-              Reconnect
+              {t('Reconnect')}
             </button>
           </>
         ) : (
@@ -230,11 +243,11 @@ export function App() {
   const jobs = snapshot?.jobs ?? [];
   const activeJobs = jobs.filter((j) => !completed.has(j.status));
   const subtitle = {
-    overview: 'Print and scan documents.',
-    devices: 'Manage printers and scanners.',
-    jobs: 'Track print and scan jobs.',
-    scans: 'Preview scans and download PDFs.',
-    settings: 'Manage users, appearance and hardware.',
+    overview: t('Print and scan documents.'),
+    devices: t('Manage printers and scanners.'),
+    jobs: t('Track print and scan jobs.'),
+    scans: t('Preview scans and download PDFs.'),
+    settings: t('Manage users, appearance and hardware.'),
   };
   const openPrint = (deviceId?: string) => setDialog({ type: 'print', deviceId });
   const openScan = (deviceId?: string, job?: Job) => setDialog({ type: 'scan', deviceId, job });
@@ -247,10 +260,10 @@ export function App() {
     <div className={s.app}>
       <header className={s.appHeader}>
         <div className={s.headerInner}>
-          <Link className={s.brand} to="/overview" aria-label="openwebprint overview">
+          <Link className={s.brand} to="/overview" aria-label={t('openwebprint overview')}>
             <Brand />
           </Link>
-          <nav className={s.navigation} aria-label="Main navigation">
+          <nav className={s.navigation} aria-label={t('Main navigation')}>
             {navigation.map(({ id, label, icon: Icon }) => (
               <NavLink
                 key={id}
@@ -263,18 +276,19 @@ export function App() {
                 }}
               >
                 <Icon size={16} />
-                {label}
+                {t(label)}
                 {id === 'jobs' && !!activeJobs.length && (
-                  <span className={s.navCount}>{activeJobs.length}</span>
+                  <span className={s.navCount}>{formatNumber(activeJobs.length)}</span>
                 )}
               </NavLink>
             ))}
           </nav>
           <div className={s.headerActions}>
+            <LanguagePicker />
             <button
               className={s.iconButton}
-              title="Change color scheme"
-              aria-label="Change color scheme"
+              title={t('Change color scheme')}
+              aria-label={t('Change color scheme')}
               onClick={() => setTheme(dark ? 'light' : 'dark')}
             >
               {dark ? <Sun size={18} /> : <Moon size={18} />}
@@ -282,8 +296,8 @@ export function App() {
             {session.authenticated && (
               <button
                 className={s.iconButton}
-                title={`Sign out: ${session.user?.username}`}
-                aria-label="Sign out"
+                title={t('Sign out: {value1}', { value1: session.user?.username })}
+                aria-label={t('Sign out')}
                 onClick={() =>
                   void post('/logout')
                     .then(async () => {
@@ -303,8 +317,8 @@ export function App() {
       <main className={s.main}>
         {demo && (
           <div className={s.demoBanner}>
-            <span className={s.modeLabel}>Demo mode</span>
-            <p>Devices, printing and scanning are simulated.</p>
+            <span className={s.modeLabel}>{t('Demo mode')}</span>
+            <p>{t('Devices, printing and scanning are simulated.')}</p>
             <button
               className={s.textButton}
               disabled={busy}
@@ -321,17 +335,18 @@ export function App() {
                 )
               }
             >
-              {busy ? <Spinner /> : null} Remove demo data
+              {busy ? <Spinner /> : null}
+              {t('Remove demo data')}
             </button>
           </div>
         )}
         {error && (
           <div className={s.errorBanner} role="alert">
             <AlertTriangle size={19} />
-            <p>{error}</p>
+            <p>{t(error)}</p>
             <button
               className={s.iconButton}
-              aria-label="Dismiss error"
+              aria-label={t('Dismiss error')}
               onClick={() => setError('')}
             >
               <X size={17} />
@@ -342,14 +357,14 @@ export function App() {
           <div>
             <h1>
               {view === 'overview'
-                ? 'Overview'
+                ? t('Overview')
                 : view === 'devices'
-                  ? 'Devices'
+                  ? t('Devices')
                   : view === 'jobs'
-                    ? 'All jobs'
+                    ? t('All jobs')
                     : view === 'scans'
-                      ? 'Scans'
-                      : 'Settings'}
+                      ? t('Scans')
+                      : t('Settings')}
             </h1>
             <p>{subtitle[view]}</p>
           </div>
@@ -357,23 +372,28 @@ export function App() {
             {view === 'overview' ? (
               <>
                 <button className={s.primary} onClick={() => openPrint()}>
-                  <Printer size={17} /> Print
+                  <Printer size={17} />
+                  {t('Print')}
                 </button>
                 <button className={s.secondary} onClick={() => openScan()}>
-                  <ScanLine size={17} /> Scan
+                  <ScanLine size={17} />
+                  {t('Scan')}
                 </button>
               </>
             ) : view === 'devices' ? (
               <button className={s.primary} onClick={() => setDialog({ type: 'device' })}>
-                <Plus size={17} /> Add device
+                <Plus size={17} />
+                {t('Add device')}
               </button>
             ) : view === 'jobs' ? (
               <button className={s.primary} onClick={() => openPrint()}>
-                <Plus size={17} /> Print
+                <Plus size={17} />
+                {t('Print')}
               </button>
             ) : view === 'scans' ? (
               <button className={s.primary} onClick={() => openScan()}>
-                <ScanLine size={17} /> New scan
+                <ScanLine size={17} />
+                {t('New scan')}
               </button>
             ) : null}
           </div>
@@ -381,14 +401,14 @@ export function App() {
         {!snapshot ? (
           <div className={s.loading}>
             <Spinner />
-            <p>Loading devices and jobs…</p>
+            <p>{t('Loading devices and jobs…')}</p>
           </div>
         ) : (
           <>
             {snapshot.warnings.map((w) => (
-              <p className={s.warning} key={w}>
+              <p className={s.warning} key={t(w)}>
                 <AlertTriangle size={16} />
-                {w}
+                {t(w)}
               </p>
             ))}
             {view === 'overview' && (
@@ -396,10 +416,12 @@ export function App() {
                 <section aria-labelledby="devices-title">
                   <div className={s.sectionHeading}>
                     <h2 id="devices-title">
-                      Devices <span className={s.counter}>{devices.length}</span>
+                      {t('Devices')}
+                      <span className={s.counter}>{formatNumber(devices.length)}</span>
                     </h2>
                     <button className={s.textButton} onClick={() => setDialog({ type: 'device' })}>
-                      <Plus size={16} /> Add device
+                      <Plus size={16} />
+                      {t('Add device')}
                     </button>
                   </div>
                   {devices.length ? (
@@ -415,21 +437,23 @@ export function App() {
                       ))}
                     </div>
                   ) : (
-                    <Empty icon={<Printer />} title="No devices yet">
-                      Add a printer or scanner.
+                    <Empty icon={<Printer />} title={t('No devices yet')}>
+                      {t('Add a printer or scanner.')}
                     </Empty>
                   )}
                   {devices.length > 3 && (
                     <button className={s.moreDevices} onClick={() => go('devices')}>
-                      Show all {devices.length} devices <ArrowRight size={15} />
+                      {t('Show all {value1} devices', { value1: devices.length })}
+                      <ArrowRight size={15} />
                     </button>
                   )}
                 </section>
                 <section aria-labelledby="activity-title">
                   <div className={s.sectionHeading}>
-                    <h2 id="activity-title">Recent jobs</h2>
+                    <h2 id="activity-title">{t('Recent jobs')}</h2>
                     <button className={s.textButton} onClick={() => go('jobs')}>
-                      All jobs <ArrowRight size={16} />
+                      {t('All jobs')}
+                      <ArrowRight size={16} />
                     </button>
                   </div>
                   <JobList
@@ -447,14 +471,15 @@ export function App() {
                   <label className={s.search}>
                     <Search size={18} />
                     <input
-                      aria-label="Search devices"
-                      placeholder="Search devices…"
+                      aria-label={t('Search devices')}
+                      placeholder={t('Search devices…')}
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
                     />
                   </label>
                   <button className={s.secondary} onClick={() => setDialog({ type: 'device' })}>
-                    <Radar size={16} /> Search network
+                    <Radar size={16} />
+                    {t('Search network')}
                   </button>
                 </div>
                 <div className={s.deviceList}>
@@ -477,16 +502,17 @@ export function App() {
                 ).length && (
                   <Empty
                     icon={<Printer />}
-                    title={query ? 'No matching devices' : 'No devices yet'}
+                    title={query ? t('No matching devices') : t('No devices yet')}
                   >
                     {query
-                      ? 'Try another search term.'
-                      : 'Search the network or add a device manually.'}
+                      ? t('Try another search term.')
+                      : t('Search the network or add a device manually.')}
                   </Empty>
                 )}
                 <p className={s.footnote}>
-                  Printer status is reported by CUPS and does not confirm physical connectivity.
-                  Scanners are contacted when a scan starts.
+                  {t(
+                    'Printer status is reported by CUPS and does not confirm physical connectivity. Scanners are contacted when a scan starts.',
+                  )}
                 </p>
               </>
             )}
@@ -495,16 +521,16 @@ export function App() {
                 <div className={s.toolbar}>
                   <div className={s.tabs}>
                     {[
-                      ['all', 'All jobs'],
-                      ['active', 'Active'],
-                      ['completed', 'Completed'],
+                      ['all', t('All jobs')],
+                      ['active', t('Active')],
+                      ['completed', t('Completed')],
                     ].map(([id, label]) => (
                       <button
                         key={id}
                         className={jobFilter === id ? s.activeTab : ''}
                         onClick={() => setJobFilter(id as JobFilter)}
                       >
-                        {label}
+                        {t(label)}
                       </button>
                     ))}
                   </div>
@@ -513,7 +539,8 @@ export function App() {
                     disabled={busy}
                     onClick={() => void action(refresh, 'Status updated.', false)}
                   >
-                    <RefreshCw size={16} /> Refresh
+                    <RefreshCw size={16} />
+                    {t('Refresh')}
                   </button>
                 </div>
                 <JobHistory key={jobFilter} filter={jobFilter} revision={historyRevision}>
@@ -530,19 +557,20 @@ export function App() {
                   )}
                 </JobHistory>
                 <p className={s.footnote}>
-                  Unknown status means the result could not be confirmed. Check CUPS before printing
-                  again.
+                  {t(
+                    'Unknown status means the result could not be confirmed. Check CUPS before printing again.',
+                  )}
                 </p>
               </>
             )}
             {view === 'scans' && (
               <>
                 <div className={s.toolbar}>
-                  <div className={s.tabs} role="group" aria-label="Scan view">
+                  <div className={s.tabs} role="group" aria-label={t('Scan view')}>
                     {(
                       [
-                        ['grid', 'Grid view', LayoutGrid],
-                        ['list', 'List view', List],
+                        ['grid', t('Grid view'), LayoutGrid],
+                        ['list', t('List view'), List],
                       ] as const
                     ).map(([layout, label, Icon]) => (
                       <button
@@ -551,11 +579,11 @@ export function App() {
                         className={scanLayout === layout ? s.activeTab : ''}
                         onClick={() => setScanLayout(layout)}
                       >
-                        <Icon size={16} /> {label}
+                        <Icon size={16} /> {t(label)}
                       </button>
                     ))}
                   </div>
-                  <span className={s.small}>30 scans per page</span>
+                  <span className={s.small}>{t('30 scans per page')}</span>
                 </div>
                 <JobHistory kind="scan" revision={historyRevision}>
                   {(scans) => (
@@ -580,12 +608,14 @@ export function App() {
                                   !['queued', 'processing'].includes(job.status)
                                 }
                                 onClick={() => openScan(job.deviceId, job)}
-                                aria-label={`Open scan preview: ${job.title}`}
+                                aria-label={t('Open scan preview: {value1}', {
+                                  value1: displayJobTitle(job),
+                                })}
                               >
                                 {job.hasFile ? (
                                   <img
                                     src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
-                                    alt="Scanned page"
+                                    alt={t('Scanned page')}
                                     loading="lazy"
                                     decoding="async"
                                   />
@@ -595,10 +625,10 @@ export function App() {
                               </button>
                               <div className={s.scanCardBody}>
                                 <JobBadge status={job.status} />
-                                <h3>{job.title}</h3>
+                                <h3>{displayJobTitle(job)}</h3>
                                 <p>{job.deviceName}</p>
                                 <span className={s.small}>{formatDate(job.createdAt)}</span>
-                                {job.error && <p className={s.error}>{job.error}</p>}
+                                {job.error && <p className={s.error}>{jobError(job)}</p>}
                                 <div className={s.scanCardActions}>
                                   {job.hasFile ? (
                                     <a
@@ -606,19 +636,22 @@ export function App() {
                                       href={`/api/jobs/${job.id}/pdf`}
                                       download
                                     >
-                                      <ArrowDownToLine size={16} /> Save PDF
+                                      <ArrowDownToLine size={16} />
+                                      {t('Save PDF')}
                                     </a>
                                   ) : (
                                     <span className={s.small}>
                                       {job.status === 'completed'
-                                        ? 'File already deleted'
-                                        : 'No file yet'}
+                                        ? t('File already deleted')
+                                        : t('No file yet')}
                                     </span>
                                   )}
                                   <button
                                     className={s.iconButton}
                                     disabled={!completed.has(job.status)}
-                                    aria-label={`Delete scan: ${job.title}`}
+                                    aria-label={t('Delete scan: {value1}', {
+                                      value1: displayJobTitle(job),
+                                    })}
                                     onClick={() => setDeleting({ job })}
                                   >
                                     <Trash2 size={17} />
@@ -631,14 +664,15 @@ export function App() {
                       ) : (
                         <Empty
                           icon={<ScanLine />}
-                          title="No scans yet"
+                          title={t('No scans yet')}
                           action={
                             <button className={s.primary} onClick={() => openScan()}>
-                              <ScanLine size={17} /> Start first scan
+                              <ScanLine size={17} />
+                              {t('Start first scan')}
                             </button>
                           }
                         >
-                          Scan a page and download it as a PDF.
+                          {t('Scan a page and download it as a PDF.')}
                         </Empty>
                       )}
                     </>
@@ -648,45 +682,58 @@ export function App() {
             )}
             {view === 'settings' && (
               <div className={s.settingsGrid}>
-                <nav className={s.settingsNav} aria-label="Settings categories">
+                <nav className={s.settingsNav} aria-label={t('Settings categories')}>
                   {['general', 'users', 'appearance', 'hardware'].map((category) => (
                     <NavLink
                       key={category}
                       to={`/settings/${category}`}
                       className={({ isActive }) => (isActive ? s.settingsTabActive : s.settingsTab)}
                     >
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                      {t(category.charAt(0).toUpperCase() + category.slice(1))}
                     </NavLink>
                   ))}
                 </nav>
                 <div className={s.settingsContent}>
                   {settingsCategory === 'general' && (
                     <>
-                      <SettingsCard icon={<Settings2 size={20} />} title="Operating mode">
+                      <SettingsCard icon={<Settings2 size={20} />} title={t('Operating mode')}>
                         <span className={`${s.badge} ${demo ? s.amber : s.positive}`}>
-                          {demo ? 'Demo mode enabled' : 'Hardware mode enabled'}
+                          {demo ? t('Demo mode enabled') : t('Hardware mode enabled')}
                         </span>
                         <p>
                           {demo
-                            ? 'Devices, print jobs and scan samples are simulated. No real hardware is contacted.'
-                            : 'Devices are accessed through CUPS and SANE. Status and errors come from actual operations.'}
+                            ? t(
+                                'Devices, print jobs and scan samples are simulated. No real hardware is contacted.',
+                              )
+                            : t(
+                                'Devices are accessed through CUPS and SANE. Status and errors come from actual operations.',
+                              )}
                         </p>
                         <p>
                           {demo
-                            ? 'Use Remove demo data to delete simulated devices, jobs and scan files and begin hardware setup.'
-                            : 'Your devices are configured through the setup flow and managed on the Devices page.'}
+                            ? t(
+                                'Use Remove demo data to delete simulated devices, jobs and scan files and begin hardware setup.',
+                              )
+                            : t(
+                                'Your devices are configured through the setup flow and managed on the Devices page.',
+                              )}
                         </p>
                       </SettingsCard>
                       <StorageSettings demo={demo} />
                       <RetentionSettings />
-                      <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
+                      <SettingsCard
+                        icon={<ShieldCheck size={20} />}
+                        title={t('Documents and access')}
+                      >
                         <p>
-                          Sessions last 7 days. Document files follow the retention periods above,
-                          or are removed earlier when you delete their jobs.
+                          {t(
+                            'Sessions last 7 days. Document files follow the retention periods above, or are removed earlier when you delete their jobs.',
+                          )}
                         </p>
                         <p>
-                          CUPS has its own spool and retention rules. Use HTTPS and secure cookies
-                          for network access.
+                          {t(
+                            'CUPS has its own spool and retention rules. Use HTTPS and secure cookies for network access.',
+                          )}
                         </p>
                         <a
                           className={s.textButton}
@@ -694,13 +741,15 @@ export function App() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          Self-hosting documentation <ArrowRight size={16} />
+                          {t('Self-hosting documentation')}
+                          <ArrowRight size={16} />
                         </a>
                       </SettingsCard>
-                      <SettingsCard icon={<Github size={20} />} title="About openwebprint">
+                      <SettingsCard icon={<Github size={20} />} title={t('About openwebprint')}>
                         <p>
-                          openwebprint is free software under the MIT license. Contributions to
-                          providers, hardware support and user experience are welcome.
+                          {t(
+                            'openwebprint is free software under the MIT license. Contributions to providers, hardware support and user experience are welcome.',
+                          )}
                         </p>
                         <a
                           className={s.secondary}
@@ -708,10 +757,11 @@ export function App() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          <Github size={17} /> View repository
+                          <Github size={17} />
+                          {t('View repository')}
                         </a>
                         <span className={s.small}>
-                          Version 0.1.0 · React + Fastify + CUPS + SANE
+                          {t('Version 0.1.0 · React + Fastify + CUPS + SANE')}
                         </span>
                       </SettingsCard>
                     </>
@@ -721,13 +771,13 @@ export function App() {
                   )}
                   {settingsCategory === 'appearance' && (
                     <>
-                      <SettingsCard icon={<Sun size={20} />} title="Appearance">
-                        <p>Choose the appearance for this browser.</p>
+                      <SettingsCard icon={<Sun size={20} />} title={t('Appearance')}>
+                        <p>{t('Choose the appearance for this browser.')}</p>
                         <div className={s.themePicker}>
                           {[
-                            ['light', 'Light', Sun],
-                            ['dark', 'Dark', Moon],
-                            ['system', 'System', Monitor],
+                            ['light', t('Light'), Sun],
+                            ['dark', t('Dark'), Moon],
+                            ['system', t('System'), Monitor],
                           ].map(([id, label, Icon]) => {
                             const ThemeIcon = Icon as typeof Sun;
                             return (
@@ -737,7 +787,7 @@ export function App() {
                                 onClick={() => setTheme(String(id))}
                               >
                                 <ThemeIcon size={23} />
-                                {String(label)}
+                                {t(String(label))}
                               </button>
                             );
                           })}
@@ -747,16 +797,20 @@ export function App() {
                   )}
                   {settingsCategory === 'hardware' && (
                     <>
-                      <SettingsCard icon={<Printer size={20} />} title="Printers and scanners">
+                      <SettingsCard icon={<Printer size={20} />} title={t('Printers and scanners')}>
                         <p>
-                          Compatible printers connect to CUPS through IPP Everywhere / AirPrint.
-                          Scanners connect through SANE, including eSCL or WSD via sane-airscan
-                          where supported by the model.
+                          {t(
+                            'Compatible printers connect to CUPS through IPP Everywhere / AirPrint. Scanners connect through SANE, including eSCL or WSD via sane-airscan where supported by the model.',
+                          )}
                         </p>
                         <p>
-                          Older models need a suitable CUPS/SANE driver on the host. Import existing
-                          queues using <code>cups://NAME</code> as the address. Model compatibility
-                          requires a physical hardware test.
+                          {t(
+                            'Older models need a suitable CUPS/SANE driver on the host. Import existing queues using',
+                          )}{' '}
+                          <code>cups://NAME</code>{' '}
+                          {t(
+                            'as the address. Model compatibility requires a physical hardware test.',
+                          )}
                         </p>
                       </SettingsCard>
                     </>
@@ -772,17 +826,18 @@ export function App() {
             target="_blank"
             rel="noreferrer"
           >
-            GitHub <ArrowRight size={12} />
+            {t('GitHub')}
+            <ArrowRight size={12} />
           </a>
         </footer>
       </main>
       {toast && (
         <div className={s.toast} role="status">
           <CheckCircle2 size={19} />
-          {toast}
+          {t(toast)}
           <button
             className={s.iconButton}
-            aria-label="Dismiss notification"
+            aria-label={t('Dismiss notification')}
             onClick={() => setToast('')}
           >
             <X size={15} />
@@ -827,8 +882,10 @@ export function App() {
       )}
       {deleting && (
         <Modal
-          title={deleting.device ? 'Remove device?' : 'Delete job and files?'}
-          subtitle={deleting.device?.name ?? deleting.job?.title}
+          title={deleting.device ? t('Remove device?') : t('Delete job and files?')}
+          subtitle={
+            deleting.device?.name ?? (deleting.job ? displayJobTitle(deleting.job) : undefined)
+          }
           close={() => {
             if (!busy) setDeleting(undefined);
           }}
@@ -836,8 +893,12 @@ export function App() {
           <div className={s.modalBody}>
             <p>
               {deleting.device
-                ? 'The device will be removed from openwebprint. Its CUPS queue and configuration will remain.'
-                : 'The record and any stored scan files will be deleted. Unconfirmed print jobs may still be active in CUPS. Check the queue; deleting a record does not cancel printing.'}
+                ? t(
+                    'The device will be removed from openwebprint. Its CUPS queue and configuration will remain.',
+                  )
+                : t(
+                    'The record and any stored scan files will be deleted. Unconfirmed print jobs may still be active in CUPS. Check the queue; deleting a record does not cancel printing.',
+                  )}
             </p>
             <div className={s.modalActions}>
               <button
@@ -845,7 +906,7 @@ export function App() {
                 disabled={busy}
                 onClick={() => setDeleting(undefined)}
               >
-                Keep
+                {t('Keep')}
               </button>
               <button
                 className={s.danger}
@@ -863,7 +924,7 @@ export function App() {
                 }
               >
                 {busy ? <Spinner /> : <Trash2 size={16} />}{' '}
-                {deleting.device ? 'Remove device' : 'Delete'}
+                {deleting.device ? t('Remove device') : t('Delete')}
               </button>
             </div>
           </div>
@@ -889,30 +950,32 @@ function DeviceCard({
       <div className={s.deviceInfo}>
         <h3>{device.name}</h3>
         <p>
-          {device.kind === 'printer' ? 'Printer' : 'Scanner'}
+          {device.kind === 'printer' ? t('Printer') : t('Scanner')}
           {device.location ? ` · ${device.location}` : ''}
         </p>
         {details && (
           <details className={s.deviceDetails}>
-            <summary>Connection details</summary>
+            <summary>{t('Connection details')}</summary>
             <code>{device.address}</code>
             <p>
               {device.provider === 'demo'
-                ? 'Demo-Provider'
+                ? t('Demo-Provider')
                 : device.provider === 'cups'
-                  ? 'CUPS / IPP'
-                  : 'SANE'}
-              {device.capabilities?.sides?.some((side) => side !== 'one-sided') ? ' · Duplex' : ''}
-              {device.capabilities?.color ? '  · Color' : ''}
+                  ? t('CUPS / IPP')
+                  : t('SANE')}
+              {device.capabilities?.sides?.some((side) => side !== 'one-sided')
+                ? t(' · Duplex')
+                : ''}
+              {device.capabilities?.color ? t('  · Color') : ''}
             </p>
-            {device.detail && <p>{device.detail}</p>}
+            {device.detail && <p>{t(device.detail)}</p>}
           </details>
         )}
       </div>
       <div className={s.deviceControls}>
         <DeviceBadge device={device} />
         <button className={s.secondary} onClick={run}>
-          {device.kind === 'printer' ? 'Print' : 'Scan'}
+          {device.kind === 'printer' ? t('Print') : t('Scan')}
           <ArrowRight size={15} />
         </button>
         {remove && (
@@ -941,8 +1004,8 @@ function JobList({
 }) {
   if (!jobs.length)
     return (
-      <Empty icon={<ListOrdered />} title="No jobs yet">
-        Print jobs and scans will appear here.
+      <Empty icon={<ListOrdered />} title={t('No jobs yet')}>
+        {t('Print jobs and scans will appear here.')}
       </Empty>
     );
   return (
@@ -950,12 +1013,12 @@ function JobList({
       <table className={s.jobTable}>
         <thead>
           <tr>
-            <th>Document</th>
-            <th>Device</th>
-            <th>Status</th>
-            <th>Date</th>
+            <th>{t('Document')}</th>
+            <th>{t('Device')}</th>
+            <th>{t('Status')}</th>
+            <th>{t('Date')}</th>
             <th>
-              <span className={s.srOnly}>Actions</span>
+              <span className={s.srOnly}>{t('Actions')}</span>
             </th>
           </tr>
         </thead>
@@ -969,21 +1032,21 @@ function JobList({
                   </span>
                   <div>
                     <button className={s.documentTitle} onClick={() => preview(job)}>
-                      {job.title}
+                      {displayJobTitle(job)}
                     </button>
                     <span>
-                      {job.mode === 'demo' ? 'Demo · ' : ''}
-                      {job.kind === 'print' ? 'Print job' : 'Scan'}
+                      {job.mode === 'demo' ? t('Demo · ') : ''}
+                      {job.kind === 'print' ? t('Print job') : t('Scan')}
                       {job.kind === 'print' && 'copies' in job.options
-                        ? ` · ${job.options.copies} ${job.options.copies === 1 ? 'Copy' : 'Copies'}`
+                        ? ` · ${plural('{count} Copy', '{count} Copies', job.options.copies)}`
                         : ''}
                       {scanList && !job.hasFile
                         ? job.status === 'completed'
-                          ? ' · File already deleted'
-                          : ' · No file yet'
+                          ? t(' · File already deleted')
+                          : t(' · No file yet')
                         : ''}
                     </span>
-                    {job.error && <p className={s.jobError}>{job.error}</p>}
+                    {job.error && <p className={s.jobError}>{jobError(job)}</p>}
                   </div>
                 </div>
               </td>
@@ -998,8 +1061,8 @@ function JobList({
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      title="Cancel job"
-                      aria-label={`Cancel job: ${job.title}`}
+                      title={t('Cancel job')}
+                      aria-label={t('Cancel job: {value1}', { value1: displayJobTitle(job) })}
                       onClick={() => cancel(job.id)}
                     >
                       <X size={17} />
@@ -1008,7 +1071,7 @@ function JobList({
                   {job.hasFile && (
                     <button
                       className={s.iconButton}
-                      aria-label={`Open preview: ${job.title}`}
+                      aria-label={t('Open preview: {value1}', { value1: displayJobTitle(job) })}
                       onClick={() => preview(job)}
                     >
                       <Search size={17} />
@@ -1019,8 +1082,8 @@ function JobList({
                       className={s.iconButton}
                       href={`/api/jobs/${job.id}/pdf`}
                       download
-                      title="Save PDF"
-                      aria-label={`Save PDF: ${job.title}`}
+                      title={t('Save PDF')}
+                      aria-label={t('Save PDF: {value1}', { value1: displayJobTitle(job) })}
                     >
                       <ArrowDownToLine size={17} />
                     </a>
@@ -1029,7 +1092,10 @@ function JobList({
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      aria-label={`Delete ${scanList ? 'scan' : 'job'}: ${job.title}`}
+                      aria-label={t('Delete {value1}: {value2}', {
+                        value1: t(scanList ? 'scan' : 'job'),
+                        value2: displayJobTitle(job),
+                      })}
                       onClick={() => remove(job)}
                     >
                       <Trash2 size={16} />

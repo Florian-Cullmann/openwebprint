@@ -1942,3 +1942,45 @@
   overflow-wrap: anywhere;
   font-size: 0.85rem;
 }
+
+.languagePicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  flex-shrink: 0;
+  color: var(--text);
+}
+.languagePicker select {
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px;
+  max-width: 100%;
+}
+
+.setupHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.authCard > .languagePicker {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .headerInner {
+    flex-wrap: wrap;
+  }
+  .navigation {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+}

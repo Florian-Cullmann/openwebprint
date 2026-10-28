@@ -372,7 +372,7 @@ it('keeps the previous PDF and all pages when a follow-up scan fails, including 
     hasFile: true,
     pages: job.pages,
     scanRevision: job.scanRevision,
-    error: 'Scanner disconnected',
+    error: 'The operation failed. Check the server logs.',
   });
   expect(await download(job)).toEqual(before);
   expect(failed.recovery?.pageNumbers).toEqual([1]);

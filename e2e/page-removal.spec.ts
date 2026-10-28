@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { expect } from '@playwright/test';
 import { isolatedTest } from './isolated-server';
 import type { Job } from '@openwebprint/shared';
@@ -37,10 +38,17 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
   // A rejected rebuild leaves all thumbnails and the count in place.
   const editUrl = '**/api/scans/*/pages';
   await page.route(editUrl, (route) =>
-    route.fulfill({ status: 422, json: { error: 'Could not rebuild the document.' } }),
+    route.fulfill({
+      status: 422,
+      json: publicErrorBody(
+        'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+      ),
+    }),
   );
   await page.getByRole('button', { name: 'Remove page 2', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Could not rebuild the document.');
+  await expect(page.getByRole('alert')).toHaveText(
+    'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+  );
   await expect(cards).toHaveCount(3);
   await expect(page.getByText('3 pages', { exact: true })).toBeVisible();
   await page.unroute(editUrl);

@@ -4,6 +4,8 @@ import { mkdirSync, chmodSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   DEFAULT_RETENTION,
+  publicMessageParts,
+  publicMessageText,
   type Device,
   type Job,
   type JobFilter,
@@ -186,6 +188,12 @@ export function publicJob(
   }: StoredJob,
   policy: RetentionPolicy = DEFAULT_RETENTION,
 ): Job {
+  if (job.error) {
+    job.errorMessages = publicMessageParts(job.error);
+    job.error = job.errorMessages
+      .map(({ code, params }) => publicMessageText(code, params))
+      .join(' ');
+  }
   if (_scanRecovery && Date.now() < expiry(job, policy))
     job.recovery = {
       revision: _scanRecovery.revision,

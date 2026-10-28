@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import sharp from 'sharp';
@@ -74,7 +75,10 @@ for (const saved of [false, true]) {
     await page.route('**/scan-sources*', (route) => {
       if (started && job.status === 'processing') {
         busyCapabilityReads++;
-        return route.fulfill({ status: 409, json: { error: 'This scanner is already in use.' } });
+        return route.fulfill({
+          status: 409,
+          json: publicErrorBody('This scanner is already in use.'),
+        });
       }
       return route.fulfill({
         json: {

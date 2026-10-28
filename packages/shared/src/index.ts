@@ -164,6 +164,7 @@ export interface Job {
   mode: Mode;
   options: PrintOptions | ScanOptions;
   error?: string;
+  errorMessages?: import('./public-messages.js').PublicMessage[];
   hasFile: boolean;
   expiresAt?: string;
   pages?: ScanPage[];
@@ -223,3 +224,12 @@ export interface HardwareReport {
   setupCommand?: string;
   note: string;
 }
+
+export {
+  publicMessages,
+  publicMessage,
+  publicMessageText,
+  publicErrorBody,
+  publicMessageParts,
+} from './public-messages.js';
+export type { PublicMessageCode, MessageParams, PublicMessage } from './public-messages.js';

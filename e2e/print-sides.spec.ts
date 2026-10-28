@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { test, expect, type Page } from '@playwright/test';
 import { PRINT_SIDES, type Device, type Job, type Snapshot } from '@openwebprint/shared';
 import { PDFDocument } from 'pdf-lib';
@@ -264,11 +265,13 @@ test('selects print color with keyboard and pointer, reconciles printer changes 
     submitted = route.request().postData() ?? '';
     return route.fulfill({
       status: 409,
-      json: { error: 'Print submission captured by browser fixture.' },
+      json: publicErrorBody('This device does not support the selected print options.'),
     });
   });
   await page.getByRole('button', { name: 'Start demo print', exact: true }).click();
-  await expect(page.getByRole('alert')).toHaveText('Print submission captured by browser fixture.');
+  await expect(page.getByRole('alert')).toHaveText(
+    'This device does not support the selected print options.',
+  );
   expect(submitted).toContain('"color":"color"');
 });
 
@@ -309,11 +312,13 @@ for (const [label, mode, text] of [
       submitted = route.request().postData() ?? '';
       return route.fulfill({
         status: 409,
-        json: { error: 'Color mode captured by browser fixture.' },
+        json: publicErrorBody('This device does not support the selected print options.'),
       });
     });
     await submit.click();
-    await expect(page.getByRole('alert')).toHaveText('Color mode captured by browser fixture.');
+    await expect(page.getByRole('alert')).toHaveText(
+      'This device does not support the selected print options.',
+    );
     expect(submitted).toContain(`"color":"${mode}"`);
   });
 }

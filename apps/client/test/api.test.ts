@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { publicErrorBody } from '@openwebprint/shared';
 import { api, ApiError, documentData, post } from '../src/api.js';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -15,13 +16,32 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('API response errors', () => {
+  it('keeps lost responses uncertain and replaces network diagnostics with a safe message', async () => {
+    fetchMock.mockRejectedValue(new TypeError('private backend or network diagnostics'));
+    await expect(post('/print')).rejects.toMatchObject({
+      status: 0,
+      message: 'Unable to reach the server. Check your connection and try again.',
+    });
+  });
+  it('preserves intentional request cancellation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    fetchMock.mockRejectedValue(controller.signal.reason);
+    await expect(api('/snapshot', { signal: controller.signal })).rejects.toBe(
+      controller.signal.reason,
+    );
+  });
+
   it('preserves useful application errors and their HTTP status', async () => {
     fetchMock.mockResolvedValue(
-      Response.json({ error: 'Choose a connected printer.' }, { status: 400 }),
+      Response.json(
+        { ...publicErrorBody('Choose a file.'), error: 'private backend diagnostics' },
+        { status: 400 },
+      ),
     );
     await expect(api('/print')).rejects.toMatchObject({
       status: 400,
-      message: 'Choose a connected printer.',
+      message: 'Choose a file.',
     });
     expect(unauthorized).not.toHaveBeenCalled();
   });
@@ -35,6 +55,7 @@ describe('API response errors', () => {
     [400, '{"error":{"private":"details"}}', 'application/json'],
     [400, '{"error":"  "}', 'application/json'],
     [400, '{}', 'application/json'],
+    [500, '{"error":"private backend diagnostics"}', 'application/json'],
   ])('uses a safe HTTP fallback for %i with body %j', async (status, body, contentType) => {
     fetchMock.mockResolvedValue(
       new Response(body, { status, headers: { 'content-type': contentType } }),

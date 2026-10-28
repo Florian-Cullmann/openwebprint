@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -170,7 +171,7 @@ export class Workspace {
         } catch (error) {
           errors.push({
             address: input.address,
-            error: error instanceof Error ? error.message : 'Unable to add device.',
+            ...publicErrorBody(error instanceof Error ? error.message : 'Unable to add device.'),
           });
         }
       }

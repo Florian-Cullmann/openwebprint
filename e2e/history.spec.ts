@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { expect } from '@playwright/test';
 import { isolatedTest } from './isolated-server';
 import AxeBuilder from '@axe-core/playwright';
@@ -176,10 +177,15 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   await expect(scans.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   // Simulate a temporary proxy failure only for page requests, then exercise Retry.
   await page.route('**/api/jobs?**', (route) =>
-    route.fulfill({ status: 503, json: { error: 'History temporarily unavailable.' } }),
+    route.fulfill({
+      status: 503,
+      json: publicErrorBody('The operation failed. Check the server logs.'),
+    }),
   );
   await scans.getByRole('button', { name: 'Previous', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('History temporarily unavailable.');
+  await expect(page.getByRole('alert')).toContainText(
+    'The operation failed. Check the server logs.',
+  );
   await page.unroute('**/api/jobs?**');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(scans.getByRole('status')).toHaveText('31–60 of 61 scans Page 2 of 3');
