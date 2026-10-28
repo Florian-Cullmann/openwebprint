@@ -102,7 +102,9 @@ try {
   await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByAltText('Scanned document preview').evaluate((image) => image.decode());
+  const scannedPage = page.getByAltText('Scanned page 1', { exact: true });
+  await expect(scannedPage).toBeVisible();
+  await scannedPage.evaluate((image) => image.decode());
   await capture('scanning');
   expect(errors).toEqual([]);
   console.log('Captured overview.png, printing.png and scanning.png from an isolated demo.');

@@ -43,6 +43,28 @@ Run `npx playwright install chromium` once, then `npm run screenshots` to rebuil
 
 ## Design and architecture
 
+```mermaid
+flowchart LR
+  Browser[React + TypeScript + CSS Modules] --> API[Fastify API / sessions / validation]
+  API --> DB[(SQLite)]
+  API --> Files[Private documents]
+  API --> Provider[Provider interface]
+  Provider --> Demo[Explicit demo provider]
+  Provider --> CUPS[CUPS CLI + IPP status]
+  Provider --> SANE[SANE + sane-airscan]
+```
+
+```text
+apps/client/             React UI; Vite; CSS Modules
+apps/server/src/         Auth, API, persistence, document processing
+apps/server/src/providers/  Demo and hardware adapters; bounded execFile calls
+packages/shared/        TypeScript contracts and Zod validation
+e2e/                    Browser journeys and accessibility checks
+docker/                 Dedicated local CUPS policy and daemon entrypoint
+```
+
+The backend uses established CUPS/SANE tools instead of implementing printer drivers. Child processes receive argument arrays with `shell: false`, validated targets, timeouts, and bounded command output. The maintained `@sealsystems/ipp` library reads CUPS capabilities and job states. Passwords use salted scrypt; only hashed session tokens are stored. HTTP-only, SameSite cookies, origin/header checks, security headers, upload validation, and rate limits protect the API. Image pixel limits and 500-page PDF limits reduce resource abuse; this is not a hardened sandbox for hostile documents. See [SECURITY.md](SECURITY.md).
+
 - Use **React + TypeScript**. Style with CSS Modules and shared CSS variables; no Tailwind, Vue, or Laravel.
 - Keep the interface focused on user tasks; don't expose protocol detail unless it helps make a choice.
 - Preserve responsive layouts, light/dark themes, keyboard focus, explicit errors, and empty/loading states.
