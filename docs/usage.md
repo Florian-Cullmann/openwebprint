@@ -46,6 +46,16 @@ Jobs distinguish queued, processing, completed, canceled, failed, and unknown ou
 
 Files expire under the [instance retention policy](self-hosting.md#storage-backups-and-access-recovery), seven days by default. Expiry removes documents, not their history records. Download important documents before they expire.
 
+### Document titles and history filters
+
+Open a saved scan preview and choose **Rename scan** to enter a title of 1–120 characters. Titles are trimmed; empty titles and control characters are rejected. **Save title** changes the metadata only: page edits, PDF contents, document identity and the original expiry date stay the same. Titles remain searchable after a reload. If someone else changes a title first, reopen the preview before renaming again. Wait for active scan/edit operations to finish before renaming.
+
+Both **Scans** and **Jobs** support live title search. Expand **Filter history** to combine a device, an individual status and a creation-date range. Device choices include devices referenced by older jobs, even after removal from setup. Dates include the entire selected day in your browser's time zone; the end date is inclusive. Search and filters cover the complete history, with pagination and totals limited to matching records. Changing a criterion returns to the first page; clearing the search keeps the other filters, and **Clear filters** keeps the search. Switching job tabs resets the search and filters and applies that tab's status group.
+
+Renaming or filtering never restores expired files or extends their retention. These controls use the existing shared-instance access rules; all authenticated users can rename scans.
+
+![Combined history search and filters with a synthetic document](images/history-filters.png)
+
 ## Job notifications
 
 In **Settings → General → Job notifications**, choose **Enable notifications** to request browser permission. HTTPS (or localhost) and a supporting browser are required. Blocked, unavailable and unsupported notifications fall back to in-app job updates. Some mobile browsers cannot display these system notifications; the app reports display failures. No external push service is used. See the [notification settings](images/job-notifications.png).

@@ -2018,3 +2018,43 @@
     overflow-x: auto;
   }
 }
+
+.historyFilters {
+  margin-bottom: 20px;
+}
+.historyFilters summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 4px 0;
+}
+.historyFilterFields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+.historyFilterFields label,
+.scanTitle label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.historyFilterFields input,
+.historyFilterFields select {
+  min-width: 0;
+  width: 100%;
+}
+.scanTitle {
+  min-width: 0;
+}
+.scanTitle h3 {
+  overflow-wrap: anywhere;
+  margin: 0 0 6px;
+}
+.scanTitleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}

@@ -1,5 +1,10 @@
 // Public, safe messages. Codes are part of the API contract: keep them stable.
 export const publicMessages = {
+  history_date_range: 'Choose an end date on or after the start date.',
+  rename_scan_only: 'Only scans can be renamed.',
+  rename_scan_busy: 'Wait for the scan operation to finish before renaming.',
+  rename_scan_conflict: 'This scan title changed. Reopen it before renaming.',
+
   requests_from_this_origin_are_not_allowed_check_app:
     'Requests from this origin are not allowed. Check APP_ORIGIN.',
   please_sign_in: 'Please sign in.',

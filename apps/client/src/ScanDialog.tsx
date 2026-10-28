@@ -1,4 +1,4 @@
-import { t, plural, getLocale, jobError } from './i18n';
+import { t, plural, getLocale, jobError, displayJobTitle } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import {
   MAX_SCAN_PAGES,
+  MAX_SCAN_TITLE_LENGTH,
+  renameScanSchema,
   MAX_SCAN_PIXELS,
   scanPixelCount,
   FALLBACK_SCAN_RESOLUTIONS,
@@ -67,6 +69,17 @@ export function ScanDialog({
   const [refreshSettings, setRefreshSettings] = useState(0);
   const refreshRequested = useRef(false);
   const [job, setJob] = useState(existing);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState('');
+  const [titleSaved, setTitleSaved] = useState(false);
+  const renameButton = useRef<HTMLButtonElement>(null);
+  const returnToRename = useRef(false);
+  useEffect(() => {
+    if (!editingTitle && returnToRename.current) {
+      renameButton.current?.focus();
+      returnToRename.current = false;
+    }
+  }, [editingTitle]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
@@ -251,6 +264,33 @@ export function ScanDialog({
           action,
         }),
       );
+      changed();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+      requestActive.current = false;
+    }
+  }
+  async function saveTitle() {
+    if (!job || requestActive.current || locked) return;
+    const input = renameScanSchema.safeParse({ title: draftTitle, previousTitle: job.title });
+    if (!input.success) {
+      setError('Enter a title of 1–120 characters without control characters.');
+      return;
+    }
+    requestActive.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await api<Job>(`/scans/${job.id}/title`, {
+        method: 'PATCH',
+        body: JSON.stringify(input.data),
+      });
+      setJob(saved);
+      returnToRename.current = true;
+      setEditingTitle(false);
+      setTitleSaved(true);
       changed();
     } catch (e) {
       setError((e as Error).message);
@@ -497,6 +537,74 @@ export function ScanDialog({
             )}
           </div>
           <div className={s.scanControls}>
+            {job && (
+              <div className={s.scanTitle}>
+                {editingTitle ? (
+                  <>
+                    <label>
+                      {t('Scan title')}
+                      <input
+                        autoFocus
+                        value={draftTitle}
+                        maxLength={MAX_SCAN_TITLE_LENGTH}
+                        disabled={locked}
+                        onChange={(event) => setDraftTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            void saveTitle();
+                          }
+                        }}
+                      />
+                    </label>
+                    <div className={s.scanTitleActions}>
+                      <button
+                        type="button"
+                        className={s.secondary}
+                        disabled={locked || !draftTitle.trim()}
+                        onClick={() => void saveTitle()}
+                      >
+                        {t('Save title')}
+                      </button>
+                      <button
+                        type="button"
+                        className={s.textButton}
+                        disabled={locked}
+                        onClick={() => {
+                          returnToRename.current = true;
+                          setEditingTitle(false);
+                        }}
+                      >
+                        {t('Cancel rename')}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h3>{displayJobTitle(job)}</h3>
+                    <button
+                      type="button"
+                      className={s.textButton}
+                      disabled={locked}
+                      ref={renameButton}
+                      onClick={() => {
+                        setDraftTitle(job.title);
+                        setTitleSaved(false);
+                        setEditingTitle(true);
+                      }}
+                    >
+                      {t('Rename scan')}
+                    </button>
+                  </>
+                )}
+                {titleSaved && (
+                  <p role="status" className={s.small}>
+                    {t('Title saved.')}
+                  </p>
+                )}
+              </div>
+            )}
+
             {complete && (
               <>
                 {!recovery && <DocumentExpiry job={job!} />}

@@ -65,7 +65,47 @@ export type PrintOptions = z.infer<typeof printOptionsSchema>;
 export type ScanOptions = z.infer<typeof scanOptionsSchema>;
 export type DeviceInput = z.infer<typeof deviceInputSchema>;
 export type DeviceStatus = 'ready' | 'busy' | 'offline' | 'unknown';
-export type JobStatus = 'queued' | 'processing' | 'completed' | 'canceled' | 'failed' | 'unknown';
+export const JOB_STATUSES = [
+  'queued',
+  'processing',
+  'completed',
+  'canceled',
+  'failed',
+  'unknown',
+] as const;
+export type JobStatus = (typeof JOB_STATUSES)[number];
+export const historyFiltersSchema = z.object({
+  kind: z.enum(['print', 'scan']).optional(),
+  filter: z.enum(['all', 'active', 'completed']).default('all'),
+  search: z.string().trim().max(200).default(''),
+  deviceId: z.uuid().optional(),
+  status: z.enum(JOB_STATUSES).optional(),
+  from: z.iso
+    .datetime()
+    .transform((value) => new Date(value).toISOString())
+    .optional(),
+  until: z.iso
+    .datetime()
+    .transform((value) => new Date(value).toISOString())
+    .optional(),
+});
+export type HistoryFilters = z.input<typeof historyFiltersSchema>;
+export interface HistoryDevice {
+  id: string;
+  name: string;
+}
+export const MAX_SCAN_TITLE_LENGTH = 120;
+export const renameScanSchema = z
+  .object({
+    title: z
+      .string()
+      .trim()
+      .min(1)
+      .max(MAX_SCAN_TITLE_LENGTH)
+      .refine((value) => !/[\x00-\x1f\x7f]/.test(value)),
+    previousTitle: z.string().max(1024),
+  })
+  .strict();
 export interface Capabilities {
   // Legacy summary only; never infer selectable modes from this flag.
   color: boolean;
@@ -195,6 +235,7 @@ export interface Job {
   deviceName: string;
   kind: 'print' | 'scan';
   title: string;
+  customTitle?: boolean;
   status: JobStatus;
   createdAt: string;
   updatedAt: string;

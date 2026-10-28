@@ -44,6 +44,14 @@ describe('language preferences and presentation', () => {
         createdAt: '2026-10-28T12:00:00Z',
       }),
     ).toBe('Scan · 28/10/2026');
+    expect(
+      displayJobTitle({
+        kind: 'scan',
+        title: 'Scan · 28/10/2026',
+        customTitle: true,
+        createdAt: '2026-10-28T12:00:00Z',
+      }),
+    ).toBe('Scan · 28/10/2026');
     expect(plural('{count} page', '{count} pages', 1)).toBe('1 Seite');
     expect(plural('{count} page', '{count} pages', 0)).toBe('0 Seiten');
     expect(plural('{count} page', '{count} pages', 1234)).toBe('1.234 Seiten');

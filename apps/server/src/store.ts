@@ -8,18 +8,16 @@ import {
   publicMessageText,
   type Device,
   type Job,
-  type JobFilter,
+  type HistoryFilters,
+  type HistoryDevice,
   type Mode,
   type ScanPage,
   type RetentionPolicy,
 } from '@openwebprint/shared';
 import { expiry } from './retention.js';
 
-export interface JobPageOptions {
+export interface JobPageOptions extends HistoryFilters {
   limit: number;
-  kind?: Job['kind'];
-  filter?: JobFilter;
-  search?: string;
   before?: { createdAt: string; id: string };
 }
 
@@ -130,7 +128,7 @@ export class Store {
   }
   private jobWhere(
     mode: Mode,
-    { kind, filter, search }: Pick<JobPageOptions, 'kind' | 'filter' | 'search'>,
+    { kind, filter, search, deviceId, status, from, until }: HistoryFilters,
   ) {
     const where = ['mode=?'];
     const params: (string | number)[] = [mode];
@@ -145,6 +143,23 @@ export class Store {
       where.push("instr(owp_lower(json_extract(data, '$.title')), ?) > 0");
       params.push(search.toLowerCase());
     }
+    for (const [field, value] of [
+      ['deviceId', deviceId],
+      ['status', status],
+    ] as const) {
+      if (value) {
+        where.push(`json_extract(data, '$.${field}')=?`);
+        params.push(value);
+      }
+    }
+    if (from) {
+      where.push('created >= ?');
+      params.push(from);
+    }
+    if (until) {
+      where.push('created < ?');
+      params.push(until);
+    }
     return { where, params };
   }
   jobStats(mode: Mode, { before, ...options }: Omit<JobPageOptions, 'limit'>) {
@@ -157,8 +172,8 @@ export class Store {
       .get(...(before ? [before.createdAt, before.id, ...params] : params))!;
     return { total: Number(row.total), offset: Number(row.offset) };
   }
-  jobPage(mode: Mode, { limit, kind, filter, search, before }: JobPageOptions): StoredJob[] {
-    const { where, params } = this.jobWhere(mode, { kind, filter, search });
+  jobPage(mode: Mode, { limit, before, ...filters }: JobPageOptions): StoredJob[] {
+    const { where, params } = this.jobWhere(mode, filters);
     if (before) {
       where.push('(created, id) < (?, ?)');
       params.push(before.createdAt, before.id);
@@ -169,6 +184,19 @@ export class Store {
       )
       .all(...params, limit)
       .map((row) => JSON.parse(String(row.data)));
+  }
+  historyDevices(mode: Mode, kind?: Job['kind']): HistoryDevice[] {
+    const { where, params } = this.jobWhere(mode, { kind });
+    // Use the newest historical name per ID, including devices removed from setup.
+    return this.db
+      .prepare(
+        `SELECT id, name FROM (
+      SELECT json_extract(data, '$.deviceId') AS id, json_extract(data, '$.deviceName') AS name,
+        ROW_NUMBER() OVER (PARTITION BY json_extract(data, '$.deviceId') ORDER BY created DESC, jobs.id DESC) AS position
+      FROM jobs WHERE ${where.join(' AND ')}
+    ) WHERE position=1 ORDER BY owp_lower(name), id`,
+      )
+      .all(...params) as unknown as HistoryDevice[];
   }
   job(id: string, mode: Mode): StoredJob | undefined {
     const row = this.db.prepare('SELECT data FROM jobs WHERE id=? AND mode=?').get(id, mode);

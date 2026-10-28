@@ -18,6 +18,8 @@ import {
   scanPagesSchema,
   scanExportSchema,
   retentionSchema,
+  historyFiltersSchema,
+  renameScanSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
 import { Store, storedScanPages } from './store.js';
@@ -207,27 +209,23 @@ export async function createApp(
   });
   app.get('/api/snapshot', async () => workspace.snapshot());
   app.get('/api/jobs', async (req) => {
-    const query = z
-      .object({
+    const query = historyFiltersSchema
+      .extend({
         limit: z.coerce.number().int().min(1).max(100).default(50),
-        kind: z.enum(['print', 'scan']).optional(),
-        filter: z.enum(['all', 'active', 'completed']).default('all'),
-        search: z.string().trim().max(200).default(''),
         cursor: z.string().min(1).max(2048).optional(),
       })
       .strict()
       .parse(req.query);
+    if (query.from && query.until && query.from >= query.until)
+      throw new AppError(400, 'Choose an end date on or after the start date.');
     let before: { createdAt: string; id: string } | undefined;
     if (query.cursor) {
       try {
-        const cursor = z
-          .object({
+        const cursor = historyFiltersSchema
+          .extend({
             createdAt: z.iso.datetime(),
             id: z.uuid(),
             mode: z.enum(['demo', 'hardware']),
-            kind: z.enum(['print', 'scan']).optional(),
-            filter: z.enum(['all', 'active', 'completed']),
-            search: z.string().trim().max(200).default(''),
           })
           .strict()
           .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
@@ -235,7 +233,11 @@ export async function createApp(
           cursor.mode !== workspace.mode ||
           cursor.kind !== query.kind ||
           cursor.filter !== query.filter ||
-          cursor.search !== query.search
+          cursor.search !== query.search ||
+          cursor.deviceId !== query.deviceId ||
+          cursor.status !== query.status ||
+          cursor.from !== query.from ||
+          cursor.until !== query.until
         )
           throw new Error('Cursor belongs to another listing');
         before = cursor;
@@ -244,6 +246,17 @@ export async function createApp(
       }
     }
     return workspace.run((service) => service.listJobs({ ...query, before }));
+  });
+  app.get('/api/jobs/devices', async (req) => {
+    const { kind } = z
+      .object({ kind: z.enum(['scan', 'print']).optional() })
+      .strict()
+      .parse(req.query);
+    return workspace.run((service) => service.store.historyDevices(service.mode, kind));
+  });
+  app.patch('/api/scans/:id/title', async (req) => {
+    const input = renameScanSchema.parse(req.body);
+    return workspace.run((service) => service.renameScan(idParam.parse(req.params).id, input));
   });
   app.get('/api/jobs/:id', async (req) =>
     workspace.run((service) => service.publicJob(service.job(idParam.parse(req.params).id))),

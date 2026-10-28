@@ -146,6 +146,16 @@ it.each(['conversion', 'storage'])(
     const pending = edit(job, job.pages!.slice(1));
     try {
       await started;
+      expect(
+        (
+          await f.app.inject({
+            method: 'PATCH',
+            url: `/api/scans/${job.id}/title`,
+            headers: f.headers,
+            payload: { title: 'Concurrent rename', previousTitle: job.title },
+          })
+        ).statusCode,
+      ).toBe(409);
       expect((await edit(job, job.pages!.slice(1))).statusCode).toBe(409);
       expect(
         (await f.app.inject({ method: 'DELETE', url: `/api/jobs/${job.id}`, headers: f.headers }))

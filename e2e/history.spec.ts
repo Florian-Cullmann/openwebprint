@@ -370,3 +370,119 @@ test('ignores late search responses during debounce and after a newer result (co
     }
   }
 });
+
+test('combine history filters, rename a retained scan, and keep the title after reload (synthetic archive)', async ({
+  page,
+}, info) => {
+  await page.goto('/scans');
+  const pagination = page.getByRole('navigation', { name: 'Scan history pages' });
+  await expect(pagination.getByRole('status')).toHaveText('1–30 of 61 scans Page 1 of 3');
+  await pagination.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(pagination.getByRole('status')).toContainText('Page 2 of 3');
+  await page.getByText('Filter history', { exact: true }).click();
+  await page
+    .getByRole('combobox', { name: 'Device', exact: true })
+    .selectOption({ label: 'Archive demo device' });
+  await page.getByRole('combobox', { name: 'Status', exact: true }).selectOption('completed');
+  await expect(pagination.getByRole('status')).toContainText('Page 1 of 3');
+  const search = page.getByRole('searchbox', { name: 'Search scans', exact: true });
+  await search.fill('Archive scan 300');
+  await expect(pagination.getByRole('status')).toHaveText('1–1 of 1 scan Page 1 of 1');
+  const record = await (await page.request.get(`/api/jobs/${id(300)}`)).json();
+  const day = await page.evaluate((createdAt) => {
+    const date = new Date(createdAt);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  }, record.createdAt);
+  await page.getByLabel('Created from', { exact: true }).fill(day);
+  await page.getByLabel('Created through', { exact: true }).fill(day);
+  await expect(pagination.getByRole('status')).toHaveText('1–1 of 1 scan Page 1 of 1');
+  await page
+    .getByRole('button', { name: 'Open scan preview: Archive scan 300', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByRole('button', { name: 'Rename scan', exact: true }).click();
+  const title = dialog.getByRole('textbox', { name: 'Scan title', exact: true });
+  await expect(title).toBeFocused();
+  await title.fill('  ');
+  await expect(dialog.getByRole('button', { name: 'Save title', exact: true })).toBeDisabled();
+  await title.fill('Übersicht <Rechnungen> 2026');
+  await title.press('Enter');
+  await expect(dialog.getByRole('status').filter({ hasText: 'Title saved.' })).toBeVisible();
+  await expect(
+    dialog.getByRole('heading', { name: 'Übersicht <Rechnungen> 2026', exact: true }),
+  ).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Rename scan', exact: true })).toBeFocused();
+  await page.screenshot({ path: `test-results/${info.project.name}-scan-rename.png` });
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'No jobs match your search and filters.' }),
+  ).toBeVisible();
+  await search.fill('übersicht');
+  await expect(
+    page.getByRole('heading', { name: 'Übersicht <Rechnungen> 2026', exact: true }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Übersicht <Rechnungen> 2026', exact: true }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: `test-results/${info.project.name}-history-filters.png`,
+    fullPage: true,
+  });
+  const accessibility = await new AxeBuilder({ page }).analyze();
+  expect(
+    accessibility.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+  ).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page.getByLabel('Created from', { exact: true }).fill('2099-01-01');
+  await expect(page.getByRole('alert')).toHaveText(
+    'Choose an end date on or after the start date.',
+  );
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  await expect(pagination.getByRole('status')).toHaveText('1–1 of 1 scan Page 1 of 1');
+  await page.reload();
+  await page.getByRole('searchbox', { name: 'Search scans', exact: true }).fill('übersicht');
+  await expect(
+    page.getByRole('button', { name: 'Übersicht <Rechnungen> 2026', exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Main navigation' })
+    .getByRole('link', { name: 'Jobs', exact: true })
+    .click();
+  await page.getByRole('searchbox', { name: 'Search jobs', exact: true }).fill('übersicht');
+  await expect(
+    page.getByRole('navigation', { name: 'Job history pages' }).getByRole('status'),
+  ).toHaveText('1–1 of 1 job Page 1 of 1');
+});
+
+test.describe('calendar date boundaries', () => {
+  test.use({ timezoneId: 'Europe/Berlin' });
+  test('includes the complete local day over both daylight-saving changes', async ({ page }) => {
+    await page.goto('/jobs');
+    await page.getByText('Filter history', { exact: true }).click();
+    for (const [day, from, until] of [
+      ['2026-03-29', '2026-03-28T23:00:00.000Z', '2026-03-29T22:00:00.000Z'],
+      ['2026-10-25', '2026-10-24T22:00:00.000Z', '2026-10-25T23:00:00.000Z'],
+    ]) {
+      await page.getByLabel('Created from', { exact: true }).fill(day);
+      const request = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === '/api/jobs' &&
+          url.searchParams.get('from') === from &&
+          url.searchParams.get('until') === until
+        );
+      });
+      await page.getByLabel('Created through', { exact: true }).fill(day);
+      expect((await request).status()).toBe(200);
+      await expect(
+        page.getByRole('navigation', { name: 'Job history pages' }).getByRole('status'),
+      ).toHaveText('0–0 of 0 jobs Page 1 of 1');
+    }
+  });
+});

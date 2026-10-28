@@ -249,3 +249,167 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     }
   });
 });
+
+it('combines device, inclusive/exclusive timestamp bounds, status and title across pages (synthetic history)', async () => {
+  f = await fixture();
+  const deviceId = randomUUID();
+  for (let index = 1; index <= 310; index++) {
+    f.store.putJob(
+      job(index, {
+        kind: 'scan',
+        deviceId: index <= 70 ? deviceId : randomUUID(),
+        deviceName: 'Removed scanner',
+        title: 'Invoice Über',
+        createdAt: '2026-03-29T00:00:00.000Z',
+        status: index <= 65 ? 'failed' : 'completed',
+      }),
+    );
+  }
+  f.store.putJob(
+    job(311, {
+      kind: 'scan',
+      deviceId,
+      title: 'Invoice Über',
+      status: 'failed',
+      createdAt: '2026-03-29T22:00:00.000Z',
+      deviceName: 'Latest removed scanner',
+    }),
+  );
+  f.store.putJob(
+    job(312, {
+      kind: 'scan',
+      deviceId,
+      title: 'Invoice Über',
+      status: 'failed',
+      createdAt: '2026-03-28T22:59:59.999Z',
+    }),
+  );
+  f.store.putJob(
+    job(313, {
+      kind: 'scan',
+      deviceId,
+      mode: 'hardware',
+      title: 'Invoice Über',
+      status: 'failed',
+      createdAt: '2026-03-29T00:00:00.000Z',
+    }),
+  );
+  const query = new URLSearchParams({
+    kind: 'scan',
+    deviceId,
+    status: 'failed',
+    search: 'über',
+    from: '2026-03-28T23:00:00Z',
+    until: '2026-03-29T22:00:00Z',
+    limit: '17',
+  });
+  const first = await listing(query.toString());
+  expect(first.total).toBe(65);
+  const seen = first.jobs.map((job) => job.id);
+  let cursor = first.nextCursor;
+  while (cursor) {
+    query.set('cursor', cursor);
+    const page = await listing(query.toString());
+    expect(page.total).toBe(65);
+    expect(page.offset).toBe(seen.length);
+    seen.push(...page.jobs.map((job) => job.id));
+    cursor = page.nextCursor;
+  }
+  expect(new Set(seen).size).toBe(65);
+  expect(seen).toEqual(Array.from({ length: 65 }, (_, index) => job(65 - index).id));
+  query.set('cursor', first.nextCursor!);
+  for (const field of ['deviceId', 'status', 'from', 'until']) {
+    const changed = new URLSearchParams(query);
+    changed.delete(field);
+    expect(
+      (await f.app.inject({ url: `/api/jobs?${changed}`, headers: f.headers })).statusCode,
+    ).toBe(400);
+  }
+  for (const params of [
+    'deviceId=no',
+    'status=active',
+    'from=2026-02-30T00:00:00Z',
+    'until=tomorrow',
+    'from=2026-01-02T00:00:00Z&until=2026-01-01T00:00:00Z',
+  ])
+    expect(
+      (await f.app.inject({ url: `/api/jobs?${params}`, headers: f.headers })).statusCode,
+    ).toBe(400);
+  expect((await listing('status=failed&filter=completed')).total).toBe(0);
+  expect((await f.app.inject({ url: '/api/jobs/devices?kind=scan' })).statusCode).toBe(401);
+  const devices = (
+    await f.app.inject({ url: '/api/jobs/devices?kind=scan', headers: f.headers })
+  ).json();
+  expect(devices.filter((device: { id: string }) => device.id === deviceId)).toEqual([
+    { id: deviceId, name: 'Latest removed scanner' },
+  ]);
+});
+
+it('renames scan metadata safely, preserves document identity/revision/expiry and rejects stale titles', async () => {
+  f = await fixture();
+  const filePath = join(f.dataDir, 'retained.pdf');
+  const bytes = await pdf();
+  await writeFile(filePath, bytes);
+  const scan = job(1, {
+    kind: 'scan',
+    hasFile: true,
+    filePath,
+    createdAt: new Date().toISOString(),
+  });
+  f.store.putJob(scan);
+  const rename = (title: string, previousTitle = scan.title, id = scan.id, headers = f.headers) =>
+    f.app.inject({
+      method: 'PATCH',
+      url: `/api/scans/${id}/title`,
+      headers,
+      payload: { title, previousTitle },
+    });
+  const before = (await f.app.inject({ url: `/api/jobs/${scan.id}`, headers: f.headers })).json();
+  const response = await rename('  ../Über invoice <draft>  ');
+  expect(response.statusCode).toBe(200);
+  expect(response.json()).toMatchObject({
+    title: '../Über invoice <draft>',
+    customTitle: true,
+    scanRevision: before.scanRevision,
+    expiresAt: before.expiresAt,
+  });
+  expect(f.service.job(scan.id)).toMatchObject({
+    filePath,
+    createdAt: scan.createdAt,
+    scanRevision: scan.updatedAt,
+  });
+  expect(
+    (await f.app.inject({ url: `/api/jobs/${scan.id}/pdf`, headers: f.headers })).rawPayload,
+  ).toEqual(bytes);
+  expect((await rename('Stale rename')).statusCode).toBe(409);
+  for (const title of ['', '   ', 'a'.repeat(121), 'x\u0000y', 'x\ny'])
+    expect((await rename(title, '../Über invoice <draft>')).statusCode).toBe(400);
+  expect(
+    (
+      await rename('Unauthorized', '../Über invoice <draft>', scan.id, {
+        cookie: '',
+        'x-openwebprint': '1',
+      })
+    ).statusCode,
+  ).toBe(401);
+  f.store.putJob(job(2, { kind: 'print' }));
+  expect((await rename('Print title', job(2).title, job(2).id)).statusCode).toBe(400);
+  f.store.putJob(job(3, { kind: 'scan', mode: 'hardware' }));
+  expect((await rename('Hardware title', job(3).title, job(3).id)).statusCode).toBe(404);
+  f.store.putJob(job(4, { kind: 'scan', status: 'processing' }));
+  expect((await rename('Active title', job(4).title, job(4).id)).statusCode).toBe(409);
+  const directory = f.dataDir;
+  await f.close(false);
+  f = await fixture({ dataDir: directory });
+  expect((await listing('search=%C3%9Cber')).jobs[0].title).toBe('../Über invoice <draft>');
+  const stored = f.service.job(scan.id);
+  stored.createdAt = '2020-01-01T00:00:00.000Z';
+  f.store.putJob(stored);
+  await f.service.expireFiles();
+  expect((await rename('Expired but indexed', stored.title)).statusCode).toBe(200);
+  expect(
+    (await f.app.inject({ url: `/api/jobs/${scan.id}/pdf`, headers: f.headers })).statusCode,
+  ).toBe(404);
+  await f.service.deleteJob(scan.id);
+  expect((await rename('Deleted', 'Expired but indexed')).statusCode).toBe(404);
+});
