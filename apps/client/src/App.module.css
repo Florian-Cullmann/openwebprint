@@ -512,9 +512,6 @@
   top: 10px;
   left: 10px;
   z-index: 1;
-  background: var(--panel);
-  border-radius: 5px;
-  box-shadow: 0 1px 4px #0002;
 }
 .scanThumb {
   width: 100%;
