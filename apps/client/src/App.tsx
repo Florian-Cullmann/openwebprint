@@ -24,6 +24,7 @@ import {
   X,
   AlertTriangle,
   Monitor,
+  Bell,
 } from 'lucide-react';
 import type { Device, Job, JobFilter, SessionInfo, Snapshot } from '@openwebprint/shared';
 import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
@@ -34,6 +35,9 @@ import { RetentionSettings } from './RetentionSettings';
 import { JobPreviewDialog } from './JobPreviewDialog';
 import { JobHistory } from './JobHistory';
 import { ScanExport } from './ScanExport';
+
+import { useJobNotifications } from './useJobNotifications';
+import { NotificationSettings } from './NotificationSettings';
 import { UsersSettings } from './UsersSettings';
 import { api, post } from './api';
 import { AuthScreen } from './AuthScreen';
@@ -74,6 +78,10 @@ export function App() {
     !!session &&
     !session.onboardingRequired &&
     (!session.authenticationRequired || session.authenticated);
+  const notifications = useJobNotifications(
+    canAccess ? `${session.mode}:${session.user?.id ?? 'local'}` : undefined,
+    (id) => navigate(`/jobs?job=${encodeURIComponent(id)}`),
+  );
   const [dialog, setDialog] = useState<Dialog>();
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
@@ -105,6 +113,25 @@ export function App() {
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
       .join(' / ')}`;
   }, [location.pathname]);
+  useEffect(() => {
+    const id = new URLSearchParams(location.search).get('job');
+    if (!canAccess || !id || location.pathname !== '/jobs') return;
+    const controller = new AbortController();
+    void api<Job>(`/jobs/${encodeURIComponent(id)}`, { signal: controller.signal })
+      .then((job) => {
+        if (!controller.signal.aborted)
+          setDialog(
+            job.kind === 'scan' &&
+              (job.hasFile || job.recovery || ['queued', 'processing'].includes(job.status))
+              ? { type: 'scan', deviceId: job.deviceId, job }
+              : { type: 'document', job },
+          );
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setError(error.message);
+      });
+    return () => controller.abort();
+  }, [canAccess, location.pathname, location.search, location.key]);
   const loadSession = useCallback(async () => {
     setSession(await api<SessionInfo>('/session'));
   }, []);
@@ -201,6 +228,7 @@ export function App() {
     if (location.pathname !== '/setup') return <Navigate to="/setup" replace />;
     return <SetupScreen changed={loadSession} />;
   }
+  if (location.pathname === '/settings') return <Navigate to="/settings/general" replace />;
   if (location.pathname === '/setup') return <Navigate to="/overview" replace />;
   if (location.pathname === '/login') {
     const from = (location.state as { from?: string } | null)?.from;
@@ -288,6 +316,7 @@ export function App() {
                 onClick={() =>
                   void post('/logout')
                     .then(async () => {
+                      notifications.reset();
                       setSnapshot(undefined);
                       setDialog(undefined);
                       await loadSession();
@@ -313,6 +342,7 @@ export function App() {
                 void action(
                   async () => {
                     await post('/onboarding/remove-demo');
+                    notifications.reset();
                     setSnapshot(undefined);
                     setDialog(undefined);
                     await loadSession();
@@ -326,6 +356,25 @@ export function App() {
             </button>
           </div>
         )}
+        {notifications.notices.map((notice) => (
+          <div className={s.demoBanner} role="status" key={notice.id}>
+            <Bell size={18} />
+            <p>{notice.text}</p>
+            <button
+              className={s.textButton}
+              onClick={() => navigate(`/jobs?job=${encodeURIComponent(notice.id)}`)}
+            >
+              Open job
+            </button>
+            <button
+              className={s.iconButton}
+              aria-label="Dismiss job update"
+              onClick={() => notifications.dismiss(notice.id)}
+            >
+              <X size={17} />
+            </button>
+          </div>
+        ))}
         {error && (
           <div className={s.errorBanner} role="alert">
             <AlertTriangle size={19} />
@@ -686,6 +735,9 @@ export function App() {
                             : 'Your devices are configured through the setup flow and managed on the Devices page.'}
                         </p>
                       </SettingsCard>
+                      <SettingsCard icon={<Bell size={20} />} title="Job notifications">
+                        <NotificationSettings notifications={notifications} />
+                      </SettingsCard>
                       <StorageSettings demo={demo} />
                       <RetentionSettings />
                       <SettingsCard icon={<ShieldCheck size={20} />} title="Documents and access">
@@ -803,6 +855,7 @@ export function App() {
           devices={devices}
           initial={dialog.deviceId}
           source={dialog.job}
+          started={notifications.started}
           demo={demo}
           close={() => setDialog(undefined)}
           changed={() => void refresh()}
@@ -820,6 +873,7 @@ export function App() {
           devices={devices}
           initial={dialog.deviceId}
           existing={dialog.job}
+          started={notifications.started}
           print={(job) => setDialog({ type: 'print', job })}
           demo={demo}
           close={() => setDialog(undefined)}

@@ -63,6 +63,14 @@ Review, crop, rotate, reorder, or remove scanned pages, download or print the PD
 
 In **Scans**, use the small checkbox at the top-left of a preview to select saved PDFs. The export toolbar appears only once at least one scan is selected; choose **Download ZIP** to hand over those documents together. Clearing the last selection hides the toolbar again. Selection stays across history pages and Grid/List views; review or remove off-page selections before downloading. The limit is 50 PDFs totaling 100 MiB. Changed, expired or missing scans stop the export with an explanation rather than being silently skipped. Clear the selection to start over; leaving Scans or changing mode clears it too. Downloads can be canceled and expire after two minutes (or earlier when a source expires), so use smaller batches on slow connections. Source documents and their retention dates stay unchanged. This exports PDFs as separate ZIP entries; it is not an instance backup.
 
+### Optional job notifications
+
+In **Settings → General → Job notifications**, choose **Enable notifications** to request browser permission. HTTPS (or localhost) and a supporting browser are required. Blocked, unavailable and unsupported notifications fall back to in-app job updates. Some mobile browsers cannot display these system notifications; the app reports display failures. No external push service is used. See the [notification settings](docs/images/job-notifications.png).
+
+Keep the application open: each tab follows only print and scan operations started there, polling those jobs every five seconds even in a background tab when notifications are enabled and permission is granted. Browsers may delay background timers or suspend tabs. Reconnection reconciles tracked jobs once, without importing historical jobs. Demo messages are explicitly marked. Clicking a notification opens its job; messages omit document titles, device names and error details. Provider-reported print completion does not confirm physical output; unknown outcomes are reported as unconfirmed. Each operation produces at most one outcome notification; consult Jobs for subsequent status changes.
+
+Preferences apply to this browser and current user/mode. Tabs own separate jobs, preventing duplicate notifications without a tab leader or takeover. Reloading/closing the originating tab ends tracking. Signing out, removing demo data or changing the preference clears pending updates and closes existing system notifications (also in other open tabs). Re-enabling starts fresh and never replays old outcomes. In-app updates retain the latest five outcomes until dismissed or tracking is reset. The browser’s notification permission remains under its site settings.
+
 ## Quick start
 
 ### Install for everyday use
