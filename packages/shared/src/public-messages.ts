@@ -138,6 +138,26 @@ export const publicMessages = {
   page_numbers_must_be_between_1_and_value1: 'Page numbers must be between 1 and {value1}.',
   this_selection_contains_no_pages_change_the_range_or:
     'This selection contains no pages. Change the range or page filter.',
+  scan_export_busy: 'Two ZIP exports are already running. Wait for one to finish.',
+  scan_export_interrupted:
+    'ZIP export interrupted or expired. Refresh the selection and try again.',
+  scan_export_selection_unavailable:
+    'Selected scan {value1} was deleted or is unavailable in this mode. Remove it from the selection.',
+  scan_export_selection_expired:
+    'Selected scan {value1} has expired or has no saved PDF. Remove it from the selection.',
+  scan_export_selection_changed:
+    'Selected scan {value1} has changed. Remove it from the selection and select it again.',
+  scan_export_selection_busy:
+    'Selected scan {value1} is busy. Wait for it to finish and refresh the selection.',
+  scan_export_pdf_unreadable:
+    'Selected scan {value1} has a missing or unreadable PDF. Remove it from the selection.',
+  scan_export_pdf_empty:
+    'Selected scan {value1} has no readable PDF. Remove it from the selection.',
+  scan_export_too_large: 'Selected PDFs exceed the 100 MiB ZIP export limit. Select fewer scans.',
+  scan_export_size_exceeded: 'ZIP export exceeded its size limit. Select fewer scans.',
+  scan_export_read_failed: 'A selected PDF could not be read. Refresh the selection and try again.',
+  scan_export_pdf_missing:
+    'A selected PDF is missing or unreadable. Refresh the selection and select the available scans again.',
   operation_failed: 'The operation failed. Check the server logs.',
   invalid_input: 'Please check your input.',
   upload_too_large: 'File too large. Maximum size: 25 MB.',

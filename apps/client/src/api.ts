@@ -15,6 +15,10 @@ export async function documentData(path: string, init: RequestInit = {}): Promis
   const response = await request(path, init);
   return new Uint8Array(await response.arrayBuffer());
 }
+export async function downloadBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const response = await request(path, init);
+  return response.blob();
+}
 async function request(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('x-openwebprint', '1');

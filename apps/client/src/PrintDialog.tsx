@@ -27,6 +27,7 @@ export function PrintDialog({
   initial,
   close,
   changed,
+  started,
   demo,
   source,
 }: {
@@ -34,6 +35,7 @@ export function PrintDialog({
   initial?: string;
   close: () => void;
   changed: () => void;
+  started: (job: Job) => void;
   demo: boolean;
   source?: Job;
 }) {
@@ -163,6 +165,7 @@ export function PrintDialog({
           })
         : await api<Job>('/print', { method: 'POST', body: data });
       setSent(job);
+      started(job);
       changed();
     } catch (e) {
       const unknown = !(e instanceof ApiError) || e.status === 0 || e.status >= 500;

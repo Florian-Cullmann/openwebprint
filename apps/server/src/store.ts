@@ -19,6 +19,7 @@ export interface JobPageOptions {
   limit: number;
   kind?: Job['kind'];
   filter?: JobFilter;
+  search?: string;
   before?: { createdAt: string; id: string };
 }
 
@@ -47,6 +48,9 @@ export class Store {
   constructor(readonly directory: string) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.db = new DatabaseSync(join(directory, 'openwebprint.sqlite'));
+    this.db.function('owp_lower', { deterministic: true }, (value) =>
+      typeof value === 'string' ? value.toLowerCase() : null,
+    );
     chmodSync(join(directory, 'openwebprint.sqlite'), 0o600);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -124,7 +128,10 @@ export class Store {
       .all(mode)
       .map((r) => JSON.parse(String(r.data)));
   }
-  private jobWhere(mode: Mode, { kind, filter }: Pick<JobPageOptions, 'kind' | 'filter'>) {
+  private jobWhere(
+    mode: Mode,
+    { kind, filter, search }: Pick<JobPageOptions, 'kind' | 'filter' | 'search'>,
+  ) {
     const where = ['mode=?'];
     const params: (string | number)[] = [mode];
     if (kind) {
@@ -134,6 +141,10 @@ export class Store {
     if (filter === 'active')
       where.push("json_extract(data, '$.status') NOT IN ('completed', 'canceled', 'failed')");
     if (filter === 'completed') where.push("json_extract(data, '$.status')='completed'");
+    if (search) {
+      where.push("instr(owp_lower(json_extract(data, '$.title')), ?) > 0");
+      params.push(search.toLowerCase());
+    }
     return { where, params };
   }
   jobStats(mode: Mode, { before, ...options }: Omit<JobPageOptions, 'limit'>) {
@@ -146,8 +157,8 @@ export class Store {
       .get(...(before ? [before.createdAt, before.id, ...params] : params))!;
     return { total: Number(row.total), offset: Number(row.offset) };
   }
-  jobPage(mode: Mode, { limit, kind, filter, before }: JobPageOptions): StoredJob[] {
-    const { where, params } = this.jobWhere(mode, { kind, filter });
+  jobPage(mode: Mode, { limit, kind, filter, search, before }: JobPageOptions): StoredJob[] {
+    const { where, params } = this.jobWhere(mode, { kind, filter, search });
     if (before) {
       where.push('(created, id) < (?, ?)');
       params.push(before.createdAt, before.id);

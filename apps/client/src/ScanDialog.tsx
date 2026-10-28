@@ -39,6 +39,7 @@ export function ScanDialog({
   existing,
   close,
   changed,
+  started,
   demo,
   print,
 }: {
@@ -47,6 +48,7 @@ export function ScanDialog({
   existing?: Job;
   close: () => void;
   changed: () => void;
+  started: (job: Job) => void;
   demo: boolean;
   print: (job: Job) => void;
 }) {
@@ -196,19 +198,19 @@ export function ScanDialog({
     setError('');
     setBusy(true);
     try {
-      setJob(
-        await post<Job>('/scans', {
-          deviceId,
-          jobId: complete ? job!.id : undefined,
-          options: {
-            resolution,
-            color,
-            source: source || undefined,
-            batch,
-            duplex: feeder && duplex,
-          },
-        }),
-      );
+      const next = await post<Job>('/scans', {
+        deviceId,
+        jobId: complete ? job!.id : undefined,
+        options: {
+          resolution,
+          color,
+          source: source || undefined,
+          batch,
+          duplex: feeder && duplex,
+        },
+      });
+      setJob(next);
+      started(next);
       changed();
     } catch (e) {
       setError((e as Error).message);

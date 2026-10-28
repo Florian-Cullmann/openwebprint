@@ -37,6 +37,14 @@ const text = {
     wrongPassword: 'Incorrect username or password.',
     mode: 'Operating mode',
     language: 'Language',
+    scans: 'Scans',
+    search: 'Search scans',
+    clearSearch: 'Clear search',
+    noMatches: 'No scans match your search. Try another title or clear the search.',
+    selectScan: 'Select scan:',
+    export: 'Export selected scans',
+    downloadZip: 'Download ZIP',
+    notifications: 'Job notifications',
   },
   de: {
     welcome: 'Willkommen bei openwebprint',
@@ -70,6 +78,15 @@ const text = {
     wrongPassword: 'Benutzername oder Passwort falsch.',
     mode: 'Betriebsmodus',
     language: 'Sprache',
+    scans: 'Scans',
+    search: 'Scans durchsuchen',
+    clearSearch: 'Suche zurücksetzen',
+    noMatches:
+      'Keine Scans entsprechen deiner Suche. Versuche einen anderen Titel oder setze die Suche zurück.',
+    selectScan: 'Scan auswählen:',
+    export: 'Ausgewählte Scans exportieren',
+    downloadZip: 'ZIP herunterladen',
+    notifications: 'Auftragsbenachrichtigungen',
   },
 };
 async function verifyLayout(page: Page) {
@@ -142,8 +159,31 @@ for (const language of ['en', 'de'] as const) {
         `Scan · ${new Intl.DateTimeFormat(language === 'de' ? 'de-DE' : 'en-GB', { dateStyle: 'short' }).format(new Date(scan.createdAt))}`,
       );
       await verifyLayout(page);
+      // Preserve the newly merged search and ZIP export journey in both languages.
+      await nav.getByRole('link', { name: labels.scans, exact: true }).click();
+      await page
+        .getByRole('searchbox', { name: labels.search, exact: true })
+        .fill('no-match-localization');
+      await expect(page.getByText(labels.noMatches, { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: labels.clearSearch, exact: true }).click();
+      await page
+        .getByRole('checkbox', { name: new RegExp(`^${labels.selectScan}`) })
+        .first()
+        .check();
+      const selection = page.getByRole('region', { name: labels.export, exact: true });
+      await verifyLayout(page);
+      await page.screenshot({
+        path: `test-results/${info.project.name}-${language}-scan-export.png`,
+        fullPage: true,
+      });
+      const downloaded = page.waitForEvent('download');
+      await selection.getByRole('button', { name: labels.downloadZip, exact: true }).click();
+      expect((await downloaded).suggestedFilename()).toBe('openwebprint-scans.zip');
       await nav.getByRole('link', { name: labels.settings, exact: true }).click();
       await expect(page.getByRole('heading', { name: labels.mode, exact: true })).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: labels.notifications, exact: true }),
+      ).toBeVisible();
       await verifyLayout(page);
       await page.screenshot({
         path: `test-results/${info.project.name}-${language}-settings.png`,

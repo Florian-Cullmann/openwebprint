@@ -16,6 +16,7 @@ import {
   scanOptionsSchema,
   scanChoiceSchema,
   scanPagesSchema,
+  scanExportSchema,
   retentionSchema,
 } from '@openwebprint/shared';
 import type { Config } from './config.js';
@@ -206,7 +207,8 @@ export async function createApp(
         limit: z.coerce.number().int().min(1).max(100).default(50),
         kind: z.enum(['print', 'scan']).optional(),
         filter: z.enum(['all', 'active', 'completed']).default('all'),
-        cursor: z.string().min(1).max(1024).optional(),
+        search: z.string().trim().max(200).default(''),
+        cursor: z.string().min(1).max(2048).optional(),
       })
       .strict()
       .parse(req.query);
@@ -220,13 +222,15 @@ export async function createApp(
             mode: z.enum(['demo', 'hardware']),
             kind: z.enum(['print', 'scan']).optional(),
             filter: z.enum(['all', 'active', 'completed']),
+            search: z.string().trim().max(200).default(''),
           })
           .strict()
           .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
         if (
           cursor.mode !== workspace.mode ||
           cursor.kind !== query.kind ||
-          cursor.filter !== query.filter
+          cursor.filter !== query.filter ||
+          cursor.search !== query.search
         )
           throw new Error('Cursor belongs to another listing');
         before = cursor;
@@ -320,6 +324,33 @@ export async function createApp(
     if (!file) throw new AppError(400, 'Choose a file.');
     const document = await workspace.run(() => normalizeDocument(file.data, file.mime));
     return reply.type('application/pdf').send(document);
+  });
+  app.post('/api/scans/export', async (req, reply) => {
+    const { scans } = scanExportSchema.parse(req.body);
+    const controller = new AbortController();
+    const abort = () => {
+      if (!reply.raw.writableFinished) controller.abort();
+    };
+    req.raw.once('aborted', abort);
+    reply.raw.once('close', abort);
+    const detach = () => {
+      req.raw.removeListener('aborted', abort);
+      reply.raw.removeListener('close', abort);
+    };
+    try {
+      const archive = await workspace.run((service) =>
+        service.scanExports.create(scans, controller.signal),
+      );
+      archive.once('close', detach);
+      return reply
+        .type('application/zip')
+        .header('Content-Disposition', 'attachment; filename="openwebprint-scans.zip"')
+        .send(archive);
+    } catch (error) {
+      detach();
+      controller.abort();
+      throw error;
+    }
   });
   app.post('/api/scans', async (req, reply) => {
     const input = z
