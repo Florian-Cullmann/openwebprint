@@ -238,6 +238,8 @@ export class Workspace {
         'This shorter policy makes existing documents eligible for deletion. Review the impact and confirm the change.',
       );
     this.store.set('retention', JSON.stringify(policy));
+    this.demo.scanExports.retentionChanged();
+    this.hardware.scanExports.retentionChanged();
     return policy;
   }
   async expireFiles() {

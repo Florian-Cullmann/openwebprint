@@ -61,6 +61,8 @@ Print all pages by default, or choose **Custom range** (for example, `1-3, 7`) a
 
 Review, crop, rotate, reorder, or remove scanned pages, download or print the PDF, or scan another page. A scan must keep at least one page; delete the scan from Scans to remove the entire document. The sample document is clearly marked as simulated; hardware mode uses the actual scanner output. See the multi-page editor with bounded thumbnails on [desktop](docs/images/scan-thumbnails.png) and [mobile](docs/images/scan-thumbnails-mobile.png).
 
+In **Scans**, check individual saved PDFs and choose **Download ZIP** to hand over several documents together. Selection stays across history pages and Grid/List views; review or remove off-page selections before downloading. The limit is 50 PDFs totaling 100 MiB. Changed, expired or missing scans stop the export with an explanation rather than being silently skipped. Clear the selection to start over; leaving Scans or changing mode clears it too. Downloads can be canceled and expire after two minutes (or earlier when a source expires), so use smaller batches on slow connections. Source documents and their retention dates stay unchanged. This exports PDFs as separate ZIP entries; it is not an instance backup.
+
 ## Quick start
 
 ### Install for everyday use

@@ -1,0 +1,70 @@
+.export {
+  padding: 16px;
+  margin-bottom: 20px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow-wrap: anywhere;
+}
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.actions p {
+  margin: 0 auto 0 0;
+  font-weight: 600;
+}
+.select {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.select input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+.selection {
+  margin-top: 12px;
+  font-size: 12px;
+}
+.selection summary {
+  cursor: pointer;
+  min-height: 32px;
+}
+.selection ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.selection li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+}
+.selection li span {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .actions p {
+    width: 100%;
+  }
+}
+
+.selection small {
+  display: block;
+  color: var(--muted);
+  margin: 4px 0 8px;
+}
