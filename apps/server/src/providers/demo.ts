@@ -80,6 +80,7 @@ export class DemoProvider implements Provider {
         { name: 'ADF Duplex', feeder: true },
       ],
       duplex: false,
+      acquisitionArea: { widthMm: (1240 * 25.4) / 150, heightMm: (1754 * 25.4) / 150 },
       resolutions: [...FALLBACK_SCAN_RESOLUTIONS],
       colorModes: [...FALLBACK_SCAN_COLOR_MODES],
       defaultResolution: 300,

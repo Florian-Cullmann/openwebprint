@@ -351,3 +351,73 @@ test('refreshes saved source settings, preserves reopening and recovers from unk
     page.getByText('Some scanner capabilities are unknown.', { exact: false }),
   ).toHaveCount(0);
 });
+
+test('blocks oversized known areas, keeps small high-resolution scans and explains unknown geometry (browser fixtures)', async ({
+  page,
+}, info) => {
+  await setup(page);
+  let capabilities: ScanSources = {
+    ...discrete,
+    acquisitionArea: { widthMm: 210, heightMm: 297 },
+  };
+  await page.route('**/scan-sources*', (route) => route.fulfill({ json: capabilities }));
+  const refresh = page.getByRole('button', { name: 'Refresh scanner settings' });
+  const submit = page.getByRole('button', { name: 'Start demo scan', exact: true });
+  await refresh.click();
+  await expect(page.getByText('Scan area: 210 × 297 mm', { exact: false })).toBeVisible();
+  await slider(page).press('End');
+  await dpi(page, 1200);
+  await expect(submit).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('80-megapixel limit');
+  await expect(page.getByRole('alert')).toContainText('lower resolution or a smaller scan area');
+  await expect(page.getByText('Scan area: 210 × 297 mm', { exact: false })).toContainText(
+    '139.2 megapixels',
+  );
+  await accessibility(page);
+  await page
+    .getByRole('dialog')
+    .screenshot({ path: `test-results/${info.project.name}-60-scan-pixel-budget.png` });
+  await slider(page).press('ArrowLeft');
+  await dpi(page, 300);
+  await expect(submit).toBeEnabled();
+  await slider(page).press('End');
+  capabilities = { ...capabilities, acquisitionArea: { widthMm: 50, heightMm: 75 } };
+  await refresh.click();
+  await expect(page.getByText('Scan area: 50 × 75 mm', { exact: false })).toBeVisible();
+  await dpi(page, 1200);
+  await expect(submit).toBeEnabled();
+  capabilities = { ...discrete };
+  await refresh.click();
+  await expect(page.getByText('Scan area is unknown.', { exact: false })).toContainText(
+    'lower resolution',
+  );
+  await expect(page.getByText('Scan area is unknown.', { exact: false })).toContainText(
+    '80 megapixels per page before cropping',
+  );
+  await dpi(page, 1200);
+  await expect(submit).toBeEnabled();
+
+  // Keep the pixel budget and locale formatting after switching languages.
+  capabilities = { ...discrete, acquisitionArea: { widthMm: 210, heightMm: 297 } };
+  await page.evaluate(() => localStorage.setItem('owp-language', 'de'));
+  await page.reload();
+  await page.getByRole('button', { name: 'Scannen', exact: true }).first().click();
+  await expect(page.getByText('Scanbereich: 210 × 297 mm', { exact: false })).toBeVisible();
+  await expect(page.getByRole('slider')).toBeEnabled();
+  await page.getByRole('slider').press('End');
+  await expect(page.getByText('Scanbereich: 210 × 297 mm', { exact: false })).toContainText(
+    '139,2 Megapixel bei 1.200 dpi',
+  );
+  await expect(page.getByRole('alert')).toContainText('Grenze von 80 Megapixeln');
+  await expect(page.getByRole('button', { name: 'Demoscan starten', exact: true })).toBeDisabled();
+  await accessibility(page);
+  await page.getByRole('dialog').screenshot({
+    path: `test-results/${info.project.name}-60-scan-pixel-budget-de.png`,
+  });
+  capabilities = { ...discrete };
+  await page.getByRole('button', { name: 'Scaneinstellungen aktualisieren' }).click();
+  await expect(page.getByText('Der Scanbereich ist unbekannt.', { exact: false })).toContainText(
+    '80 Megapixel pro Seite vor dem Zuschneiden',
+  );
+  await expect(page.getByRole('button', { name: 'Demoscan starten', exact: true })).toBeEnabled();
+});

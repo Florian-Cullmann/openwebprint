@@ -3,7 +3,7 @@ import type { Store } from './store.js';
 import type { Provider } from './providers/types.js';
 
 interface SavedCapabilities {
-  version: 1;
+  version: 2;
   fingerprint: string;
   entries: Record<string, ScanSources>;
 }
@@ -29,7 +29,7 @@ export class ScannerCapabilities {
     try {
       const value = JSON.parse(this.store.setting(this.key(device.id)) ?? 'null');
       if (
-        value?.version === 1 &&
+        value?.version === 2 &&
         value.fingerprint === fingerprint(device) &&
         typeof value.entries === 'object' &&
         value.entries !== null &&
@@ -64,7 +64,7 @@ export class ScannerCapabilities {
           generation === (this.generations.get(device.id) ?? 0)
         ) {
           const saved = this.saved(device) ?? {
-            version: 1,
+            version: 2,
             fingerprint: fingerprint(device),
             entries: {},
           };

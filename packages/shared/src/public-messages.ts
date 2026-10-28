@@ -33,6 +33,9 @@ export const publicMessages = {
     'The crop must be a non-empty rectangle within the original page.',
   a_scanned_page_is_incomplete_damaged_or_exceeds_80:
     'A scanned page is incomplete, damaged or exceeds 80 megapixels.',
+  scan_size_exceeded:
+    'A scanned page exceeds the 80-megapixel limit. Choose a lower resolution or a smaller scan area on the scanner, refresh scanner settings and try again. Cropping after scanning does not reduce acquisition size.',
+  scan_page_damaged: 'A scanned page is incomplete or damaged. Try scanning it again.',
   device_not_found: 'Device not found.',
   value1_is_not_installed_check_the_hardware_configuration:
     '{value1} is not installed. Check the hardware configuration.',

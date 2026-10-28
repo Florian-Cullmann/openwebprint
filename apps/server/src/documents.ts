@@ -3,7 +3,12 @@ import sharp from 'sharp';
 import { readFile, lstat, writeFile } from 'node:fs/promises';
 import type { StoredScanPage } from './store.js';
 import { AppError } from './errors.js';
-import { resolvePrintPages, type PrintOptions } from '@openwebprint/shared';
+import {
+  MAX_SCAN_PIXELS,
+  SCAN_SIZE_ERROR,
+  resolvePrintPages,
+  type PrintOptions,
+} from '@openwebprint/shared';
 
 export const MAX_UPLOAD = 25 * 1024 * 1024;
 export const SCAN_THUMBNAIL_SIZE = 512;
@@ -103,7 +108,7 @@ export async function exportScanPages(
       page.drawImage(png, { x: 0, y: 0, width, height });
       page.setRotation(degrees(source.rotation));
       if (index === 0)
-        await sharp(image)
+        await sharp(image, { limitInputPixels: MAX_SCAN_PIXELS })
           .rotate(source.rotation)
           .resize({
             width: SCAN_THUMBNAIL_SIZE,
@@ -116,7 +121,8 @@ export async function exportScanPages(
     }
     await writeFile(pdfPath, await pdf.save(), { mode: 0o600 });
   } catch (error) {
-    if (error instanceof AppError) throw error;
+    const knownError = scanDecodeError(error);
+    if (knownError) throw knownError;
     throw new AppError(
       422,
       'The scanned pages could not be converted to PDF. Check scan storage and try again.',
@@ -130,9 +136,15 @@ function validResolution(value: number | undefined) {
     : undefined;
 }
 
+function scanDecodeError(error: unknown) {
+  if (error instanceof AppError) return error;
+  if (error instanceof Error && /exceeds pixel limit/i.test(error.message))
+    return new AppError(422, SCAN_SIZE_ERROR);
+}
+
 export async function renderScanPage(source: StoredScanPage, rotate = true, thumbnail = false) {
   try {
-    const pipeline = sharp(source.path, { limitInputPixels: 80_000_000 });
+    const pipeline = sharp(source.path, { limitInputPixels: MAX_SCAN_PIXELS });
     const { width, height, density } = await pipeline.metadata();
     if (!width || !height) throw new Error('Missing image dimensions');
     if (source.crop) {
@@ -179,7 +191,8 @@ export async function renderScanPage(source: StoredScanPage, rotate = true, thum
       resolution: validResolution(source.resolution) ?? validResolution(density),
     };
   } catch (error) {
-    if (error instanceof AppError) throw error;
+    const knownError = scanDecodeError(error);
+    if (knownError) throw knownError;
     throw new AppError(
       422,
       'The scanned pages could not be converted to PDF. Check scan storage and try again.',
@@ -208,8 +221,10 @@ export async function validateScanImage(path: string) {
       }
     }
     if (!complete) throw new Error('Incomplete PNG');
-    await sharp(data, { limitInputPixels: 80_000_000, failOn: 'warning' }).raw().toBuffer();
-  } catch {
-    throw new AppError(422, 'A scanned page is incomplete, damaged or exceeds 80 megapixels.');
+    await sharp(data, { limitInputPixels: MAX_SCAN_PIXELS, failOn: 'warning' }).raw().toBuffer();
+  } catch (error) {
+    const knownError = scanDecodeError(error);
+    if (knownError) throw knownError;
+    throw new AppError(422, 'A scanned page is incomplete or damaged. Try scanning it again.');
   }
 }
