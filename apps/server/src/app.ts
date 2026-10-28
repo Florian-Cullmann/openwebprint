@@ -205,7 +205,8 @@ export async function createApp(
         limit: z.coerce.number().int().min(1).max(100).default(50),
         kind: z.enum(['print', 'scan']).optional(),
         filter: z.enum(['all', 'active', 'completed']).default('all'),
-        cursor: z.string().min(1).max(1024).optional(),
+        search: z.string().trim().max(200).default(''),
+        cursor: z.string().min(1).max(2048).optional(),
       })
       .strict()
       .parse(req.query);
@@ -219,13 +220,15 @@ export async function createApp(
             mode: z.enum(['demo', 'hardware']),
             kind: z.enum(['print', 'scan']).optional(),
             filter: z.enum(['all', 'active', 'completed']),
+            search: z.string().trim().max(200).default(''),
           })
           .strict()
           .parse(JSON.parse(Buffer.from(query.cursor, 'base64url').toString('utf8')));
         if (
           cursor.mode !== workspace.mode ||
           cursor.kind !== query.kind ||
-          cursor.filter !== query.filter
+          cursor.filter !== query.filter ||
+          cursor.search !== query.search
         )
           throw new Error('Cursor belongs to another listing');
         before = cursor;

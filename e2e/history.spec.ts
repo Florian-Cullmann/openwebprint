@@ -200,3 +200,166 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   await expect(scans.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   expect(errors).toEqual([]);
 });
+
+test('search scan titles live across pages, clear with the keyboard, and recover from errors (synthetic archive, production server)', async ({
+  page,
+}, info) => {
+  await page.goto('/scans');
+  const scans = page.getByRole('navigation', { name: 'Scan history pages' });
+  const search = page.getByRole('searchbox', { name: 'Search scans', exact: true });
+  const summary = scans.getByRole('status');
+  await expect(summary).toHaveText('1–30 of 61 scans Page 1 of 3');
+  await scans.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(summary).toHaveText('31–60 of 61 scans Page 2 of 3');
+  await scans.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(summary).toHaveText('61–61 of 61 scans Page 3 of 3');
+  // This title is absent from the loaded page; search must find it server-side.
+  await search.pressSequentially('Archive scan 300');
+  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(page.getByRole('article')).toHaveCount(1);
+  await expect(page.getByRole('heading', { name: 'Archive scan 300', exact: true })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Save PDF', exact: true }).click();
+  expect(await (await download).failure()).toBeNull();
+  const result = await new AxeBuilder({ page }).analyze();
+  expect(
+    result.violations.filter((violation) =>
+      ['serious', 'critical'].includes(violation.impact ?? ''),
+    ),
+  ).toEqual([]);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: `test-results/${info.project.name}-scan-search.png`,
+    fullPage: true,
+  });
+
+  // Both layouts use the same search and preserve the matching result.
+  await page.getByRole('button', { name: 'List view', exact: true }).click();
+  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(page.getByRole('table').locator('tbody').getByRole('row')).toHaveCount(1);
+  await search.fill('scan 2');
+  await expect(summary).toHaveText('1–30 of 59 scans Page 1 of 2');
+  const next = page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    return url.pathname === '/api/jobs' && url.searchParams.has('cursor');
+  });
+  await scans.getByRole('button', { name: 'Next', exact: true }).click();
+  expect(new URL((await next).url()).searchParams.get('search')).toBe('scan 2');
+  await expect(summary).toHaveText('31–59 of 59 scans Page 2 of 2');
+  await search.fill('missing document');
+  await expect(
+    page.getByRole('status').filter({ hasText: 'No scans match your search.' }),
+  ).toBeVisible();
+  await expect(summary).toHaveText('0–0 of 0 scans Page 1 of 1');
+  await search.focus();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Clear search', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('');
+  await expect(summary).toHaveText('1–30 of 61 scans Page 1 of 3');
+
+  await page.route('**/api/jobs?**', (route) =>
+    route.fulfill({ status: 503, json: { error: 'Search temporarily unavailable.' } }),
+  );
+  await search.fill('expired');
+  await expect(page.getByRole('alert')).toContainText('Search temporarily unavailable.');
+  await expect(page.getByRole('table')).toHaveCount(0);
+  await page.unroute('**/api/jobs?**');
+  await page.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(search).toHaveValue('expired');
+  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(page.getByRole('table')).toContainText('Expired archive scan');
+  await search.fill('');
+  await expect(summary).toHaveText('1–30 of 61 scans Page 1 of 3');
+});
+
+test('ignores late search responses during debounce and after a newer result (controlled network fixtures)', async ({
+  page,
+}) => {
+  // Deliberately ignore transport cancellation so the stale-response guard is tested too.
+  await page.addInitScript(() => {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input, init) =>
+      originalFetch(
+        input,
+        String(input).startsWith('/api/jobs?') ? { ...init, signal: undefined } : init,
+      );
+  });
+  await page.goto('/scans');
+  const search = page.getByRole('searchbox', { name: 'Search scans', exact: true });
+  const summary = page.getByRole('navigation', { name: 'Scan history pages' }).getByRole('status');
+  await expect(summary).toHaveText('1–30 of 61 scans Page 1 of 3');
+
+  for (const [duringDebounce, staleError] of [
+    [true, false],
+    [false, false],
+    [false, true],
+  ]) {
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let releaseLatest!: () => void;
+    const latestHeld = new Promise<void>((resolve) => {
+      releaseLatest = resolve;
+    });
+    let received!: () => void;
+    const started = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    await page.route('**/api/jobs?**', async (route) => {
+      const query = new URL(route.request().url()).searchParams.get('search');
+      if (query === 'scan 300' && duringDebounce) await latestHeld;
+      if (query !== 'scan 250') return route.continue();
+      const response = await route.fetch();
+      received();
+      await held;
+      await route.fulfill(
+        staleError ? { status: 503, json: { error: 'Stale search failure.' } } : { response },
+      );
+    });
+    try {
+      await search.fill('scan 250');
+      await started;
+      await expect(page.getByRole('status').filter({ hasText: 'Searching scans…' })).toBeVisible();
+      await search.fill('scan 300');
+      if (!duringDebounce) await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+      const late = page.waitForResponse(
+        (response) => new URL(response.url()).searchParams.get('search') === 'scan 250',
+      );
+      release();
+      await (await late).finished();
+      // Let the browser consume and render the released response before checking it.
+      await page.evaluate(
+        () =>
+          new Promise<void>((resolve) =>
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+          ),
+      );
+      if (duringDebounce) {
+        await expect(
+          page.getByRole('status').filter({ hasText: 'Searching scans…' }),
+        ).toBeVisible();
+        await expect(page.getByRole('article')).toHaveCount(0);
+      }
+      releaseLatest();
+      await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+      await expect(
+        page.getByRole('heading', { name: 'Archive scan 300', exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { name: 'Archive scan 250', exact: true }),
+      ).toHaveCount(0);
+      await expect(page.getByRole('alert')).toHaveCount(0);
+    } finally {
+      release();
+      releaseLatest();
+      await page.unroute('**/api/jobs?**');
+    }
+  }
+});

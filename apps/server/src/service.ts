@@ -313,6 +313,7 @@ export class Service {
                 mode: this.mode,
                 kind: options.kind,
                 filter: options.filter ?? 'all',
+                search: options.search ?? '',
               }),
             ).toString('base64url'),
           }

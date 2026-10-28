@@ -587,29 +587,31 @@ export function App() {
             )}
             {view === 'scans' && (
               <>
-                <div className={s.toolbar}>
-                  <div className={s.tabs} role="group" aria-label="Scan view">
-                    {(
-                      [
-                        ['grid', 'Grid view', LayoutGrid],
-                        ['list', 'List view', List],
-                      ] as const
-                    ).map(([layout, label, Icon]) => (
-                      <button
-                        key={layout}
-                        aria-pressed={scanLayout === layout}
-                        className={scanLayout === layout ? s.activeTab : ''}
-                        onClick={() => setScanLayout(layout)}
-                      >
-                        <Icon size={16} /> {label}
-                      </button>
-                    ))}
-                  </div>
-                  <span className={s.small}>30 scans per page</span>
-                </div>
                 <ScanExport key={snapshot?.mode}>
                   {(selectScan) => (
-                    <JobHistory kind="scan" revision={historyRevision}>
+                    <JobHistory
+                      kind="scan"
+                      revision={historyRevision}
+                      viewControls={
+                        <div className={s.tabs} role="group" aria-label="Scan view">
+                          {(
+                            [
+                              ['grid', 'Grid view', LayoutGrid],
+                              ['list', 'List view', List],
+                            ] as const
+                          ).map(([layout, label, Icon]) => (
+                            <button
+                              key={layout}
+                              aria-pressed={scanLayout === layout}
+                              className={scanLayout === layout ? s.activeTab : ''}
+                              onClick={() => setScanLayout(layout)}
+                            >
+                              <Icon size={16} /> {label}
+                            </button>
+                          ))}
+                        </div>
+                      }
+                    >
                       {(scans) => (
                         <>
                           {scans.length && scanLayout === 'list' ? (

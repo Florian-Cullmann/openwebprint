@@ -1884,6 +1884,31 @@
   cursor: grab;
   user-select: none;
 }
+.historyToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+.historySearchControls {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 550px;
+  margin-right: auto;
+}
+.historySearchControls .search {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+.historySearchControls button {
+  flex-shrink: 0;
+}
 .pagination {
   display: flex;
   align-items: center;
