@@ -110,11 +110,11 @@ test('scan profiles restore source-specific settings, reject incompatible apply 
   await page.route('**/profiles/*/apply', (route) =>
     route.fulfill({
       status: 409,
-      json: { error: 'This scanner no longer supports the saved resolution (browser fixture).' },
+      json: { code: 'scan_resolution_unsupported', params: {}, error: 'Ignored fixture body' },
     }),
   );
   await button(page, 'Apply profile').click();
-  await expect(page.getByRole('alert')).toContainText('no longer supports the saved resolution');
+  await expect(page.getByRole('alert')).toContainText('does not support the selected resolution');
   await expect(color).toBeChecked();
   await page.unroute('**/profiles/*/apply');
   await button(page, 'Apply profile').click();
@@ -172,9 +172,78 @@ test('an applied print profile keeps unsupported values and blocks printing when
   await expect(page.getByRole('combobox', { name: 'Sides', exact: true })).toHaveValue(
     'two-sided-long-edge',
   );
-  await expect(page.getByRole('alert')).toContainText('sides (two-sided-long-edge)');
+  await expect(page.getByRole('alert')).toContainText('does not support the selected sides');
   await expect(button(page, 'Start demo print')).toBeDisabled();
   await page.getByRole('combobox', { name: 'Sides', exact: true }).selectOption('one-sided');
   await expect(page.getByRole('alert')).toHaveCount(0);
   await expect(button(page, 'Start demo print')).toBeEnabled();
+});
+
+test('German profile controls and safe API errors follow live language changes without changing names or scanner values', async ({
+  page,
+  context,
+}, info) => {
+  await page.addInitScript(() => localStorage.setItem('owp-language', 'de'));
+  await page.goto('/overview');
+  await button(page, 'Demo ausprobieren').click();
+  await button(page, 'Drucken').first().click();
+  const profileName = 'Büro <PDF> {name}';
+  await page.getByLabel('Profilname', { exact: true }).fill(profileName);
+  await button(page, 'Neues Profil speichern').click();
+  await expect(page.getByText('Profil gespeichert.', { exact: true })).toBeVisible();
+  await button(page, 'Profil anwenden').click();
+  await expect(page.getByText(`„${profileName}“ angewendet.`, { exact: true })).toBeVisible();
+  const second = await context.newPage();
+  await second.goto('/overview');
+  await button(second, 'Sprache: DE (Deutsch)').click();
+  await expect(page.getByRole('group', { name: 'Settings profiles', exact: true })).toBeVisible();
+  await expect(page.getByText(`Applied “${profileName}”.`, { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Profile name', { exact: true })).toHaveValue(profileName);
+  await button(second, 'Language: EN (English)').click();
+  await second.close();
+  await page.route('**/profiles/*/apply', (route) =>
+    route.fulfill({
+      status: 409,
+      json: {
+        code: 'profile_print_capabilities_unavailable',
+        params: {},
+        error: 'Private diagnostic must not appear',
+      },
+    }),
+  );
+  await button(page, 'Profil anwenden').click();
+  await expect(page.getByRole('alert')).toHaveText(
+    'Druckfunktionen sind nicht verfügbar. Prüfe die Geräteverbindung und versuche es erneut.',
+  );
+  await page
+    .getByRole('group', { name: 'Einstellungsprofile', exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `test-results/${info.project.name}-29-print-profiles-de.png`,
+    fullPage: true,
+  });
+  await page.unroute('**/profiles/*/apply');
+  await button(page, 'Abbrechen').click();
+  await button(page, 'Scannen').first().click();
+  const source = page.getByRole('combobox', { name: 'Papierquelle', exact: true });
+  await source.selectOption('ADF');
+  await page.getByLabel('Profilname', { exact: true }).fill('ADF Büro');
+  await button(page, 'Neues Profil speichern').click();
+  await expect(page.getByText('Profil gespeichert.', { exact: true })).toBeVisible();
+  await source.selectOption('');
+  await button(page, 'Profil anwenden').click();
+  await expect(source).toHaveValue('ADF');
+  await expect(page.getByText('„ADF Büro“ angewendet.', { exact: true })).toBeVisible();
+  await page
+    .getByRole('group', { name: 'Einstellungsprofile', exact: true })
+    .scrollIntoViewIfNeeded();
+  await page.screenshot({
+    path: `test-results/${info.project.name}-29-scan-profiles-de.png`,
+    fullPage: true,
+  });
+  const axe = await new AxeBuilder({ page }).analyze();
+  expect(axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual(
+    [],
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

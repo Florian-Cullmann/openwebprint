@@ -96,15 +96,15 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     f.store.putJob(expired);
     f.store.putJob(job(242, { status: 'unknown' }));
     f.store.putJob(job(243, { status: 'processing' }));
-    const scans = await listing('kind=scan&limit=1');
+    const scans = await listing('kind=scan&search=archive&limit=1');
     expect(scans.total).toBe(3);
     expect(scans.jobs[0].id).toBe(retained.id);
     expect(scans.jobs[0].hasFile).toBe(true);
     for (const key of ['filePath', 'previewPath', 'externalId'])
       expect(scans.jobs[0]).not.toHaveProperty(key);
-    expect((await listing(`kind=scan&limit=1&cursor=${scans.nextCursor}`)).jobs[0].id).toBe(
-      job(243).id,
-    );
+    expect(
+      (await listing(`kind=scan&search=archive&limit=1&cursor=${scans.nextCursor}`)).jobs[0].id,
+    ).toBe(job(243).id);
     const active = await listing('filter=active');
     expect(active.total).toBe(2);
     expect(active.jobs.map((job) => job.status)).toEqual(['processing', 'unknown']);
@@ -128,7 +128,9 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     expect(old.statusCode).toBe(200);
     expect(old.json().hasFile).toBe(false);
     expect(
-      (await listing('kind=scan')).jobs.some((job) => job.id === retained.id && !job.hasFile),
+      (await listing('kind=scan&search=Archive%200')).jobs.some(
+        (job) => job.id === retained.id && !job.hasFile,
+      ),
     ).toBe(true);
   });
 
@@ -143,6 +145,7 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
       'limit=no',
       'kind=invalid',
       'filter=failed',
+      `search=${'a'.repeat(201)}`,
       'cursor=broken',
       `kind=scan&cursor=${first.nextCursor}`,
       `filter=active&cursor=${first.nextCursor}`,
@@ -162,11 +165,72 @@ describe('bounded job history (synthetic stored records, no hardware)', () => {
     expect(
       (await f.app.inject({ url: `/api/jobs?cursor=${foreign}`, headers: f.headers })).statusCode,
     ).toBe(400);
-    for (const url of ['/api/jobs', `/api/jobs/${job(1).id}`])
+    for (const url of ['/api/jobs', '/api/jobs?kind=scan&search=Archive', `/api/jobs/${job(1).id}`])
       expect((await f.app.inject({ url })).statusCode).toBe(401);
     expect(
       (await f.app.inject({ url: `/api/jobs/${randomUUID()}`, headers: f.headers })).statusCode,
     ).toBe(404);
+  });
+
+  it('searches all titles with literal Unicode text and binds pagination to the query', async () => {
+    f = await fixture();
+    for (let index = 1; index <= 305; index++)
+      f.store.putJob(
+        job(index, { kind: 'scan', title: index <= 65 ? `ÜBER archive ${index}` : 'Other scan' }),
+      );
+    f.store.putJob(job(306, { kind: 'print', title: 'Über archive print' }));
+    f.store.putJob(job(307, { mode: 'hardware', kind: 'scan', title: 'Über archive hardware' }));
+    f.store.putJob(job(308, { kind: 'scan', title: 'Über archive active', status: 'processing' }));
+    f.store.putJob(job(309, { kind: 'scan', title: "100%_literal \\ ' OR 1=1 --" }));
+    const allJobs = vi.spyOn(f.store, 'jobs').mockImplementation(() => {
+      throw new Error('Unbounded history read');
+    });
+    const query = new URLSearchParams({
+      kind: 'scan',
+      search: '  über ARCHIVE  ',
+      limit: '30',
+      filter: 'completed',
+    });
+    const seen: string[] = [];
+    let cursor: string | undefined;
+    do {
+      if (cursor) query.set('cursor', cursor);
+      const page = await listing(query.toString());
+      expect(page.total).toBe(65);
+      expect(page.offset).toBe(seen.length);
+      expect(page.jobs.length).toBeLessThanOrEqual(30);
+      seen.push(...page.jobs.map((job) => job.id));
+      cursor = page.nextCursor;
+    } while (cursor);
+    expect(seen).toEqual(Array.from({ length: 65 }, (_, index) => job(65 - index).id));
+    expect(allJobs).not.toHaveBeenCalled();
+    expect((await listing('kind=scan&search=missing')).total).toBe(0);
+    expect((await listing('kind=scan&search=%20%20')).total).toBe(307);
+    expect(
+      (await listing('kind=scan&search=archive&filter=active')).jobs.map((job) => job.id),
+    ).toEqual([job(308).id]);
+    for (const search of ['%', '_', "\\ ' OR 1=1 --"])
+      expect(
+        (await listing(new URLSearchParams({ kind: 'scan', search }).toString())).jobs.map(
+          (job) => job.id,
+        ),
+      ).toEqual([job(309).id]);
+    const first = await listing('kind=scan&search=archive&limit=1');
+    for (const search of ['', 'Other']) {
+      const response = await f.app.inject({
+        url: `/api/jobs?${new URLSearchParams({ kind: 'scan', search, cursor: first.nextCursor! })}`,
+        headers: f.headers,
+      });
+      expect(response.statusCode).toBe(400);
+    }
+    // A maximum-length non-ASCII query still fits in a round-trippable cursor.
+    const search = '界'.repeat(200);
+    f.store.putJob(job(310, { kind: 'scan', title: search }));
+    f.store.putJob(job(311, { kind: 'scan', title: search }));
+    const longQuery = new URLSearchParams({ kind: 'scan', search, limit: '1' });
+    const longFirst = await listing(longQuery.toString());
+    longQuery.set('cursor', longFirst.nextCursor!);
+    expect((await listing(longQuery.toString())).jobs[0].id).toBe(job(310).id);
   });
 
   it('uses ordered indexes for both the mixed history and dedicated scans', async () => {

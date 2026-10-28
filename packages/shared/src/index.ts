@@ -13,6 +13,21 @@ export const printOptionsSchema = z.object({
     .enum(['iso_a4_210x297mm', 'na_letter_8.5x11in', 'iso_a5_148x210mm'])
     .default('iso_a4_210x297mm'),
 });
+export const MAX_SCAN_EXPORT_DOCUMENTS = 50;
+export const MAX_SCAN_EXPORT_BYTES = 100 * 1024 * 1024;
+export const scanExportSchema = z
+  .object({
+    scans: z
+      .array(z.object({ id: z.uuid(), revision: z.string().min(1).max(80) }).strict())
+      .min(1)
+      .max(MAX_SCAN_EXPORT_DOCUMENTS)
+      .refine(
+        (scans) => new Set(scans.map((scan) => scan.id)).size === scans.length,
+        'Select each scan only once.',
+      ),
+  })
+  .strict();
+export type ScanExportSelection = z.infer<typeof scanExportSchema>['scans'][number];
 export const MAX_SCAN_PAGES = 100;
 export const MAX_SCAN_RESOLUTION = 9600;
 export const FALLBACK_SCAN_RESOLUTIONS = [150, 300, 600];
@@ -105,14 +120,12 @@ export interface Device {
 export function printProfileError(capabilities: Capabilities | undefined, options: PrintOptions) {
   if (!capabilities || !capabilities.sides || !capabilities.colorModes)
     return 'Print capabilities are unavailable. Check the device connection and retry.';
-  const unsupported: string[] = [];
   if (!capabilities.colorModes.includes(options.color))
-    unsupported.push(`color mode (${options.color})`);
-  if (!capabilities.sides.includes(options.sides)) unsupported.push(`sides (${options.sides})`);
+    return 'This printer does not support the selected color mode. Edit the settings and update the profile.';
+  if (!capabilities.sides.includes(options.sides))
+    return 'This printer does not support the selected sides. Edit the settings and update the profile.';
   if (!capabilities.media.includes(options.media))
-    unsupported.push(`paper size (${options.media})`);
-  if (unsupported.length)
-    return `This printer does not support: ${unsupported.join(', ')}. Edit the settings and update the profile.`;
+    return 'This printer does not support the selected paper size. Edit the settings and update the profile.';
 }
 // Integer pixels in the original, unrotated image, measured from its top-left corner.
 // Crop before rotating; omitting crop restores the complete original image.
@@ -171,7 +184,7 @@ export function scanProfileError(capabilities: ScanSources, options: ScanOptions
   )
     return 'Scanner capabilities are unavailable or incomplete. Refresh scanner settings and retry.';
   if (options.source && !capabilities.sources.some((source) => source.name === options.source))
-    return `This scanner no longer supports paper source "${options.source}". Choose another source and update the profile.`;
+    return 'This scanner no longer supports the selected paper source. Choose another source and update the profile.';
   if (
     options.duplex &&
     (!capabilities.duplex ||
@@ -226,6 +239,7 @@ export interface Job {
   mode: Mode;
   options: PrintOptions | ScanOptions;
   error?: string;
+  errorMessages?: import('./public-messages.js').PublicMessage[];
   hasFile: boolean;
   expiresAt?: string;
   pages?: ScanPage[];
@@ -285,3 +299,12 @@ export interface HardwareReport {
   setupCommand?: string;
   note: string;
 }
+
+export {
+  publicMessages,
+  publicMessage,
+  publicMessageText,
+  publicErrorBody,
+  publicMessageParts,
+} from './public-messages.js';
+export type { PublicMessageCode, MessageParams, PublicMessage } from './public-messages.js';

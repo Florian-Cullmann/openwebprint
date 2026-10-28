@@ -67,10 +67,12 @@ it.each([false, true])(
     expect(job).toMatchObject({
       status: append ? 'completed' : 'failed',
       hasFile: append,
-      error: 'Paper jam (controlled provider).',
+      error: 'The operation failed. Check the server logs.',
+      errorMessages: [{ code: 'operation_failed', params: {} }],
       recovery: { pageNumbers: [1, 2] },
     });
     expect(JSON.stringify(job)).not.toContain(f.dataDir);
+    expect(JSON.stringify(job)).not.toContain('Paper jam');
     if (original) {
       expect(job.scanRevision).toBe(original.scanRevision);
       expect(job.pages).toEqual(original.pages);

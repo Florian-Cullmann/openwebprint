@@ -1,3 +1,4 @@
+import { t, formatNumber } from './i18n';
 import { useEffect, useId, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist';
@@ -128,12 +129,12 @@ export function DocumentPreview({
     };
   }, [pdf, page, width, zoom]);
   return (
-    <section className={s.documentPreview} aria-label="Document preview">
+    <section className={s.documentPreview} aria-label={t('Document preview')}>
       <div className={s.previewToolbar}>
         <button
           type="button"
           className={s.iconButton}
-          aria-label="Previous page"
+          aria-label={t('Previous page')}
           disabled={!pdf || page <= 1}
           onClick={() => changePage(page - 1)}
         >
@@ -141,15 +142,15 @@ export function DocumentPreview({
         </button>
         <span aria-live="polite">
           {error
-            ? 'Preview unavailable'
+            ? t('Preview unavailable')
             : pdf
-              ? `Page ${page} of ${pdf.numPages}`
-              : 'Loading preview…'}
+              ? t('Page {value1} of {value2}', { value1: page, value2: pdf.numPages })
+              : t('Loading preview…')}
         </span>
         <button
           type="button"
           className={s.iconButton}
-          aria-label="Next page"
+          aria-label={t('Next page')}
           disabled={!pdf || page >= pdf.numPages}
           onClick={() => changePage(page + 1)}
         >
@@ -159,13 +160,13 @@ export function DocumentPreview({
       <div
         className={`${s.previewToolbar} ${s.previewZoomToolbar}`}
         role="group"
-        aria-label="Preview zoom controls"
+        aria-label={t('Preview zoom controls')}
       >
         <div className={s.previewZoomGroup}>
           <button
             type="button"
             className={s.iconButton}
-            aria-label="Zoom out"
+            aria-label={t('Zoom out')}
             disabled={!pdf || zoom === ZOOM_LEVELS[0]}
             onClick={() =>
               setZoom([...ZOOM_LEVELS].reverse().find((level) => level < zoom) ?? zoom)
@@ -173,13 +174,13 @@ export function DocumentPreview({
           >
             <ZoomOut size={18} />
           </button>
-          <span className={s.previewZoomLevel} aria-live="polite" aria-label="Preview zoom">
-            {Math.round(zoom * 100)}%
+          <span className={s.previewZoomLevel} aria-live="polite" aria-label={t('Preview zoom')}>
+            {formatNumber(zoom, { style: 'percent', maximumFractionDigits: 0 })}
           </span>
           <button
             type="button"
             className={s.iconButton}
-            aria-label="Zoom in"
+            aria-label={t('Zoom in')}
             disabled={!pdf || zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
             onClick={() => setZoom(ZOOM_LEVELS.find((level) => level > zoom) ?? zoom)}
           >
@@ -187,17 +188,17 @@ export function DocumentPreview({
           </button>
         </div>
         <button type="button" className={s.secondary} disabled={!pdf} onClick={resetView}>
-          Fit page
+          {t('Fit page')}
         </button>
       </div>
       <p id={instructionsId} className={s.previewHint}>
-        Scroll, swipe or use arrow keys to explore a zoomed page.
+        {t('Scroll, swipe or use arrow keys to explore a zoomed page.')}
       </p>
       <div
         ref={container}
         className={s.previewCanvas}
         role="region"
-        aria-label="Document page viewport"
+        aria-label={t('Document page viewport')}
         aria-describedby={instructionsId}
         tabIndex={0}
         onPointerDown={(event) => {
@@ -235,7 +236,7 @@ export function DocumentPreview({
         <div className={s.previewPage}>
           {error && (
             <p role="alert" className={s.error}>
-              {error}
+              {t(error)}
             </p>
           )}
           {!error && (!pdf || rendering) && (
@@ -246,7 +247,7 @@ export function DocumentPreview({
           <canvas
             ref={canvas}
             role="img"
-            aria-label={`Document page ${page}`}
+            aria-label={t('Document page {value1}', { value1: page })}
             aria-busy={!pdf || rendering}
             style={{
               filter: monochrome ? 'grayscale(1)' : undefined,

@@ -1,9 +1,10 @@
+import { t } from './i18n';
 import { useEffect, useRef, useId, type ReactNode } from 'react';
 import { X, LoaderCircle, Printer, ScanLine } from 'lucide-react';
 import type { Device, JobStatus } from '@openwebprint/shared';
 import s from './App.module.css';
 export function Spinner() {
-  return <LoaderCircle className={s.spinner} size={18} aria-label="Loading" />;
+  return <LoaderCircle className={s.spinner} size={18} aria-label={t('Loading')} />;
 }
 export function DeviceIcon({ kind, large = false }: { kind: Device['kind']; large?: boolean }) {
   const Icon = kind === 'printer' ? Printer : ScanLine;
@@ -62,7 +63,7 @@ export function Modal({
         </div>
         <div className={s.modalHeaderActions}>
           {headerContent}
-          <button className={s.iconButton} aria-label="Close" onClick={close}>
+          <button className={s.iconButton} aria-label={t('Close')} onClick={close}>
             <X size={20} />
           </button>
         </div>
@@ -85,7 +86,7 @@ export function JobBadge({ status }: { status: JobStatus }) {
       className={`${s.badge} ${status === 'completed' ? s.positive : status === 'failed' || status === 'unknown' ? s.red : status === 'processing' || status === 'queued' ? s.amber : ''}`}
     >
       <span className={s.dot} />
-      {jobLabels[status]}
+      {t(jobLabels[status])}
     </span>
   );
 }
@@ -93,15 +94,15 @@ export function DeviceBadge({ device }: { device: Device }) {
   return (
     <span
       className={`${s.badge} ${device.status === 'ready' ? s.positive : device.status === 'offline' ? s.red : device.status === 'busy' ? s.amber : ''}`}
-      title={device.detail}
+      title={device.detail ? t(device.detail) : undefined}
     >
       <span className={s.dot} />
       {
         {
-          ready: 'Ready',
-          busy: 'Busy',
-          offline: 'Stopped / offline',
-          unknown: 'Not checked',
+          ready: t('Ready'),
+          busy: t('Busy'),
+          offline: t('Stopped / offline'),
+          unknown: t('Not checked'),
         }[device.status]
       }
     </span>

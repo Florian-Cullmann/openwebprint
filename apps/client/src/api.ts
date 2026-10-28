@@ -1,3 +1,4 @@
+import { publicMessageText } from '@openwebprint/shared';
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -14,23 +15,29 @@ export async function documentData(path: string, init: RequestInit = {}): Promis
   const response = await request(path, init);
   return new Uint8Array(await response.arrayBuffer());
 }
+export async function downloadBlob(path: string, init: RequestInit = {}): Promise<Blob> {
+  const response = await request(path, init);
+  return response.blob();
+}
 async function request(path: string, init: RequestInit): Promise<Response> {
   const headers = new Headers(init.headers);
   headers.set('x-openwebprint', '1');
   if (init.body && !(init.body instanceof FormData))
     headers.set('Content-Type', 'application/json');
-  const response = await fetch(`/api${path}`, { ...init, headers, credentials: 'same-origin' });
+  let response: Response;
+  try {
+    response = await fetch(`/api${path}`, { ...init, headers, credentials: 'same-origin' });
+  } catch (error) {
+    if (init.signal?.aborted) throw error;
+    throw new ApiError(0, 'Unable to reach the server. Check your connection and try again.');
+  }
   if (!response.ok) {
     if (response.status === 401 && path !== '/login')
       window.dispatchEvent(new Event('owp:unauthorized'));
     const data: unknown = await response.json().catch(() => undefined);
     const message =
-      data !== null &&
-      typeof data === 'object' &&
-      'error' in data &&
-      typeof data.error === 'string' &&
-      data.error.trim()
-        ? data.error
+      data !== null && typeof data === 'object' && 'code' in data
+        ? publicMessageText(data.code, 'params' in data ? data.params : {})
         : `The request failed (HTTP ${response.status}).`;
     throw new ApiError(response.status, message);
   }

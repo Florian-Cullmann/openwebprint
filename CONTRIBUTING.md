@@ -39,9 +39,31 @@ After `npm run build`, run `npm run package:release` and `npm run test:install` 
 
 ## README screenshots
 
-Run `npx playwright install chromium` once, then `npm run screenshots` to rebuild the app and capture the three README images in `docs/images/`. The script starts a disposable instance on a random loopback port, explicitly chooses demo mode, captures the actual UI at 1440 × 1000, and removes its temporary data afterward. It never uses your running instance, accounts, or hardware. Review all three images before committing them alongside any caption changes.
+Run `npx playwright install chromium` once, then `npm run screenshots` to rebuild the app and capture the three README images in `docs/images/`. The script starts a disposable instance on a random loopback port, explicitly chooses demo mode, captures the actual UI at 1440 × 1000 (overview) and 1440 × 1500 (print/scan dialogs), and removes its temporary data afterward. It never uses your running instance, accounts, or hardware. Review all three images before committing them alongside any caption changes.
 
 ## Design and architecture
+
+```mermaid
+flowchart LR
+  Browser[React + TypeScript + CSS Modules] --> API[Fastify API / sessions / validation]
+  API --> DB[(SQLite)]
+  API --> Files[Private documents]
+  API --> Provider[Provider interface]
+  Provider --> Demo[Explicit demo provider]
+  Provider --> CUPS[CUPS CLI + IPP status]
+  Provider --> SANE[SANE + sane-airscan]
+```
+
+```text
+apps/client/             React UI; Vite; CSS Modules
+apps/server/src/         Auth, API, persistence, document processing
+apps/server/src/providers/  Demo and hardware adapters; bounded execFile calls
+packages/shared/        TypeScript contracts and Zod validation
+e2e/                    Browser journeys and accessibility checks
+docker/                 Dedicated local CUPS policy and daemon entrypoint
+```
+
+The backend uses established CUPS/SANE tools instead of implementing printer drivers. Child processes receive argument arrays with `shell: false`, validated targets, timeouts, and bounded command output. The maintained `@sealsystems/ipp` library reads CUPS capabilities and job states. Passwords use salted scrypt; only hashed session tokens are stored. HTTP-only, SameSite cookies, origin/header checks, security headers, upload validation, and rate limits protect the API. Image pixel limits and 500-page PDF limits reduce resource abuse; this is not a hardened sandbox for hostile documents. See [SECURITY.md](SECURITY.md).
 
 - Use **React + TypeScript**. Style with CSS Modules and shared CSS variables; no Tailwind, Vue, or Laravel.
 - Keep the interface focused on user tasks; don't expose protocol detail unless it helps make a choice.
@@ -71,3 +93,41 @@ Tests with a stubbed provider/transport must say so. A passing test fixture is n
 By submitting a contribution, you agree to license your contribution under the project's [MIT license](LICENSE). Dependencies and bundled OS packages retain their own licenses. No CLA is required.
 
 Be respectful and practical. Help other contributors reproduce problems, avoid personal attacks, and keep device reports free of private data. For vulnerabilities, follow [SECURITY.md](SECURITY.md) rather than a public issue.
+
+## Translations
+
+User-facing UI text belongs in `apps/client/src/de.json` and is rendered with `t()` from
+`i18n.ts`. The complete English phrase is the key and the English fallback. Translate
+whole sentences; use named placeholders for dynamic values and preserve their names.
+Pass numbers as numbers so interpolation uses the selected locale. Use `plural()` for
+singular/other forms, and the shared date/number/file-size formatters instead of browser
+defaults. Translate labels when rendering, rather than while declaring module constants
+or storing notifications, so changing languages updates an existing view. Keep user
+filenames, device names, addresses, and protocol option values unchanged; translate only
+their presentation labels. React renders interpolated text as text, never HTML.
+
+The compact language button shows the current language code and cycles through supported
+languages during setup, sign-in, and normal use. To add a language, import its catalog and
+register its code, native name, locale and messages in `languages` in `i18n.ts`; the button,
+preference detection, translations and formatting use this registry. A valid explicit
+choice in this origin's `localStorage` (`owp-language`) wins; otherwise the first supported
+language in the browser's ordered preferences is used (`de-*` → German, `en-*` → English).
+If none is supported, English is used. Missing translation keys fall back to their English
+phrase. Formatting uses `de-DE` or `en-GB`, with dates in the browser's time zone.
+Preferences apply to this browser, persist across sign-in/out, and synchronize between
+tabs. If storage is blocked, the choice lasts for the current tab's lifetime.
+
+API failures carry `{ code, params, error }`. `packages/shared/src/public-messages.ts`
+defines stable public codes and safe English fallbacks. Keep existing codes stable when
+editing wording; add the corresponding German phrase to `de.json`. Only numeric values
+and allowlisted command names may be error parameters. Unrecognized backend diagnostics,
+codes, or parameters receive a generic safe message. The client ignores free-form API
+`error` text; proxy/legacy responses without a code show a localized HTTP status fallback.
+Persisted job errors expose safe `errorMessages` code/parameter entries and an English
+fallback. Recovery and cleanup notices preserve their individual codes; raw provider
+diagnostics are excluded from serialized jobs. Device-provided
+names, identifiers, and protocol status reasons remain their original metadata.
+
+Run `npm run check` and `npx playwright test e2e/localization.spec.ts` after translation
+changes. The browser tests use demo devices, cover both languages on desktop/mobile,
+check accessibility and overflow, and write actual UI screenshots to `test-results/`.

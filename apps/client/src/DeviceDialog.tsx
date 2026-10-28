@@ -1,3 +1,4 @@
+import { t, plural } from './i18n';
 import { useState, type FormEvent } from 'react';
 import { Check, Plus, Radar, ArrowLeft, Printer, ScanLine, AlertCircle } from 'lucide-react';
 import type { Device, DeviceInput, DiscoveryResult } from '@openwebprint/shared';
@@ -61,11 +62,11 @@ export function DeviceDialog({
   }
   return (
     <Modal
-      title="Add device"
+      title={t('Add device')}
       subtitle={
         demo
-          ? 'Only simulated devices are available in demo mode.'
-          : 'Printers and scanners compatible with CUPS or SANE.'
+          ? t('Only simulated devices are available in demo mode.')
+          : t('Printers and scanners compatible with CUPS or SANE.')
       }
       close={() => {
         if (!adding) close();
@@ -77,15 +78,17 @@ export function DeviceDialog({
             className={tab === 'discover' ? s.activeTab : ''}
             onClick={() => setTab('discover')}
           >
-            <Radar size={16} /> Discover devices
+            <Radar size={16} />
+            {t('Discover devices')}
           </button>
           <button className={tab === 'manual' ? s.activeTab : ''} onClick={() => setTab('manual')}>
-            <Plus size={16} /> Add manually
+            <Plus size={16} />
+            {t('Add manually')}
           </button>
         </div>
         {error && (
           <p className={s.error} role="alert">
-            {error}
+            {t(error)}
           </p>
         )}
         {tab === 'discover' ? (
@@ -94,11 +97,11 @@ export function DeviceDialog({
               <span className={s.radar}>
                 <Radar size={36} strokeWidth={1.4} />
               </span>
-              <h3>{busy ? 'Searching for devices…' : 'Find devices on your network'}</h3>
+              <h3>{busy ? t('Searching for devices…') : t('Find devices on your network')}</h3>
               <p>
                 {demo
-                  ? 'Find the prepared demo devices.'
-                  : 'Searches mDNS, CUPS and SANE. This can take up to 35 seconds.'}
+                  ? t('Find the prepared demo devices.')
+                  : t('Searches mDNS, CUPS and SANE. This can take up to 35 seconds.')}
               </p>
               <button
                 className={s.primary}
@@ -106,17 +109,20 @@ export function DeviceDialog({
                 onClick={() => void discover()}
               >
                 {busy ? <Spinner /> : <Radar size={17} />}{' '}
-                {result ? 'Search again' : 'Search devices'}
+                {result ? t('Search again') : t('Search devices')}
               </button>
             </div>
             {result && (
               <div className={s.discoveryResults}>
                 <span className={s.eyebrow}>
-                  {result.devices.filter((d) => !onlyKind || d.kind === onlyKind).length} DEVICES
-                  FOUND
+                  {plural(
+                    '{count} DEVICE FOUND',
+                    '{count} DEVICES FOUND',
+                    result.devices.filter((d) => !onlyKind || d.kind === onlyKind).length,
+                  )}
                 </span>
                 {result.hostDiscovery && (
-                  <p className={s.small}>Network discovery via macOS Bonjour.</p>
+                  <p className={s.small}>{t('Network discovery via macOS Bonjour.')}</p>
                 )}
                 {result.devices
                   .filter((d) => !onlyKind || d.kind === onlyKind)
@@ -144,18 +150,18 @@ export function DeviceDialog({
                           ) : (
                             <Plus size={16} />
                           )}{' '}
-                          {exists ? 'Connected' : 'Add'}
+                          {exists ? t('Connected') : t('Add')}
                         </button>
                       </div>
                     );
                   })}
                 {!result.devices.some((d) => !onlyKind || d.kind === onlyKind) && (
-                  <p>No devices found. Check the network or add an address manually.</p>
+                  <p>{t('No devices found. Check the network or add an address manually.')}</p>
                 )}
                 {result.warnings.map((w) => (
-                  <p className={s.warning} key={w}>
+                  <p className={s.warning} key={t(w)}>
                     <AlertCircle size={16} />
-                    {w}
+                    {t(w)}
                   </p>
                 ))}
               </div>
@@ -165,27 +171,32 @@ export function DeviceDialog({
           <form className={s.form} onSubmit={manual}>
             <div className={s.formGrid}>
               <label>
-                Device type
+                {t('Device type')}
                 <select
                   value={kind}
                   disabled={!!onlyKind}
                   onChange={(e) => setKind(e.target.value as DeviceInput['kind'])}
                 >
-                  <option value="printer">Printer</option>
-                  <option value="scanner">Scanner</option>
+                  <option value="printer">{t('Printer')}</option>
+                  <option value="scanner">{t('Scanner')}</option>
                 </select>
               </label>
               <label>
-                Name
-                <input name="name" required maxLength={80} placeholder="Brother in the study" />
+                {t('Name')}
+                <input
+                  name="name"
+                  required
+                  maxLength={80}
+                  placeholder={t('Brother in the study')}
+                />
               </label>
             </div>
             <label>
               {demo
-                ? 'Demo address'
+                ? t('Demo address')
                 : kind === 'printer'
-                  ? 'IPP address or CUPS queue'
-                  : 'SANE device ID'}
+                  ? t('IPP address or CUPS queue')
+                  : t('SANE device ID')}
               <input
                 name="address"
                 required
@@ -200,22 +211,28 @@ export function DeviceDialog({
               />
             </label>
             <label>
-              Location <span className={s.optional}>optional</span>
-              <input name="location" maxLength={80} placeholder="e.g. Study" />
+              {t('Location')} <span className={s.optional}>{t('optional')}</span>
+              <input name="location" maxLength={80} placeholder={t('e.g. Study')} />
             </label>
             <p className={s.small}>
               {demo
-                ? 'Demo devices do not connect to hardware.'
+                ? t('Demo devices do not connect to hardware.')
                 : kind === 'printer'
-                  ? 'Use IPP Everywhere / AirPrint, or an existing CUPS queue as cups://QUEUE. Configure models that require a driver in CUPS first.'
-                  : 'Find the complete ID with scanimage -L. Depending on the model, scanners use eSCL, WSD or another installed SANE backend.'}
+                  ? t(
+                      'Use IPP Everywhere / AirPrint, or an existing CUPS queue as cups://QUEUE. Configure models that require a driver in CUPS first.',
+                    )
+                  : t(
+                      'Find the complete ID with scanimage -L. Depending on the model, scanners use eSCL, WSD or another installed SANE backend.',
+                    )}
             </p>
             <div className={s.modalActions}>
               <button type="button" className={s.secondary} onClick={() => setTab('discover')}>
-                <ArrowLeft size={16} /> Back
+                <ArrowLeft size={16} />
+                {t('Back')}
               </button>
               <button className={s.primary} disabled={!!adding}>
-                {adding ? <Spinner /> : <Plus size={16} />} Add device
+                {adding ? <Spinner /> : <Plus size={16} />}
+                {t('Add device')}
               </button>
             </div>
           </form>

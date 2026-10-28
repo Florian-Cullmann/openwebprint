@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AppliedProfile, ProfileInput, SettingsProfile } from '@openwebprint/shared';
 import { api, post } from './api';
 import s from './App.module.css';
+import { t } from './i18n';
 
 export function ProfileSettings({
   deviceId,
@@ -23,6 +24,7 @@ export function ProfileSettings({
   const [reload, setReload] = useState(0);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [messageParams, setMessageParams] = useState<Record<string, string>>({});
   const requestActive = useRef(false);
   useEffect(() => {
     const controller = new AbortController();
@@ -49,7 +51,8 @@ export function ProfileSettings({
       if (action === 'apply') {
         const result = await post<AppliedProfile>(`${path}/${selected}/apply`);
         applied(result);
-        setMessage(`Applied “${result.profile.name}”.`);
+        setMessage('Applied “{name}”.');
+        setMessageParams({ name: result.profile.name });
       } else if (action === 'delete') {
         await api(`${path}/${selected}`, { method: 'DELETE' });
         setProfiles((current) => current.filter((profile) => profile.id !== selected));
@@ -84,12 +87,12 @@ export function ProfileSettings({
   }
   return (
     <fieldset className={s.profileSettings} disabled={disabled || loading}>
-      <legend>Settings profiles</legend>
+      <legend>{t('Settings profiles')}</legend>
       <p className={s.small}>
-        Shared with everyone using this instance. Settings only; no documents.
+        {t('Shared with everyone using this instance. Settings only; no documents.')}
       </p>
       <label>
-        Saved profile
+        {t('Saved profile')}
         <select
           value={selected}
           onChange={(e) => {
@@ -100,11 +103,13 @@ export function ProfileSettings({
           }}
         >
           <option value="">
-            {loading
-              ? 'Loading profiles…'
-              : profiles.length
-                ? 'Choose a profile'
-                : 'No saved profiles'}
+            {t(
+              loading
+                ? 'Loading profiles…'
+                : profiles.length
+                  ? 'Choose a profile'
+                  : 'No saved profiles',
+            )}
           </option>
           {profiles.map((profile) => (
             <option key={profile.id} value={profile.id}>
@@ -120,7 +125,7 @@ export function ProfileSettings({
           disabled={!selected}
           onClick={() => void act('apply')}
         >
-          Apply profile
+          {t('Apply profile')}
         </button>
         <button
           type="button"
@@ -128,11 +133,11 @@ export function ProfileSettings({
           disabled={!selected}
           onClick={() => void act('delete')}
         >
-          Delete profile
+          {t('Delete profile')}
         </button>
       </div>
       <label>
-        Profile name
+        {t('Profile name')}
         <input
           value={name}
           maxLength={80}
@@ -140,7 +145,7 @@ export function ProfileSettings({
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.preventDefault();
           }}
-          placeholder="e.g. Everyday documents"
+          placeholder={t('e.g. Everyday documents')}
         />
       </label>
       <div className={s.profileActions}>
@@ -150,7 +155,7 @@ export function ProfileSettings({
           disabled={!name.trim()}
           onClick={() => void act('create')}
         >
-          Save new profile
+          {t('Save new profile')}
         </button>
         <button
           type="button"
@@ -158,25 +163,25 @@ export function ProfileSettings({
           disabled={!selected || !name.trim()}
           onClick={() => void act('update')}
         >
-          Update profile
+          {t('Update profile')}
         </button>
       </div>
       {message && (
         <p role="status" className={s.small}>
-          {message}
+          {t(message, messageParams)}
         </p>
       )}
       {error && (
         <>
           <p role="alert" className={s.error}>
-            {error}
+            {t(error)}
           </p>
           <button
             type="button"
             className={s.textButton}
             onClick={() => setReload((value) => value + 1)}
           >
-            Reload profiles
+            {t('Reload profiles')}
           </button>
         </>
       )}

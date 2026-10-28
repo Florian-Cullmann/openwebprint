@@ -62,6 +62,8 @@ try {
     page.getByRole('heading', { name: 'Brother MFC-L2750DW', exact: true }),
   ).toBeVisible();
   await capture('overview');
+  // Show complete dialogs, including profiles and the primary action, without scrolling.
+  await page.setViewportSize({ width: 1440, height: 1500 });
 
   const navigation = page.getByRole('navigation', { name: 'Main navigation' });
   await navigation.getByRole('link', { name: 'Devices', exact: true }).click();
@@ -102,7 +104,9 @@ try {
   await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
     timeout: 15_000,
   });
-  await page.getByAltText('Scanned document preview').evaluate((image) => image.decode());
+  const scannedPage = page.getByAltText('Scanned page 1', { exact: true });
+  await expect(scannedPage).toBeVisible();
+  await scannedPage.evaluate((image) => image.decode());
   await capture('scanning');
   expect(errors).toEqual([]);
   console.log('Captured overview.png, printing.png and scanning.png from an isolated demo.');
