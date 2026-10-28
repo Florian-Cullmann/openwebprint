@@ -20,11 +20,13 @@ Open source, self-hosted, and built around open standards.
 
 </div>
 
+The interface supports English and German. Use the language menu during setup, sign-in, or normal use; your choice is saved in this browser. Dates, numbers, and plural forms follow the selected language. See the [translation convention](CONTRIBUTING.md#translations) for initial-language and fallback rules.
+
 ## A calmer way to work with paper
 
 openwebprint puts your printers, scanners, and documents in one browser workspace. No cloud account, telemetry, remote font requests, subscription, or vendor SDK. The web app and bundled hardware stack use open-source software. Some older devices may require a separately installed, potentially proprietary driver; those drivers are not bundled or required for driverless devices.
 
-This is the second public beta, **v0.1.0-beta.2**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing. The interface and all application routes use English.
+This is the second public beta, **v0.1.0-beta.2**, with real CUPS and SANE integrations and a clearly labeled demo. Physical device compatibility still needs community testing.
 
 - **Find and connect devices:** mDNS IPP/IPPS discovery, existing CUPS queues, SANE detection, and manual setup.
 - **Print documents:** validated PDF, PNG, and JPEG uploads, up to 25 MiB; copies, a two-position color toggle, duplex, supported paper sizes, and a paginated document preview.

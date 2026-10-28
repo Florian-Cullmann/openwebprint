@@ -105,15 +105,15 @@ export class ScanExports {
     operation.updateDeadline();
     try {
       // Acquire every document lock synchronously before any filesystem await.
-      for (const selection of selections) {
+      for (const [index, selection] of selections.entries()) {
         controller.signal.throwIfAborted();
         const job = this.store.job(selection.id, this.mode);
         if (!job || job.kind !== 'scan')
           throw new AppError(
             404,
-            `Selected scan ${selection.id} was deleted or is unavailable in this mode. Remove it from the selection.`,
+            `Selected scan ${index + 1} was deleted or is unavailable in this mode. Remove it from the selection.`,
           );
-        const label = `Scan “${job.title}” (${job.id})`;
+        const label = `Selected scan ${index + 1}`;
         if (!job.hasFile || !job.filePath || expiry(job, retentionPolicy(this.store)) <= Date.now())
           throw new AppError(
             410,
@@ -136,12 +136,12 @@ export class ScanExports {
       operation.updateDeadline();
       let total = 0;
       const sizes: number[] = [];
-      for (const job of jobs) {
+      for (const [index, job] of jobs.entries()) {
         controller.signal.throwIfAborted();
         const handle = await open(job.filePath!, 'r').catch(() => {
           throw new AppError(
             410,
-            `Scan “${job.title}” (${job.id}) has a missing or unreadable PDF. Remove it from the selection.`,
+            `Selected scan ${index + 1} has a missing or unreadable PDF. Remove it from the selection.`,
           );
         });
         handles.push(handle);
@@ -149,7 +149,7 @@ export class ScanExports {
         if (!stat.isFile() || stat.size <= 0)
           throw new AppError(
             410,
-            `Scan “${job.title}” (${job.id}) has no readable PDF. Remove it from the selection.`,
+            `Selected scan ${index + 1} has no readable PDF. Remove it from the selection.`,
           );
         total += stat.size;
         if (total > MAX_SCAN_EXPORT_BYTES)

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import type { useJobNotifications } from './useJobNotifications';
 import s from './App.module.css';
 
@@ -24,26 +25,28 @@ export function NotificationSettings({
   }[permission];
   return (
     <>
-      <p role="status">{message}</p>
+      <p role="status">{t(message)}</p>
       <p>
-        Keep the application open. Each tab follows only jobs started there, including demo jobs
-        (marked Demo). Background updates may be delayed by your browser. No external push service
-        is used.
+        {t(
+          'Keep the application open. Each tab follows only jobs started there, including demo jobs (marked Demo). Background updates may be delayed by your browser. No external push service is used.',
+        )}
       </p>
       <p>
-        Messages omit document and device names. Print completion is reported by the provider and
-        does not confirm physical output.
+        {t(
+          'Messages omit document and device names. Print completion is reported by the provider and does not confirm physical output.',
+        )}
       </p>
       <p>
-        Reloading, signing out, changing operating mode or changing this preference clears pending
-        notifications. Enabling does not replay earlier jobs.
+        {t(
+          'Reloading, signing out, changing operating mode or changing this preference clears pending notifications. Enabling does not replay earlier jobs.',
+        )}
       </p>
       <button
         className={s.secondary}
         onClick={() => (enabled ? disable() : void enable())}
         disabled={!enabled && !['default', 'granted', 'unavailable'].includes(permission)}
       >
-        {enabled ? 'Disable notifications' : 'Enable notifications'}
+        {enabled ? t('Disable notifications') : t('Enable notifications')}
       </button>
     </>
   );

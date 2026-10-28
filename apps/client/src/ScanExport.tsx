@@ -1,3 +1,4 @@
+import { t, displayJobTitle, formatDateTime } from './i18n';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Archive, X } from 'lucide-react';
 import {
@@ -62,7 +63,7 @@ export function ScanExport({
             else checkboxes.current.delete(job.id);
           }}
           checked={checked}
-          aria-label={`Select scan: ${job.title}`}
+          aria-label={t('Select scan: {title}', { title: displayJobTitle(job) })}
           disabled={
             busy || (!checked && (!available || selected.length >= MAX_SCAN_EXPORT_DOCUMENTS))
           }
@@ -138,20 +139,20 @@ export function ScanExport({
   return (
     <>
       {selected.length > 0 && (
-        <section className={styles.export} aria-label="Export selected scans">
+        <section className={styles.export} aria-label={t('Export selected scans')}>
           <div className={styles.actions}>
-            <p role="status">{selected.length} selected</p>
+            <p role="status">{t('{count} selected', { count: selected.length })}</p>
             <button
               className={s.primary}
               disabled={!selected.length || busy}
               onClick={() => void download()}
             >
               {busy ? <Spinner /> : <Archive size={16} />}{' '}
-              {busy ? 'Preparing ZIP…' : 'Download ZIP'}
+              {busy ? t('Preparing ZIP…') : t('Download ZIP')}
             </button>
             {busy ? (
               <button className={s.secondary} onClick={() => controller.current?.abort()}>
-                Cancel export
+                {t('Cancel export')}
               </button>
             ) : (
               <button
@@ -164,32 +165,34 @@ export function ScanExport({
                   setMessage('');
                 }}
               >
-                Clear selection
+                {t('Clear selection')}
               </button>
             )}
           </div>
           <p className={s.small}>
-            Select up to {MAX_SCAN_EXPORT_DOCUMENTS} saved PDFs, totaling at most{' '}
-            {MAX_SCAN_EXPORT_BYTES / (1024 * 1024)} MiB. Selection stays across pages and views
-            until you leave Scans. Only checked scans are included. Exports expire after two
-            minutes; use smaller batches on slow connections.
+            {t(
+              'Select up to {count} saved PDFs, totaling at most {size} MiB. Selection stays across pages and views until you leave Scans. Only checked scans are included. Exports expire after two minutes; use smaller batches on slow connections.',
+              { count: MAX_SCAN_EXPORT_DOCUMENTS, size: MAX_SCAN_EXPORT_BYTES / (1024 * 1024) },
+            )}
           </p>
           {selected.length > 0 && (
             <details className={styles.selection}>
-              <summary>Review selected scans ({selected.length})</summary>
+              <summary>{t('Review selected scans ({count})', { count: selected.length })}</summary>
               <ul>
                 {selected.map((scan) => (
                   <li key={scan.id}>
                     <span>
-                      {scan.title}
+                      {displayJobTitle({ ...scan, kind: 'scan' })}
                       <small>
-                        {new Date(scan.createdAt).toLocaleString()} · {scan.id.slice(-8)}
+                        {formatDateTime(scan.createdAt)} · {scan.id.slice(-8)}
                       </small>
                     </span>
                     <button
                       className={s.iconButton}
                       disabled={busy}
-                      aria-label={`Remove selection: ${scan.title}`}
+                      aria-label={t('Remove selection: {title}', {
+                        title: displayJobTitle({ ...scan, kind: 'scan' }),
+                      })}
                       onClick={() => remove(scan.id)}
                     >
                       <X size={16} />
@@ -200,16 +203,18 @@ export function ScanExport({
             </details>
           )}
           {busy && (
-            <p className={s.small}>Preparing the selected PDFs. You can cancel this export.</p>
+            <p className={s.small}>
+              {t('Preparing the selected PDFs. You can cancel this export.')}
+            </p>
           )}
           {error && (
             <p role="alert" className={s.error}>
-              {error}
+              {t(error)}
             </p>
           )}
           {message && (
             <p role="status" className={s.small}>
-              {message}
+              {t(message)}
             </p>
           )}
         </section>

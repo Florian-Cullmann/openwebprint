@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { checkHardware } from '../../../scripts/install/hardware.mjs';
 import Fastify, { LogController } from 'fastify';
 import cookie from '@fastify/cookie';
@@ -80,21 +81,22 @@ export async function createApp(
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof z.ZodError)
       return reply.code(400).send({
-        error: 'Please check your input.',
+        ...publicErrorBody('Please check your input.'),
         details: error.issues.map((i) => `${i.path.join('.')}: ${i.message}`),
       });
     if (error instanceof AppError)
-      return reply.code(error.statusCode).send({ error: error.message });
+      return reply.code(error.statusCode).send(publicErrorBody(error.message));
     const e = error as { statusCode?: number; code?: string };
     if (e.statusCode && e.statusCode < 500)
       return reply.code(e.statusCode).send({
-        error:
+        ...publicErrorBody(
           e.statusCode === 413
             ? 'File too large. Maximum size: 25 MB.'
             : 'Invalid request or too many requests. Please try again.',
+        ),
       });
     app.log.error({ code: e.code }, 'Request failed');
-    return reply.code(500).send({ error: 'The operation failed. Check the server logs.' });
+    return reply.code(500).send(publicErrorBody('The operation failed. Check the server logs.'));
   });
   const publicPaths = new Set(['/api/health', '/api/session', '/api/login']);
   app.addHook('onRequest', async (req, reply) => {
@@ -440,7 +442,7 @@ export async function createApp(
     await app.register(fastifyStatic, { root: staticDir });
     app.setNotFoundHandler(async (req, reply) =>
       req.url.startsWith('/api/')
-        ? reply.code(404).send({ error: 'Endpoint not found.' })
+        ? reply.code(404).send(publicErrorBody('Endpoint not found.'))
         : reply.sendFile('index.html'),
     );
   }

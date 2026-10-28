@@ -1976,3 +1976,34 @@
   overflow-wrap: anywhere;
   font-size: 0.85rem;
 }
+
+.languagePicker {
+  width: auto;
+  min-width: 34px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.setupHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.authCard > .languagePicker {
+  display: flex;
+  margin-left: auto;
+  margin-bottom: 20px;
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .headerInner {
+    flex-wrap: wrap;
+  }
+  .navigation {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+}

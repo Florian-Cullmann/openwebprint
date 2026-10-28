@@ -1,3 +1,4 @@
+import { t, plural, getLocale, jobError } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
   Download,
@@ -304,9 +305,15 @@ export function ScanDialog({
   return (
     <Modal
       title={
-        recovery ? 'Scan incomplete' : complete && !running ? 'Scan complete' : 'Scan document'
+        recovery
+          ? t('Scan incomplete')
+          : complete && !running
+            ? t('Scan complete')
+            : t('Scan document')
       }
-      subtitle={demo ? 'Demo mode: the scan sample is simulated.' : 'Collect pages in one PDF.'}
+      subtitle={
+        demo ? t('Demo mode: the scan sample is simulated.') : t('Collect pages in one PDF.')
+      }
       close={close}
       className={s.scanDialog}
       headerContent={
@@ -315,12 +322,12 @@ export function ScanDialog({
             <Spinner />
             <span>
               {canceling
-                ? 'Canceling scan…'
+                ? t('Canceling scan…')
                 : recovery
-                  ? 'Saving recovered pages…'
+                  ? t('Saving recovered pages…')
                   : complete
-                    ? 'Adding pages…'
-                    : 'Scanning your document…'}
+                    ? t('Adding pages…')
+                    : t('Scanning your document…')}
             </span>
           </p>
         )
@@ -344,7 +351,7 @@ export function ScanDialog({
           />
           {error && (
             <p role="alert" className={s.error}>
-              {error}
+              {t(error)}
             </p>
           )}
         </>
@@ -361,7 +368,7 @@ export function ScanDialog({
               <>
                 <ol
                   className={s.scanPages}
-                  aria-label="Scanned pages"
+                  aria-label={t('Scanned pages')}
                   aria-busy={locked}
                   data-dragging={!!drag.preview}
                   {...drag.events}
@@ -378,19 +385,19 @@ export function ScanDialog({
                       <div className={s.scanPageImage}>
                         <img
                           src={`/api/scans/${job!.id}/pages/${page.id}?thumbnail=1&edit=${encodeURIComponent(JSON.stringify([page.rotation, page.crop]))}`}
-                          alt={`Scanned page ${index + 1}`}
+                          alt={t('Scanned page {value1}', { value1: index + 1 })}
                           loading="lazy"
                           decoding="async"
                           draggable={false}
                         />
                       </div>
                       <div className={s.scanPageTools}>
-                        <span>Page {index + 1}</span>
+                        <span>{t('Page {value1}', { value1: index + 1 })}</span>
                         <button
                           type="button"
                           className={s.iconButton}
                           disabled={locked}
-                          aria-label={`Crop page ${index + 1}`}
+                          aria-label={t('Crop page {value1}', { value1: index + 1 })}
                           ref={(button) => {
                             if (button) cropButtons.current.set(page.id, button);
                             else cropButtons.current.delete(page.id);
@@ -407,7 +414,7 @@ export function ScanDialog({
                           type="button"
                           className={s.iconButton}
                           disabled={locked}
-                          aria-label={`Rotate page ${index + 1} clockwise`}
+                          aria-label={t('Rotate page {value1} clockwise', { value1: index + 1 })}
                           onClick={() =>
                             void edit(
                               pages.map((p) =>
@@ -427,7 +434,7 @@ export function ScanDialog({
                           type="button"
                           className={s.iconButton}
                           disabled={locked || index === 0}
-                          aria-label={`Move page ${index + 1} earlier`}
+                          aria-label={t('Move page {value1} earlier', { value1: index + 1 })}
                           onClick={() => move(page.id, index - 1)}
                         >
                           <ArrowLeft size={16} />
@@ -436,7 +443,7 @@ export function ScanDialog({
                           type="button"
                           className={s.iconButton}
                           disabled={locked || index === pages.length - 1}
-                          aria-label={`Move page ${index + 1} later`}
+                          aria-label={t('Move page {value1} later', { value1: index + 1 })}
                           onClick={() => move(page.id, index + 1)}
                         >
                           <ArrowRight size={16} />
@@ -445,11 +452,11 @@ export function ScanDialog({
                           type="button"
                           className={s.iconButton}
                           disabled={locked || pages.length <= 1}
-                          aria-label={`Remove page ${index + 1}`}
+                          aria-label={t('Remove page {value1}', { value1: index + 1 })}
                           title={
                             pages.length <= 1
-                              ? 'A scan must keep at least one page.'
-                              : `Remove page ${index + 1}`
+                              ? t('A scan must keep at least one page.')
+                              : t('Remove page {value1}', { value1: index + 1 })
                           }
                           onClick={() => void removePage(page.id)}
                         >
@@ -473,11 +480,13 @@ export function ScanDialog({
                 <ScanLine size={48} strokeWidth={1} />
                 {!running && (
                   <>
-                    <h3>{recovery ? 'Review recovered pages' : 'Load your document'}</h3>
+                    <h3>{recovery ? t('Review recovered pages') : t('Load your document')}</h3>
                     <p>
                       {recovery
-                        ? 'Review the batch page numbers and acquisition error, then keep or discard the complete pages.'
-                        : 'Place a page on the flatbed, or load the document feeder.'}
+                        ? t(
+                            'Review the batch page numbers and acquisition error, then keep or discard the complete pages.',
+                          )
+                        : t('Place a page on the flatbed, or load the document feeder.')}
                     </p>
                   </>
                 )}
@@ -490,7 +499,7 @@ export function ScanDialog({
                 {!recovery && <DocumentExpiry job={job!} />}
                 <div className={s.scanDocumentSummary}>
                   <span className={`${s.badge} ${s.positive}`}>
-                    <FileCheck2 size={14} /> {pages.length} {pages.length === 1 ? 'page' : 'pages'}
+                    <FileCheck2 size={14} /> {plural('{count} page', '{count} pages', pages.length)}
                   </span>
                   <a
                     className={s.primary}
@@ -498,7 +507,8 @@ export function ScanDialog({
                     aria-disabled={busy}
                     download
                   >
-                    <Download size={17} /> Download PDF
+                    <Download size={17} />
+                    {t('Download PDF')}
                   </a>
                 </div>
                 {!recovery && (
@@ -509,12 +519,14 @@ export function ScanDialog({
                       disabled={locked || job?.status !== 'completed'}
                       onClick={() => print(job!)}
                     >
-                      <Printer size={17} /> Print
+                      <Printer size={17} />
+                      {t('Print')}
                     </button>
                     {pages.length === 1 && (
                       <p className={s.small}>
-                        A scan must keep at least one page. To remove the document, close this
-                        preview and delete the scan.
+                        {t(
+                          'A scan must keep at least one page. To remove the document, close this preview and delete the scan.',
+                        )}
                       </p>
                     )}
                   </>
@@ -523,14 +535,14 @@ export function ScanDialog({
             )}
             {!scanners.length && !complete && !recovery && (
               <button type="button" className={s.secondary} onClick={() => setAddingScanner(true)}>
-                Find and add a scanner
+                {t('Find and add a scanner')}
               </button>
             )}
             {!recovery && (
               <>
                 <fieldset disabled={locked} className={s.scanSettings}>
                   <label>
-                    Scanner
+                    {t('Scanner')}
                     <select
                       required
                       value={deviceId}
@@ -543,7 +555,7 @@ export function ScanDialog({
                       }}
                     >
                       <option value="" disabled>
-                        Select scanner
+                        {t('Select scanner')}
                       </option>
                       {scanners.map((d) => (
                         <option key={d.id} value={d.id}>
@@ -563,9 +575,9 @@ export function ScanDialog({
                       value: mode,
                       label:
                         mode === 'Gray'
-                          ? 'Grayscale'
+                          ? t('Grayscale')
                           : mode === 'Lineart'
-                            ? 'Black and white (1-bit)'
+                            ? t('Black and white (1-bit)')
                             : mode,
                     }))}
                     value={color}
@@ -573,7 +585,7 @@ export function ScanDialog({
                     disabled={settingsLoading}
                   />
                   <label>
-                    Paper source
+                    {t('Paper source')}
                     <select
                       value={source}
                       disabled={settingsLoading || !sources.sources.length}
@@ -582,10 +594,10 @@ export function ScanDialog({
                         setDuplex(false);
                       }}
                     >
-                      <option value="">Device default</option>
+                      <option value="">{t('Device default')}</option>
                       {sources.sources.map((s) => (
-                        <option key={s.name} value={s.name}>
-                          {s.name}
+                        <option key={t(s.name)} value={t(s.name)}>
+                          {t(s.name)}
                         </option>
                       ))}
                     </select>
@@ -596,14 +608,14 @@ export function ScanDialog({
                         type="checkbox"
                         checked={duplex}
                         onChange={(e) => setDuplex(e.target.checked)}
-                      />{' '}
-                      Scan both sides
+                      />
+                      {t('Scan both sides')}
                     </label>
                   )}
                 </fieldset>
                 {deviceId && (
                   <div className={s.scanCapabilityActions}>
-                    <p className={s.small}>Scanner settings are saved per paper source.</p>
+                    <p className={s.small}>{t('Scanner settings are saved per paper source.')}</p>
                     <button
                       type="button"
                       className={s.textButton}
@@ -613,13 +625,14 @@ export function ScanDialog({
                         setRefreshSettings((value) => value + 1);
                       }}
                     >
-                      <RefreshCw size={14} /> Refresh scanner settings
+                      <RefreshCw size={14} />
+                      {t('Refresh scanner settings')}
                     </button>
                   </div>
                 )}
                 {settingsLoading && (
                   <p role="status" className={s.small}>
-                    Loading scanner capabilities…
+                    {t('Loading scanner capabilities…')}
                   </p>
                 )}
                 {!running &&
@@ -628,43 +641,55 @@ export function ScanDialog({
                     sources.resolutions === undefined ||
                     sources.colorModes === undefined) && (
                     <p className={s.small}>
-                      {sourceError} Some scanner capabilities are unknown. Unverified fallback
-                      options:
-                      {sources.resolutions === undefined && ' 150/300/600 dpi.'}
-                      {sources.colorModes === undefined && ' Color/Grayscale.'} The scanner may
-                      reject them.
+                      {t(
+                        '{value1} Some scanner capabilities are unknown. Unverified fallback options:{value2}{value3} The scanner may reject them.',
+                        {
+                          value1: sourceError ? t(sourceError) : '',
+                          value2: sources.resolutions === undefined && ' 150/300/600 dpi.',
+                          value3: sources.colorModes === undefined && t(' Color/Grayscale.'),
+                        },
+                      )}
                     </p>
                   )}
                 {!running && !settingsLoading && invalidSettings && (
                   <p role="alert" className={s.error}>
-                    Choose a supported resolution and color mode. This paper source may have no
-                    supported scan settings.
+                    {t(
+                      'Choose a supported resolution and color mode. This paper source may have no supported scan settings.',
+                    )}
                   </p>
                 )}
               </>
             )}
             {!recovery && (error || job?.error) && (
               <p role="alert" className={s.error}>
-                {error || job?.error}
+                {error ? t(error) : job?.error ? jobError(job) : null}
               </p>
             )}
             {recovery && (
-              <section className={s.scanRecovery} aria-label="Recover scanned pages">
+              <section className={s.scanRecovery} aria-label={t('Recover scanned pages')}>
                 <div className={s.scanRecoveryHeading}>
                   <AlertCircle size={19} aria-hidden="true" />
-                  <h3>{recovery.pageNumbers.length} pages ready to recover</h3>
+                  <h3>
+                    {plural(
+                      '{count} page ready to recover',
+                      '{count} pages ready to recover',
+                      recovery.pageNumbers.length,
+                    )}
+                  </h3>
                 </div>
-                <p role="alert">{error || job?.error || 'The scan could not finish.'}</p>
+                <p role="alert">
+                  {error ? t(error) : job?.error ? jobError(job) : t('The scan could not finish.')}
+                </p>
                 <dl className={s.scanRecoveryFacts}>
                   <div>
-                    <dt>Batch pages</dt>
+                    <dt>{t('Batch pages')}</dt>
                     <dd>{recovery.pageNumbers.join(', ')}</dd>
                   </div>
                   <div>
-                    <dt>Available until</dt>
+                    <dt>{t('Available until')}</dt>
                     <dd>
                       <time dateTime={recovery.expiresAt}>
-                        {new Date(recovery.expiresAt).toLocaleString(undefined, {
+                        {new Date(recovery.expiresAt).toLocaleString(getLocale(), {
                           dateStyle: 'medium',
                           timeStyle: 'short',
                         })}
@@ -673,25 +698,25 @@ export function ScanDialog({
                   </div>
                 </dl>
                 <details className={s.scanRecoveryDetails}>
-                  <summary>Recovery details</summary>
+                  <summary>{t('Recovery details')}</summary>
                   <p>
-                    Only complete pages are included. Missing or incomplete pages were excluded.
-                    Previously saved pages stay unchanged. You can close this scan and decide later,
-                    even after a server restart.
+                    {t(
+                      'Only complete pages are included. Missing or incomplete pages were excluded. Previously saved pages stay unchanged. You can close this scan and decide later, even after a server restart.',
+                    )}
                   </p>
                 </details>
                 <div className={s.scanRecoveryActions}>
                   <button type="button" className={s.textButton} onClick={close}>
-                    Decide later
+                    {t('Decide later')}
                   </button>
                   <button
                     type="button"
                     className={s.secondary}
                     disabled={busy || running}
-                    aria-label="Discard recovered pages"
+                    aria-label={t('Discard recovered pages')}
                     onClick={() => void resolveRecovery('discard')}
                   >
-                    Discard
+                    {t('Discard')}
                   </button>
                   <button
                     type="button"
@@ -699,7 +724,8 @@ export function ScanDialog({
                     disabled={busy || running}
                     onClick={() => void resolveRecovery('keep')}
                   >
-                    {busy && <Spinner />} Keep {recovery.pageNumbers.length} pages
+                    {busy && <Spinner />}
+                    {plural('Keep {count} page', 'Keep {count} pages', recovery.pageNumbers.length)}
                   </button>
                 </div>
               </section>
@@ -707,8 +733,12 @@ export function ScanDialog({
             {running && (
               <p className={s.small}>
                 {recovery
-                  ? 'Saving recovered pages. Closing this dialog continues saving in the background.'
-                  : 'Closing this dialog continues the scan in the background. Canceling discards all new pages from this operation and keeps previously saved pages.'}
+                  ? t(
+                      'Saving recovered pages. Closing this dialog continues saving in the background.',
+                    )
+                  : t(
+                      'Closing this dialog continues the scan in the background. Canceling discards all new pages from this operation and keeps previously saved pages.',
+                    )}
               </p>
             )}
             {!recovery && (
@@ -720,12 +750,12 @@ export function ScanDialog({
                     disabled={canceling || busy}
                     onClick={() => void cancel()}
                   >
-                    {canceling ? 'Canceling scan…' : 'Cancel scan'}
+                    {canceling ? t('Canceling scan…') : t('Cancel scan')}
                   </button>
                 )}
                 {(!complete || running || recovery) && (
                   <button type="button" className={s.secondary} onClick={close}>
-                    {running ? 'Continue in background' : 'Close'}
+                    {running ? t('Continue in background') : t('Close')}
                   </button>
                 )}
                 {!running && (
@@ -742,7 +772,7 @@ export function ScanDialog({
                       }
                       onClick={() => void start(true)}
                     >
-                      Scan multiple pages
+                      {t('Scan multiple pages')}
                     </button>
                     <button
                       className={s.primary}
@@ -755,7 +785,11 @@ export function ScanDialog({
                       }
                     >
                       {busy ? <Spinner /> : <ScanLine size={17} />}{' '}
-                      {complete ? 'Scan another page' : demo ? 'Start demo scan' : 'Start scan'}
+                      {complete
+                        ? t('Scan another page')
+                        : demo
+                          ? t('Start demo scan')
+                          : t('Start scan')}
                     </button>
                   </>
                 )}

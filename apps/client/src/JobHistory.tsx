@@ -1,3 +1,4 @@
+import { t, plural } from './i18n';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Job, JobFilter, JobPage } from '@openwebprint/shared';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
@@ -80,7 +81,7 @@ export function JobHistory({
       {kind === 'scan' && (
         <div className={s.historyToolbar}>
           <label className={s.srOnly} htmlFor="scan-history-search">
-            Search scans
+            {t('Search scans')}
           </label>
           <div className={s.historySearchControls}>
             <div className={s.search}>
@@ -89,7 +90,7 @@ export function JobHistory({
                 id="scan-history-search"
                 ref={searchInput}
                 type="search"
-                placeholder="Search scan titles…"
+                placeholder={t('Search scan titles…')}
                 maxLength={200}
                 value={search}
                 onChange={(event) => {
@@ -108,7 +109,7 @@ export function JobHistory({
                   searchInput.current?.focus();
                 }}
               >
-                Clear search
+                {t('Clear search')}
               </button>
             )}
           </div>
@@ -117,39 +118,51 @@ export function JobHistory({
       )}
       {error && (
         <p role="alert" className={s.error}>
-          {error}{' '}
+          {t(error)}{' '}
           <button className={s.textButton} onClick={() => setRetry((value) => value + 1)}>
-            Retry
+            {t('Retry')}
           </button>
         </p>
       )}
       {loading ? (
         <p role="status">
-          <Spinner /> {queryText ? 'Searching scans…' : 'Loading history…'}
+          <Spinner /> {queryText ? t('Searching scans…') : t('Loading history…')}
         </p>
       ) : (
         page &&
         (queryText && !page.jobs.length ? (
-          <p role="status">No scans match your search. Try another title or clear the search.</p>
+          <p role="status">
+            {t('No scans match your search. Try another title or clear the search.')}
+          </p>
         ) : (
           children(page.jobs)
         ))
       )}
       <nav
         className={s.pagination}
-        aria-label={kind === 'scan' ? 'Scan history pages' : 'Job history pages'}
+        aria-label={kind === 'scan' ? t('Scan history pages') : t('Job history pages')}
       >
         <div role="status" aria-atomic="true" className={s.paginationSummary}>
           {page && (
             <span>
-              {page.jobs.length ? page.offset + 1 : 0}–
-              {page.jobs.length ? page.offset + page.jobs.length : 0} of {page.total}{' '}
-              {kind === 'scan' ? 'scans' : 'jobs'}
+              {t('{value1}–{value2} of {value3} {value4}', {
+                value1: page.jobs.length ? page.offset + 1 : 0,
+                value2: page.jobs.length ? page.offset + page.jobs.length : 0,
+                value3: page.total,
+                value4:
+                  kind === 'scan'
+                    ? plural('scan', 'scans', page.total)
+                    : plural('job', 'jobs', page.total),
+              })}
             </span>
           )}{' '}
           <span className={s.paginationPage}>
-            Page {page ? Math.floor(page.offset / pageSize) + 1 : cursors.length}
-            {page ? ` of ${Math.max(1, Math.ceil(page.total / pageSize))}` : ''}
+            {page
+              ? t('Page {page} of {total}', {
+                  page: Math.floor(page.offset / pageSize) + 1,
+                  total: Math.max(1, Math.ceil(page.total / pageSize)),
+                })
+              : t('Page {page}', { page: cursors.length })}
           </span>
         </div>
         <div className={s.paginationControls}>
@@ -158,14 +171,16 @@ export function JobHistory({
             disabled={loading || cursors.length === 1}
             onClick={() => move(cursors.slice(0, -1))}
           >
-            <ChevronLeft size={16} /> Previous
+            <ChevronLeft size={16} />
+            {t('Previous')}
           </button>
           <button
             className={s.secondary}
             disabled={loading || !page?.nextCursor}
             onClick={() => move([...cursors, page!.nextCursor])}
           >
-            Next <ChevronRight size={16} />
+            {t('Next')}
+            <ChevronRight size={16} />
           </button>
         </div>
       </nav>

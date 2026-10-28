@@ -118,7 +118,12 @@ it('reports changed, expired, missing and busy selections before sending a ZIP',
   const job = await scan('Receipt');
   const changed = await download([{ ...job, scanRevision: randomUUID() }]);
   expect(changed.statusCode).toBe(409);
-  expect(changed.json().error).toContain('Receipt');
+  expect(changed.json()).toMatchObject({
+    code: 'scan_export_selection_changed',
+    params: { value1: 1 },
+  });
+  expect(changed.json().error).toContain('Selected scan 1');
+  expect(changed.body).not.toContain('Receipt');
   expect(changed.json().error).toContain('has changed');
   const expired = await scan('Old receipt', {
     createdAt: new Date(Date.now() - 8 * 86400_000).toISOString(),
@@ -130,7 +135,12 @@ it('reports changed, expired, missing and busy selections before sending a ZIP',
   await unlink(missing.filePath!);
   const response = await download([job, missing]);
   expect(response.statusCode).toBe(410);
-  expect(response.json().error).toContain('Missing receipt');
+  expect(response.json()).toMatchObject({
+    code: 'scan_export_pdf_unreadable',
+    params: { value1: 2 },
+  });
+  expect(response.json().error).toContain('Selected scan 2');
+  expect(response.body).not.toContain('Missing receipt');
   expect(response.body).not.toContain(f.dataDir);
   expect((await download([{ ...job, id: randomUUID() }])).statusCode).toBe(404);
   await f.service.deleteJob(job.id);

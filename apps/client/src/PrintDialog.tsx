@@ -1,3 +1,4 @@
+import { t, displayJobTitle, jobError, plural, formatBytes } from './i18n';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { FileText, Printer, UploadCloud, CheckCircle2, AlertTriangle } from 'lucide-react';
 import type { Device, Job, PrintOptions } from '@openwebprint/shared';
@@ -167,7 +168,7 @@ export function PrintDialog({
       started(job);
       changed();
     } catch (e) {
-      const unknown = !(e instanceof ApiError) || e.status >= 500;
+      const unknown = !(e instanceof ApiError) || e.status === 0 || e.status >= 500;
       setUncertain(unknown);
       setError(
         unknown
@@ -184,16 +185,16 @@ export function PrintDialog({
       title={
         sent
           ? sent.status === 'unknown'
-            ? 'Submission unconfirmed'
-            : 'Job submitted'
-          : 'Print document'
+            ? t('Submission unconfirmed')
+            : t('Job submitted')
+          : t('Print document')
       }
       subtitle={
         demo
-          ? 'Demo mode: nothing will be physically printed.'
+          ? t('Demo mode: nothing will be physically printed.')
           : source
-            ? 'Print a saved document'
-            : 'PDF, PNG or JPEG · up to 25 MB'
+            ? t('Print a saved document')
+            : t('PDF, PNG or JPEG · up to 25 MB')
       }
       close={() => {
         if (!busy) close();
@@ -205,22 +206,23 @@ export function PrintDialog({
           {sent.status === 'unknown' ? <AlertTriangle size={44} /> : <CheckCircle2 size={44} />}
           <h3>
             {sent.status === 'unknown'
-              ? 'Please check the submission'
+              ? t('Please check the submission')
               : demo
-                ? 'Demo job submitted.'
-                : 'Your job has been sent to CUPS.'}
+                ? t('Demo job submitted.')
+                : t('Your job has been sent to CUPS.')}
           </h3>
-          <p>{sent.error ?? 'Track its status on the Jobs page.'}</p>
+          <p>{sent.error ? jobError(sent) : t('Track its status on the Jobs page.')}</p>
           <button className={s.primary} onClick={close}>
-            Done
+            {t('Done')}
           </button>
         </div>
       ) : (
         <form className={s.modalBody} onSubmit={submit}>
           {source?.kind === 'print' && source.status === 'unknown' && (
             <p role="alert" className={s.error}>
-              The original print outcome is unknown. Check the printer and Jobs before continuing.
-              Printing again creates a new job and may produce duplicate output.
+              {t(
+                'The original print outcome is unknown. Check the printer and Jobs before continuing. Printing again creates a new job and may produce duplicate output.',
+              )}
             </p>
           )}
           <div className={hasDocument ? s.printLayout : undefined}>
@@ -234,7 +236,7 @@ export function PrintDialog({
                       onPageCount={setPageCount}
                     />
                     <p className={s.previewHint}>
-                      Preview shows the full document with original page numbers.
+                      {t('Preview shows the full document with original page numbers.')}
                     </p>
                   </>
                 ) : (
@@ -242,13 +244,15 @@ export function PrintDialog({
                     {previewing ? (
                       <>
                         <Spinner />
-                        <p>Preparing preview…</p>
+                        <p>{t('Preparing preview…')}</p>
                       </>
                     ) : (
                       <p>
                         {source
-                          ? 'Saved document unavailable. Close this dialog and reopen the document, or create a new scan.'
-                          : 'Preview unavailable. Choose a valid document.'}
+                          ? t(
+                              'Saved document unavailable. Close this dialog and reopen the document, or create a new scan.',
+                            )
+                          : t('Preview unavailable. Choose a valid document.')}
                       </p>
                     )}
                   </div>
@@ -259,8 +263,8 @@ export function PrintDialog({
               {source ? (
                 <div className={`${s.dropzone} ${s.compactDropzone}`}>
                   <FileText size={32} />
-                  <h3>{source.title}</h3>
-                  <p>Saved document · a new print job will be created.</p>
+                  <h3>{displayJobTitle(source)}</h3>
+                  <p>{t('Saved document · a new print job will be created.')}</p>
                 </div>
               ) : (
                 <div
@@ -277,11 +281,11 @@ export function PrintDialog({
                   }}
                 >
                   {file ? <FileText size={32} /> : <UploadCloud size={34} />}
-                  <h3>{file ? file.name : 'Choose a file to print'}</h3>
+                  <h3>{file ? file.name : t('Choose a file to print')}</h3>
                   <p>
                     {file
-                      ? `${file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / 1024 / 1024).toFixed(2)} MB`} · ${previewing ? 'preparing preview' : preview ? 'ready to print' : 'preview unavailable'}`
-                      : 'Drop a file here or select one from your device.'}
+                      ? `${formatBytes(file.size)} · ${previewing ? t('preparing preview') : preview ? t('ready to print') : t('preview unavailable')}`
+                      : t('Drop a file here or select one from your device.')}
                   </p>
                   <button
                     type="button"
@@ -289,12 +293,12 @@ export function PrintDialog({
                     disabled={busy}
                     onClick={() => input.current?.click()}
                   >
-                    {file ? 'Choose another file' : 'Choose file'}
+                    {file ? t('Choose another file') : t('Choose file')}
                   </button>
                   <input
                     ref={input}
                     type="file"
-                    aria-label="Select document"
+                    aria-label={t('Select document')}
                     accept="application/pdf,image/png,image/jpeg"
                     className={s.srOnly}
                     onChange={(e) => choose(e.target.files?.[0])}
@@ -302,7 +306,7 @@ export function PrintDialog({
                 </div>
               )}
               <label>
-                Printer
+                {t('Printer')}
                 <select
                   value={deviceId}
                   onChange={(e) => setDeviceId(e.target.value)}
@@ -310,7 +314,7 @@ export function PrintDialog({
                   disabled={busy}
                 >
                   <option value="" disabled>
-                    Select printer
+                    {t('Select printer')}
                   </option>
                   {printers.map((d) => (
                     <option value={d.id} key={d.id}>
@@ -323,7 +327,7 @@ export function PrintDialog({
                 <div className={s.pageSelection}>
                   <div className={s.formGrid}>
                     <label>
-                      Pages
+                      {t('Pages')}
                       <select
                         value={options.pageRanges === undefined ? 'all' : 'custom'}
                         disabled={busy}
@@ -334,12 +338,12 @@ export function PrintDialog({
                           })
                         }
                       >
-                        <option value="all">All pages</option>
-                        <option value="custom">Custom range</option>
+                        <option value="all">{t('All pages')}</option>
+                        <option value="custom">{t('Custom range')}</option>
                       </select>
                     </label>
                     <label>
-                      Page filter
+                      {t('Page filter')}
                       <select
                         value={options.pageParity ?? 'all'}
                         disabled={busy}
@@ -350,15 +354,15 @@ export function PrintDialog({
                           })
                         }
                       >
-                        <option value="all">All pages</option>
-                        <option value="odd">Odd pages</option>
-                        <option value="even">Even pages</option>
+                        <option value="all">{t('All pages')}</option>
+                        <option value="odd">{t('Odd pages')}</option>
+                        <option value="even">{t('Even pages')}</option>
                       </select>
                     </label>
                   </div>
                   {options.pageRanges !== undefined && (
                     <label>
-                      Page range
+                      {t('Page range')}
                       <input
                         value={options.pageRanges}
                         placeholder="1-3, 7"
@@ -371,27 +375,34 @@ export function PrintDialog({
                     </label>
                   )}
                   <p id="print-page-help" className={s.previewHint}>
-                    Ranges use original page numbers. The filter applies within the range.
-                    Duplicates print once, in document order.
+                    {t(
+                      'Ranges use original page numbers. The filter applies within the range. Duplicates print once, in document order.',
+                    )}
                   </p>
                   {selectionError && (
                     <p id="print-page-error" role="alert" className={s.error}>
-                      {selectionError}
+                      {t(selectionError)}
                     </p>
                   )}
                   {!!selectedPages.length && (
                     <p role="status" className={s.pageSelectionSummary}>
-                      {selectedPages.length} of {pageCount} pages per copy · Pages{' '}
-                      {formatPrintPages(selectedPages)}
-                      {' · '}
-                      {options.copies} {options.copies === 1 ? 'copy' : 'copies'}
+                      {plural(
+                        '{selected} of {count} page per copy · Pages {range} · {copies}',
+                        '{selected} of {count} pages per copy · Pages {range} · {copies}',
+                        pageCount ?? 0,
+                        {
+                          selected: selectedPages.length,
+                          range: formatPrintPages(selectedPages),
+                          copies: plural('{count} copy', '{count} copies', options.copies),
+                        },
+                      )}
                     </p>
                   )}
                   {options.sides !== 'one-sided' && (
                     <p className={s.previewHint}>
-                      Duplex pairs consecutive selected pages on the front and back of each sheet.
-                      Skipped pages leave no gaps; an unpaired final page has a blank back. Odd/even
-                      filtering does not perform manual duplex printing.
+                      {t(
+                        'Duplex pairs consecutive selected pages on the front and back of each sheet. Skipped pages leave no gaps; an unpaired final page has a blank back. Odd/even filtering does not perform manual duplex printing.',
+                      )}
                     </p>
                   )}
                 </div>
@@ -403,7 +414,9 @@ export function PrintDialog({
                     label: colorLabels[mode],
                   }))}
                   emptyLabel={
-                    supportedColorModes ? 'No supported color modes' : 'Color modes unavailable'
+                    supportedColorModes
+                      ? t('No supported color modes')
+                      : t('Color modes unavailable')
                   }
                   value={options.color}
                   disabled={busy || !supportedColorModes?.length}
@@ -412,7 +425,7 @@ export function PrintDialog({
                   }
                 />
                 <label>
-                  Sides
+                  {t('Sides')}
                   <select
                     value={validSides ? options.sides : ''}
                     disabled={busy || !supportedSides?.length}
@@ -422,18 +435,18 @@ export function PrintDialog({
                   >
                     {!supportedSides?.length && (
                       <option value="">
-                        {supportedSides ? 'No supported sides' : 'Sides unavailable'}
+                        {supportedSides ? t('No supported sides') : t('Sides unavailable')}
                       </option>
                     )}
                     {supportedSides?.map((side) => (
                       <option value={side} key={side}>
-                        {sidesLabels[side]}
+                        {t(sidesLabels[side])}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Paper size
+                  {t('Paper size')}
                   <select
                     value={options.media}
                     disabled={busy}
@@ -443,13 +456,13 @@ export function PrintDialog({
                   >
                     {(device?.capabilities?.media ?? []).map((m) => (
                       <option key={m} value={m}>
-                        {mediaLabels[m]}
+                        {t(mediaLabels[m])}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  Copies
+                  {t('Copies')}
                   <input
                     type="number"
                     min={1}
@@ -462,45 +475,51 @@ export function PrintDialog({
                 </label>
               </div>
               {!printers.length && (
-                <p className={s.error}>Add a printer on the Devices page first.</p>
+                <p className={s.error}>{t('Add a printer on the Devices page first.')}</p>
               )}
               {!!printers.length && !!deviceId && !device && (
                 <p className={s.error}>
-                  This printer is no longer available. Select another printer.
+                  {t('This printer is no longer available. Select another printer.')}
                 </p>
               )}
               {device?.status === 'offline' && (
                 <p className={s.error}>
-                  This printer is offline. Check its connection or select another printer.
+                  {t('This printer is offline. Check its connection or select another printer.')}
                 </p>
               )}
               {device && !device.capabilities && (
-                <p className={s.error}>Print options are unavailable. Check the CUPS connection.</p>
+                <p className={s.error}>
+                  {t('Print options are unavailable. Check the CUPS connection.')}
+                </p>
               )}
               {device?.capabilities && !supportedColorModes && (
                 <p className={s.error}>
-                  Print color modes are unavailable. Check the CUPS connection.
+                  {t('Print color modes are unavailable. Check the CUPS connection.')}
                 </p>
               )}
               {supportedColorModes?.length === 0 && (
-                <p className={s.error}>This printer reports no supported print color modes.</p>
+                <p className={s.error}>
+                  {t('This printer reports no supported print color modes.')}
+                </p>
               )}
               {device?.capabilities && !supportedSides && (
-                <p className={s.error}>Print sides are unavailable. Check the CUPS connection.</p>
+                <p className={s.error}>
+                  {t('Print sides are unavailable. Check the CUPS connection.')}
+                </p>
               )}
               {supportedSides?.length === 0 && (
-                <p className={s.error}>This printer reports no supported print sides.</p>
+                <p className={s.error}>{t('This printer reports no supported print sides.')}</p>
               )}
             </div>
           </div>
           {error && (
             <p role="alert" className={s.error}>
-              {error}
+              {t(error)}
             </p>
           )}
           <div className={s.modalActions}>
             <button type="button" className={s.secondary} disabled={busy} onClick={close}>
-              Cancel
+              {t('Cancel')}
             </button>
             <button
               className={s.primary}
@@ -518,7 +537,7 @@ export function PrintDialog({
               }
             >
               {busy ? <Spinner /> : <Printer size={17} />}{' '}
-              {busy ? 'Submitting…' : demo ? 'Start demo print' : 'Print now'}
+              {busy ? t('Submitting…') : demo ? t('Start demo print') : t('Print now')}
             </button>
           </div>
         </form>

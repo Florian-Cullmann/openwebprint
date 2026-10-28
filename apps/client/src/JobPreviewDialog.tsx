@@ -1,3 +1,4 @@
+import { t, displayJobTitle } from './i18n';
 import { useEffect, useState } from 'react';
 import { Download, Printer } from 'lucide-react';
 import type { Job } from '@openwebprint/shared';
@@ -28,7 +29,7 @@ export function JobPreviewDialog({
     return () => controller.abort();
   }, [job.id, job.hasFile]);
   return (
-    <Modal title="Document preview" subtitle={job.title} close={close} wide>
+    <Modal title={t('Document preview')} subtitle={displayJobTitle(job)} close={close} wide>
       <div className={s.modalBody}>
         <div className={s.previewJobDetails}>
           <JobBadge status={job.status} />
@@ -37,12 +38,13 @@ export function JobPreviewDialog({
         <DocumentExpiry job={job} />
         {!job.hasFile ? (
           <p>
-            Preview unavailable. The file has expired, was deleted, or belongs to an older print
-            job.
+            {t(
+              'Preview unavailable. The file has expired, was deleted, or belongs to an older print job.',
+            )}
           </p>
         ) : error ? (
           <p role="alert" className={s.error}>
-            {error}
+            {t(error)}
           </p>
         ) : data ? (
           <DocumentPreview
@@ -57,10 +59,12 @@ export function JobPreviewDialog({
         {job.hasFile && !error && (
           <div className={s.modalActions}>
             <button className={s.primary} disabled={!data} onClick={() => print(job)}>
-              <Printer size={16} /> Print
+              <Printer size={16} />
+              {t('Print')}
             </button>
             <a className={s.secondary} href={`/api/jobs/${job.id}/pdf`} download>
-              <Download size={16} /> Download PDF
+              <Download size={16} />
+              {t('Download PDF')}
             </a>
           </div>
         )}

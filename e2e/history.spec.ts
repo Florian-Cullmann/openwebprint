@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { expect } from '@playwright/test';
 import { isolatedTest } from './isolated-server';
 import AxeBuilder from '@axe-core/playwright';
@@ -176,10 +177,15 @@ test('navigate beyond 200 jobs and open/download older scans (synthetic archive,
   await expect(scans.getByRole('button', { name: 'Next', exact: true })).toBeDisabled();
   // Simulate a temporary proxy failure only for page requests, then exercise Retry.
   await page.route('**/api/jobs?**', (route) =>
-    route.fulfill({ status: 503, json: { error: 'History temporarily unavailable.' } }),
+    route.fulfill({
+      status: 503,
+      json: publicErrorBody('The operation failed. Check the server logs.'),
+    }),
   );
   await scans.getByRole('button', { name: 'Previous', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('History temporarily unavailable.');
+  await expect(page.getByRole('alert')).toContainText(
+    'The operation failed. Check the server logs.',
+  );
   await page.unroute('**/api/jobs?**');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(scans.getByRole('status')).toHaveText('31–60 of 61 scans Page 2 of 3');
@@ -215,7 +221,7 @@ test('search scan titles live across pages, clear with the keyboard, and recover
   await expect(summary).toHaveText('61–61 of 61 scans Page 3 of 3');
   // This title is absent from the loaded page; search must find it server-side.
   await search.pressSequentially('Archive scan 300');
-  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(summary).toHaveText('1–1 of 1 scan Page 1 of 1');
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page.getByRole('heading', { name: 'Archive scan 300', exact: true })).toBeVisible();
   const download = page.waitForEvent('download');
@@ -239,7 +245,7 @@ test('search scan titles live across pages, clear with the keyboard, and recover
 
   // Both layouts use the same search and preserve the matching result.
   await page.getByRole('button', { name: 'List view', exact: true }).click();
-  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(summary).toHaveText('1–1 of 1 scan Page 1 of 1');
   await expect(page.getByRole('table').locator('tbody').getByRole('row')).toHaveCount(1);
   await search.fill('scan 2');
   await expect(summary).toHaveText('1–30 of 59 scans Page 1 of 2');
@@ -267,12 +273,13 @@ test('search scan titles live across pages, clear with the keyboard, and recover
     route.fulfill({ status: 503, json: { error: 'Search temporarily unavailable.' } }),
   );
   await search.fill('expired');
-  await expect(page.getByRole('alert')).toContainText('Search temporarily unavailable.');
+  // Legacy responses without public codes use the safe HTTP fallback.
+  await expect(page.getByRole('alert')).toContainText('The request failed (HTTP 503).');
   await expect(page.getByRole('table')).toHaveCount(0);
   await page.unroute('**/api/jobs?**');
   await page.getByRole('button', { name: 'Retry', exact: true }).click();
   await expect(search).toHaveValue('expired');
-  await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+  await expect(summary).toHaveText('1–1 of 1 scan Page 1 of 1');
   await expect(page.getByRole('table')).toContainText('Expired archive scan');
   await search.fill('');
   await expect(summary).toHaveText('1–30 of 61 scans Page 1 of 3');
@@ -328,7 +335,7 @@ test('ignores late search responses during debounce and after a newer result (co
       await started;
       await expect(page.getByRole('status').filter({ hasText: 'Searching scans…' })).toBeVisible();
       await search.fill('scan 300');
-      if (!duringDebounce) await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+      if (!duringDebounce) await expect(summary).toHaveText('1–1 of 1 scan Page 1 of 1');
       const late = page.waitForResponse(
         (response) => new URL(response.url()).searchParams.get('search') === 'scan 250',
       );
@@ -348,7 +355,7 @@ test('ignores late search responses during debounce and after a newer result (co
         await expect(page.getByRole('article')).toHaveCount(0);
       }
       releaseLatest();
-      await expect(summary).toHaveText('1–1 of 1 scans Page 1 of 1');
+      await expect(summary).toHaveText('1–1 of 1 scan Page 1 of 1');
       await expect(
         page.getByRole('heading', { name: 'Archive scan 300', exact: true }),
       ).toBeVisible();

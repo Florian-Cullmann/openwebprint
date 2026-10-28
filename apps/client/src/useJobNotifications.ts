@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import type { Job } from '@openwebprint/shared';
 import { api, ApiError } from './api';
@@ -126,7 +127,7 @@ export function useJobNotifications(scope: string | undefined, open: (id: string
               if (!enabled || availability() !== 'granted') return;
               try {
                 const notification = new Notification('openwebprint', {
-                  body: text,
+                  body: t(text),
                   tag: `owp-job-${job.id}`,
                 });
                 state.current.notifications.set(job.id, notification);

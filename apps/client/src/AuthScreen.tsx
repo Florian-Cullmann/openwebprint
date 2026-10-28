@@ -1,3 +1,5 @@
+import { LanguagePicker } from './LanguagePicker';
+import { t } from './i18n';
 import { useState, type FormEvent } from 'react';
 import { LockKeyhole } from 'lucide-react';
 import { post } from './api';
@@ -24,28 +26,30 @@ export function AuthScreen({ done, demo }: { done: () => Promise<void>; demo: bo
   return (
     <main className={s.authPage}>
       <div className={s.authCard}>
+        <LanguagePicker />
         <div className={s.brand}>
           <Brand />
         </div>
-        {demo && <span className={s.modeLabel}>Demo mode · simulated devices</span>}
-        <h1>Sign in</h1>
-        <p>Sign in to use your printers and scanners.</p>
+        {demo && <span className={s.modeLabel}>{t('Demo mode · simulated devices')}</span>}
+        <h1>{t('Sign in')}</h1>
+        <p>{t('Sign in to use your printers and scanners.')}</p>
         <form onSubmit={submit} className={s.form}>
           <label>
-            Username
+            {t('Username')}
             <input name="username" autoComplete="username" required maxLength={80} />
           </label>
           <label>
-            Password
+            {t('Password')}
             <input name="password" type="password" autoComplete="current-password" required />
           </label>
           {error && (
             <p className={s.error} role="alert">
-              {error}
+              {t(error)}
             </p>
           )}
           <button className={s.primary} disabled={busy}>
-            {busy ? <Spinner /> : <LockKeyhole size={17} />} Sign in
+            {busy ? <Spinner /> : <LockKeyhole size={17} />}
+            {t('Sign in')}
           </button>
         </form>
       </div>
