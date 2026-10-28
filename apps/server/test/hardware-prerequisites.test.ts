@@ -19,7 +19,7 @@ const report: HardwareReport = {
   note: 'Software checks only.',
 };
 it('protects read-only hardware checks with normal authentication and origin rules (stubbed OS checks)', async () => {
-  instance = await fixture();
+  instance = await fixture({ mode: 'hardware' });
   const { app, headers } = instance;
   check.mockResolvedValue(report);
   expect(
@@ -46,7 +46,7 @@ it('protects read-only hardware checks with normal authentication and origin rul
   ).toEqual(report);
 });
 it('coalesces concurrent checks, retries after completion, and keeps checks out of snapshots (stubbed OS checks)', async () => {
-  instance = await fixture({ users: false });
+  instance = await fixture({ mode: 'hardware', users: false });
   const { app, headers } = instance;
   let finish!: (value: HardwareReport) => void;
   check.mockImplementationOnce(
@@ -67,5 +67,31 @@ it('coalesces concurrent checks, retries after completion, and keeps checks out 
   expect(await second).toEqual(report);
   check.mockResolvedValue({ ...report, ready: true, checks: [] });
   expect((await app.inject(request)).json().ready).toBe(true);
+  expect(check).toHaveBeenCalledTimes(2);
+});
+it('keeps demo mode and public application liveness independent of hardware checks', async () => {
+  instance = await fixture({ users: false });
+  const { app, headers } = instance;
+  const response = await app.inject({
+    method: 'POST',
+    url: '/api/hardware/prerequisites',
+    headers,
+  });
+  expect(response.statusCode).toBe(409);
+  expect(response.json().error).toContain('disabled in demo mode');
+  expect((await app.inject('/api/health')).json()).toEqual({ ok: true });
+  expect(check).not.toHaveBeenCalled();
+});
+it('allows retry after a failed check without returning its raw error (stubbed OS checks)', async () => {
+  instance = await fixture({ mode: 'hardware', users: false });
+  const { app, headers } = instance;
+  check.mockRejectedValueOnce(new Error('private-device credentials stderr'));
+  const request = { method: 'POST' as const, url: '/api/hardware/prerequisites', headers };
+  const response = await app.inject(request);
+  expect(response.statusCode).toBe(500);
+  expect(response.body).not.toMatch(/private-device|credentials|stderr/);
+  expect((await app.inject('/api/health')).json()).toEqual({ ok: true });
+  check.mockResolvedValue(report);
+  expect((await app.inject(request)).json()).toEqual(report);
   expect(check).toHaveBeenCalledTimes(2);
 });

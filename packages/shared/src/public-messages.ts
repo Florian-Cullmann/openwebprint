@@ -158,6 +158,8 @@ export const publicMessages = {
   scan_export_read_failed: 'A selected PDF could not be read. Refresh the selection and try again.',
   scan_export_pdf_missing:
     'A selected PDF is missing or unreadable. Refresh the selection and select the available scans again.',
+  hardware_diagnostics_disabled_in_demo_mode:
+    'Hardware diagnostics are disabled in demo mode. Start hardware setup first.',
   operation_failed: 'The operation failed. Check the server logs.',
   invalid_input: 'Please check your input.',
   upload_too_large: 'File too large. Maximum size: 25 MB.',

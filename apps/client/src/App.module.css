@@ -1976,6 +1976,17 @@
   overflow-wrap: anywhere;
   font-size: 0.85rem;
 }
+.diagnosticChecks {
+  padding-left: 22px;
+}
+.diagnosticChecks li + li {
+  margin-top: 10px;
+}
+.diagnosticChecks p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
 
 .languagePicker {
   width: auto;

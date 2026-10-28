@@ -1,23 +1,16 @@
 import { LanguagePicker } from './LanguagePicker';
-import { t, formatDateTime, hardwareText, serverMessage } from './i18n';
+import { t, serverMessage } from './i18n';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Check, FolderOpen, Plus, Printer, Radar, ScanLine } from 'lucide-react';
-import type {
-  DeviceInput,
-  DiscoveryResult,
-  OnboardingState,
-  HardwareReport,
-} from '@openwebprint/shared';
+import type { DeviceInput, DiscoveryResult, OnboardingState } from '@openwebprint/shared';
 import { api, post } from './api';
 import { DeviceDialog } from './DeviceDialog';
 import { Brand } from './Brand';
+import { HardwareDiagnostics } from './HardwareDiagnostics';
 import { Spinner } from './ui';
 import s from './App.module.css';
 export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
   const [state, setState] = useState<OnboardingState>();
-  const [hardware, setHardware] = useState<HardwareReport>();
-  const [checking, setChecking] = useState(false);
-  const [hardwareError, setHardwareError] = useState('');
   const [discovery, setDiscovery] = useState<DiscoveryResult>();
   const [selected, setSelected] = useState<string[]>([]);
   const [searching, setSearching] = useState(false);
@@ -41,21 +34,6 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
       alive.current = false;
     };
   }, [load]);
-  const prerequisites = useCallback(async () => {
-    setChecking(true);
-    setHardwareError('');
-    try {
-      const result = await post<HardwareReport>('/hardware/prerequisites');
-      if (alive.current) setHardware(result);
-    } catch (e) {
-      if (alive.current) setHardwareError((e as Error).message);
-    } finally {
-      if (alive.current) setChecking(false);
-    }
-  }, []);
-  useEffect(() => {
-    if (state?.phase === 'devices') void prerequisites();
-  }, [state?.phase, prerequisites]);
   const discover = useCallback(async () => {
     setSearching(true);
     setError('');
@@ -216,83 +194,7 @@ export function SetupScreen({ changed }: { changed: () => Promise<void> }) {
             </p>
             {state.phase === 'devices' ? (
               <>
-                <section
-                  className={s.setupPrerequisites}
-                  aria-label={t('Printing and scanning prerequisites')}
-                  aria-busy={checking}
-                >
-                  <h2>{t('Printing and scanning prerequisites')}</h2>
-                  <p role="status">
-                    {checking
-                      ? t('Checking software and service access…')
-                      : hardware
-                        ? hardware.ready
-                          ? t('Software checks passed')
-                          : t('Hardware setup needs attention')
-                        : t('Software access has not been checked.')}
-                  </p>
-                  {hardware && (
-                    <>
-                      <ul>
-                        {hardware.checks.map((check) => (
-                          <li key={check.id}>
-                            <strong>{hardwareText(check.label)}:</strong>{' '}
-                            {
-                              {
-                                ok: t('Available'),
-                                empty: t('Search succeeded; no devices found'),
-                                missing: t('Software missing'),
-                                unavailable: t('Service or backend unavailable'),
-                                permission: t('Permission denied'),
-                                timeout: t('Check timed out'),
-                              }[check.state]
-                            }
-                          </li>
-                        ))}
-                      </ul>
-                      <p>{hardwareText(hardware.guidance)}</p>
-                      {hardware.setupCommand ? (
-                        <>
-                          <p>
-                            {t(
-                              'To install missing packages or start services, run the integrated setup in Terminal on this computer. It shows each OS change and asks for your consent. Then check again here.',
-                            )}
-                          </p>
-                          <pre className={s.setupCommand}>
-                            <code>{hardware.setupCommand}</code>
-                          </pre>
-                        </>
-                      ) : (
-                        <p>
-                          {hardware.method === 'container'
-                            ? t(
-                                'Update the container hardware stack on its host, then check again.',
-                              )
-                            : t(
-                                'For source installations, use the hardware prerequisites in the project installation guide or switch to the official installer for guided dependency setup.',
-                              )}
-                        </p>
-                      )}
-                      <p className={s.small}>{hardwareText(hardware.note)}</p>
-                      <p className={s.small}>
-                        {t('Checked: {value1}', { value1: formatDateTime(hardware.checkedAt) })}
-                      </p>
-                    </>
-                  )}
-                  {hardwareError && (
-                    <p role="alert" className={s.error}>
-                      {t(hardwareError)}
-                    </p>
-                  )}
-                  <button
-                    className={s.secondary}
-                    disabled={checking}
-                    onClick={() => void prerequisites()}
-                  >
-                    {checking ? <Spinner /> : <Check size={16} />}
-                    {t('Check prerequisites again')}
-                  </button>
-                </section>
+                <HardwareDiagnostics mode="hardware" />
                 <div className={s.setupSearch}>
                   <p>
                     {searching ? (

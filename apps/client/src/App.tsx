@@ -32,6 +32,7 @@ import type { Device, Job, JobFilter, SessionInfo, Snapshot } from '@openwebprin
 import { Link, NavLink, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Brand } from './Brand';
 import { SetupScreen } from './SetupScreen';
+import { HardwareDiagnostics } from './HardwareDiagnostics';
 import { StorageSettings } from './StorageSettings';
 import { RetentionSettings } from './RetentionSettings';
 import { JobPreviewDialog } from './JobPreviewDialog';
@@ -858,6 +859,7 @@ export function App() {
                   )}
                   {settingsCategory === 'hardware' && (
                     <>
+                      <HardwareDiagnostics mode={session.mode} />
                       <SettingsCard icon={<Printer size={20} />} title={t('Printers and scanners')}>
                         <p>
                           {t(

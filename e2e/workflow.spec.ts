@@ -340,7 +340,11 @@ test('open access → routes → print → scans → users → login → setting
       await button.evaluate((element) => {
         const thumb = element.getBoundingClientRect();
         const img = element.querySelector('img')!.getBoundingClientRect();
-        const body = element.nextElementSibling!.getBoundingClientRect();
+        // ZIP selection wraps the thumbnail; find the body through its document heading.
+        const body = element
+          .closest('article')!
+          .querySelector('h3')!
+          .parentElement!.getBoundingClientRect();
         return (
           img.top >= thumb.top &&
           img.bottom <= thumb.bottom &&
