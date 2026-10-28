@@ -1887,27 +1887,72 @@
 .historyToolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px 16px;
-  margin-bottom: 20px;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.historyLeadingControls {
+  min-width: 0;
 }
 .historySearchControls {
-  display: flex;
-  flex: 1 1 260px;
-  align-items: center;
-  gap: 8px;
+  flex: 1 1 200px;
   min-width: 0;
-  max-width: 550px;
   margin-right: auto;
 }
 .historySearchControls .search {
-  flex: 1;
-  min-width: 0;
-  max-width: none;
+  max-width: 340px;
 }
-.historySearchControls button {
+.historySearchControls input {
+  padding-right: 36px;
+}
+.historySearchControls input::-webkit-search-cancel-button {
+  display: none;
+}
+.historyClearSearch {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+}
+.historyClearSearch:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.historyClearSearch svg {
+  position: static;
+}
+.scanViewToggle {
+  width: auto;
   flex-shrink: 0;
+}
+.scanViewToggle button {
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+}
+@media (max-width: 760px) {
+  .historySearchControls,
+  .historyLeadingControls {
+    flex-basis: 100%;
+  }
+  .historySearchControls .search {
+    max-width: none;
+  }
+  .historyLeadingControls .tabs {
+    display: flex;
+  }
+  .historyLeadingControls .tabs button {
+    flex: 1;
+  }
+  .scanViewToggle {
+    margin-left: auto;
+  }
 }
 .pagination {
   display: flex;
@@ -2020,19 +2065,16 @@
 }
 
 .historyFilters {
-  margin-bottom: 20px;
-}
-.historyFilters summary {
-  cursor: pointer;
-  color: var(--muted);
-  font-size: 13px;
-  padding: 4px 0;
+  padding: 12px;
+  margin-bottom: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
 }
 .historyFilterFields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
-  gap: 12px;
-  margin: 12px 0;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 10px;
 }
 .historyFilterFields label,
 .scanTitle label {
@@ -2044,6 +2086,22 @@
 .historyFilterFields select {
   min-width: 0;
   width: 100%;
+}
+.historyFilterFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.historyFilterFooter p {
+  margin: 0;
+}
+.historyFilterFooter button {
+  min-height: 32px;
+  padding: 6px 10px;
+  font-size: 12px;
 }
 .scanTitle {
   min-width: 0;

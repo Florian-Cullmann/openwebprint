@@ -8,7 +8,7 @@ import {
   type JobFilter,
   type JobPage,
 } from '@openwebprint/shared';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
 import { api } from './api';
 import { Spinner, jobLabels } from './ui';
 import s from './App.module.css';
@@ -17,12 +17,14 @@ export function JobHistory({
   kind,
   filter = 'all',
   revision,
+  leadingControls,
   viewControls,
   children,
 }: {
   kind?: Job['kind'];
   filter?: JobFilter;
   revision: number;
+  leadingControls?: ReactNode;
   viewControls?: ReactNode;
   children: (jobs: Job[]) => ReactNode;
 }) {
@@ -146,6 +148,7 @@ export function JobHistory({
   return (
     <>
       <div className={s.historyToolbar}>
+        {leadingControls && <div className={s.historyLeadingControls}>{leadingControls}</div>}
         <label className={s.srOnly} htmlFor={`${controlsId}-search`}>
           {kind === 'scan' ? t('Search scans') : t('Search jobs')}
         </label>
@@ -165,28 +168,34 @@ export function JobHistory({
                 if (value.trim() !== queryText) move([undefined]);
               }}
             />
+            {search && (
+              <button
+                className={s.historyClearSearch}
+                aria-label={t('Clear search')}
+                title={t('Clear search')}
+                onClick={() => {
+                  setSearch('');
+                  if (queryText) move([undefined]);
+                  searchInput.current?.focus();
+                }}
+              >
+                <X size={16} aria-hidden="true" />
+              </button>
+            )}
           </div>
-          {search && (
-            <button
-              className={s.secondary}
-              onClick={() => {
-                setSearch('');
-                if (queryText) move([undefined]);
-                searchInput.current?.focus();
-              }}
-            >
-              {t('Clear search')}
-            </button>
-          )}
         </div>
+        <button
+          className={s.secondary}
+          aria-expanded={filtersOpen}
+          aria-controls={`${controlsId}-filters`}
+          onClick={() => setFiltersOpen((open) => !open)}
+        >
+          <SlidersHorizontal size={16} aria-hidden="true" />
+          {filtered ? t('Filter history (active)') : t('Filter history')}
+        </button>
         {viewControls}
       </div>
-      <details
-        className={s.historyFilters}
-        open={filtersOpen}
-        onToggle={(event) => setFiltersOpen(event.currentTarget.open)}
-      >
-        <summary>{filtered ? t('Filter history (active)') : t('Filter history')}</summary>
+      <div id={`${controlsId}-filters`} className={s.historyFilters} hidden={!filtersOpen}>
         <div className={s.historyFilterFields}>
           <label>
             {t('Device')}
@@ -257,21 +266,23 @@ export function JobHistory({
             />
           </label>
         </div>
-        <p className={s.small}>{t('Dates include the whole day in your browser’s time zone.')}</p>
-        {filtered && (
-          <button
-            className={s.secondary}
-            onClick={() => {
-              setDeviceId('');
-              setStatus('');
-              setFromDate('');
-              setToDate('');
-              move([undefined]);
-            }}
-          >
-            {t('Clear filters')}
-          </button>
-        )}
+        <div className={s.historyFilterFooter}>
+          <p className={s.small}>{t('Dates include the whole day in your browser’s time zone.')}</p>
+          {filtered && (
+            <button
+              className={s.secondary}
+              onClick={() => {
+                setDeviceId('');
+                setStatus('');
+                setFromDate('');
+                setToDate('');
+                move([undefined]);
+              }}
+            >
+              {t('Clear filters')}
+            </button>
+          )}
+        </div>
         {deviceError && (
           <p role="alert" className={s.error}>
             {t(deviceError)}{' '}
@@ -280,7 +291,7 @@ export function JobHistory({
             </button>
           </p>
         )}
-      </details>
+      </div>
       {invalidDates && (
         <p role="alert" className={s.error}>
           {t('Choose an end date on or after the start date.')}

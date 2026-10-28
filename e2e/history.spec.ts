@@ -439,6 +439,42 @@ test('combine history filters, rename a retained scan, and keep the title after 
       () => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1,
     ),
   ).toBe(true);
+  // Collapsing the controls keeps the complete filter selection and matching results.
+  const filterToggle = page.getByRole('button', { name: 'Filter history (active)', exact: true });
+  await expect(filterToggle).toHaveAttribute('aria-expanded', 'true');
+  await filterToggle.focus();
+  await page.keyboard.press('Enter');
+  await expect(filterToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Created from', { exact: true })).toBeHidden();
+  await expect(pagination.getByRole('status')).toHaveText('1–1 of 1 scan Page 1 of 1');
+  await page.screenshot({
+    path: `test-results/${info.project.name}-history-compact.png`,
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Change color scheme', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const compactAccessibility = await new AxeBuilder({ page }).analyze();
+  expect(
+    compactAccessibility.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? '')),
+  ).toEqual([]);
+  await page.screenshot({
+    path: `test-results/${info.project.name}-history-compact-dark.png`,
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Change color scheme', exact: true }).click();
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
+  await expect(search).toBeFocused();
+  await expect(pagination.getByRole('status')).toHaveText(/^1–\d+ of \d+ scans? Page 1 of \d+$/);
+  await expect(filterToggle).toHaveAttribute('aria-expanded', 'false');
+  await search.fill('übersicht');
+  await expect(pagination.getByRole('status')).toHaveText('1–1 of 1 scan Page 1 of 1');
+  await filterToggle.press('Space');
+  await expect(page.getByRole('combobox', { name: 'Device', exact: true })).toHaveValue(id(999));
+  await expect(page.getByRole('combobox', { name: 'Status', exact: true })).toHaveValue(
+    'completed',
+  );
+  await expect(page.getByLabel('Created from', { exact: true })).toHaveValue(day);
+  await expect(page.getByLabel('Created through', { exact: true })).toHaveValue(day);
   await page.getByLabel('Created from', { exact: true }).fill('2099-01-01');
   await expect(page.getByRole('alert')).toHaveText(
     'Choose an end date on or after the start date.',
@@ -458,6 +494,10 @@ test('combine history filters, rename a retained scan, and keep the title after 
   await expect(
     page.getByRole('navigation', { name: 'Job history pages' }).getByRole('status'),
   ).toHaveText('1–1 of 1 job Page 1 of 1');
+  await page.screenshot({
+    path: `test-results/${info.project.name}-jobs-compact.png`,
+    fullPage: true,
+  });
 });
 
 test.describe('calendar date boundaries', () => {

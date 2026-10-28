@@ -50,9 +50,11 @@ Files expire under the [instance retention policy](self-hosting.md#storage-backu
 
 Open a saved scan preview and choose **Rename scan** to enter a title of 1–120 characters. Titles are trimmed; empty titles and control characters are rejected. **Save title** changes the metadata only: page edits, PDF contents, document identity and the original expiry date stay the same. Titles remain searchable after a reload. If someone else changes a title first, reopen the preview before renaming again. Wait for active scan/edit operations to finish before renaming.
 
-Both **Scans** and **Jobs** support live title search. Expand **Filter history** to combine a device, an individual status and a creation-date range. Device choices include devices referenced by older jobs, even after removal from setup. Dates include the entire selected day in your browser's time zone; the end date is inclusive. Search and filters cover the complete history, with pagination and totals limited to matching records. Changing a criterion returns to the first page; clearing the search keeps the other filters, and **Clear filters** keeps the search. Switching job tabs resets the search and filters and applies that tab's status group.
+Both **Scans** and **Jobs** support live title search in a compact toolbar. Use the × in the search field to clear it; the grid/list icons switch the scan view. Choose **Filter history** to combine a device, an individual status and a creation-date range. Collapse the filter panel to give documents more room; active filters remain applied and the toolbar indicates them. Device choices include devices referenced by older jobs, even after removal from setup. Dates include the entire selected day in your browser's time zone; the end date is inclusive. Search and filters cover the complete history, with pagination and totals limited to matching records. Changing a criterion returns to the first page; clearing the search keeps the other filters, and **Clear filters** keeps the search. Switching job tabs resets the search and filters and applies that tab's status group.
 
 Renaming or filtering never restores expired files or extends their retention. These controls use the existing shared-instance access rules; all authenticated users can rename scans.
+
+![Compact history toolbar with active filters collapsed](images/history-compact.png)
 
 ![Combined history search and filters with a synthetic document](images/history-filters.png)
 
