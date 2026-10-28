@@ -576,29 +576,31 @@ export function App() {
                             <div className={s.scanGrid}>
                               {scans.map((job) => (
                                 <article className={s.scanCard} key={job.id}>
-                                  <button
-                                    className={s.scanThumb}
-                                    disabled={
-                                      !job.hasFile &&
-                                      !job.recovery &&
-                                      !['queued', 'processing'].includes(job.status)
-                                    }
-                                    onClick={() => openScan(job.deviceId, job)}
-                                    aria-label={`Open scan preview: ${job.title}`}
-                                  >
-                                    {job.hasFile ? (
-                                      <img
-                                        src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
-                                        alt="Scanned page"
-                                        loading="lazy"
-                                        decoding="async"
-                                      />
-                                    ) : (
-                                      <ScanLine size={44} strokeWidth={1} />
-                                    )}
-                                  </button>
+                                  <div className={s.scanThumbWrap}>
+                                    <div className={s.scanSelection}>{selectScan(job)}</div>
+                                    <button
+                                      className={s.scanThumb}
+                                      disabled={
+                                        !job.hasFile &&
+                                        !job.recovery &&
+                                        !['queued', 'processing'].includes(job.status)
+                                      }
+                                      onClick={() => openScan(job.deviceId, job)}
+                                      aria-label={`Open scan preview: ${job.title}`}
+                                    >
+                                      {job.hasFile ? (
+                                        <img
+                                          src={`/api/jobs/${job.id}/preview?page=${encodeURIComponent(JSON.stringify(job.pages?.[0] ?? job.scanRevision ?? job.updatedAt))}`}
+                                          alt="Scanned page"
+                                          loading="lazy"
+                                          decoding="async"
+                                        />
+                                      ) : (
+                                        <ScanLine size={44} strokeWidth={1} />
+                                      )}
+                                    </button>
+                                  </div>
                                   <div className={s.scanCardBody}>
-                                    <div>{selectScan(job)}</div>
                                     <JobBadge status={job.status} />
                                     <h3>{job.title}</h3>
                                     <p>{job.deviceName}</p>
@@ -973,11 +975,11 @@ function JobList({
             <tr key={job.id}>
               <td>
                 <div className={s.documentCell}>
+                  {selection && selection(job)}
                   <span className={s.documentIcon}>
                     {job.kind === 'print' ? <FileText size={19} /> : <ScanLine size={19} />}
                   </span>
                   <div>
-                    {selection && <div>{selection(job)}</div>}
                     <button className={s.documentTitle} onClick={() => preview(job)}>
                       {job.title}
                     </button>

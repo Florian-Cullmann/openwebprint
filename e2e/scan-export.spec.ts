@@ -59,11 +59,28 @@ test('selects across history pages and layouts, downloads actual PDFs, and repor
   const selection = page.getByRole('region', { name: 'Export selected scans' });
   const count = selection.getByRole('status').first();
   const pages = page.getByRole('navigation', { name: 'Scan history pages' });
-  await expect(count).toHaveText('0 selected');
+  await expect(selection).toHaveCount(0);
+  await expect(page.getByText('Select PDF', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('checkbox')).toHaveCount(30);
+  await page.screenshot({ path: `test-results/${info.project.name}-84-scan-overview.png` });
+  await page.getByRole('button', { name: 'Change color scheme', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  const normal = await new AxeBuilder({ page }).analyze();
+  expect(normal.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual(
+    [],
+  );
+  await page.screenshot({ path: `test-results/${info.project.name}-84-scan-overview-dark.png` });
+  await page.getByRole('button', { name: 'Change color scheme', exact: true }).click();
   const first = page.getByRole('checkbox', { name: 'Select scan: Büro · 東京', exact: true });
   await first.focus();
   await page.keyboard.press('Space');
   await expect(first).toBeChecked();
+  await expect(count).toHaveText('1 selected');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.keyboard.press('Space');
+  await expect(selection).toHaveCount(0);
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Space');
   await expect(count).toHaveText('1 selected');
   await pages.getByRole('button', { name: 'Next', exact: true }).click();
   await expect(pages.getByRole('status')).toHaveText('31–35 of 35 scans Page 2 of 2');
@@ -113,7 +130,14 @@ test('selects across history pages and layouts, downloads actual PDFs, and repor
     .click();
   await expect(count).toHaveText('1 selected'); // Removal also works for an off-page scan.
   await selection.getByRole('button', { name: 'Clear selection', exact: true }).click();
-  await expect(count).toHaveText('0 selected');
+  await expect(selection).toHaveCount(0);
+  const visible = page.getByRole('checkbox', { name: 'Select scan: Büro · 東京', exact: true });
+  await expect(visible).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(count).toHaveText('1 selected');
+  await page.keyboard.press('Space');
+  await expect(selection).toHaveCount(0);
+  await expect(visible).toBeFocused();
 });
 
 test('cancels ZIP preparation, retains selection for retry and clears it when leaving Scans', async ({
@@ -151,7 +175,8 @@ test('cancels ZIP preparation, retains selection for retry and clears it when le
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: 'Scans', exact: true })
     .click();
+  await expect(page.getByRole('region', { name: 'Export selected scans' })).toHaveCount(0);
   await expect(
-    page.getByRole('region', { name: 'Export selected scans' }).getByRole('status').first(),
-  ).toHaveText('0 selected');
+    page.getByRole('checkbox', { name: 'Select scan: Büro · 東京', exact: true }),
+  ).not.toBeChecked();
 });

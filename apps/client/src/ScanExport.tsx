@@ -22,6 +22,7 @@ export function ScanExport({
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const controller = useRef<AbortController | undefined>(undefined);
+  const checkboxes = useRef(new Map<string, HTMLInputElement>());
   const downloadUrl = useRef<string | undefined>(undefined);
   const revokeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(
@@ -32,7 +33,16 @@ export function ScanExport({
     },
     [],
   );
+  function focusCheckbox(id?: string) {
+    const input = id ? checkboxes.current.get(id) : undefined;
+    const target =
+      input && !input.disabled
+        ? input
+        : [...checkboxes.current.values()].find((input) => !input.disabled);
+    target?.focus();
+  }
   function remove(id: string) {
+    if (selected.length === 1) focusCheckbox(id);
     setSelected((current) => current.filter((scan) => scan.id !== id));
     setError('');
     setMessage('');
@@ -47,6 +57,10 @@ export function ScanExport({
       <label className={styles.select}>
         <input
           type="checkbox"
+          ref={(input) => {
+            if (input) checkboxes.current.set(job.id, input);
+            else checkboxes.current.delete(job.id);
+          }}
           checked={checked}
           aria-label={`Select scan: ${job.title}`}
           disabled={
@@ -74,7 +88,6 @@ export function ScanExport({
             }
           }}
         />
-        <span>{checked ? 'Selected' : 'Select PDF'}</span>
       </label>
     );
   }
@@ -124,79 +137,83 @@ export function ScanExport({
   }
   return (
     <>
-      <section className={styles.export} aria-label="Export selected scans">
-        <div className={styles.actions}>
-          <p role="status">{selected.length} selected</p>
-          <button
-            className={s.primary}
-            disabled={!selected.length || busy}
-            onClick={() => void download()}
-          >
-            {busy ? <Spinner /> : <Archive size={16} />} {busy ? 'Preparing ZIP…' : 'Download ZIP'}
-          </button>
-          {busy ? (
-            <button className={s.secondary} onClick={() => controller.current?.abort()}>
-              Cancel export
-            </button>
-          ) : (
+      {selected.length > 0 && (
+        <section className={styles.export} aria-label="Export selected scans">
+          <div className={styles.actions}>
+            <p role="status">{selected.length} selected</p>
             <button
-              className={s.secondary}
-              disabled={!selected.length}
-              onClick={() => {
-                setSelected([]);
-                setError('');
-                setMessage('');
-              }}
+              className={s.primary}
+              disabled={!selected.length || busy}
+              onClick={() => void download()}
             >
-              Clear selection
+              {busy ? <Spinner /> : <Archive size={16} />}{' '}
+              {busy ? 'Preparing ZIP…' : 'Download ZIP'}
             </button>
+            {busy ? (
+              <button className={s.secondary} onClick={() => controller.current?.abort()}>
+                Cancel export
+              </button>
+            ) : (
+              <button
+                className={s.secondary}
+                disabled={!selected.length}
+                onClick={() => {
+                  focusCheckbox();
+                  setSelected([]);
+                  setError('');
+                  setMessage('');
+                }}
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
+          <p className={s.small}>
+            Select up to {MAX_SCAN_EXPORT_DOCUMENTS} saved PDFs, totaling at most{' '}
+            {MAX_SCAN_EXPORT_BYTES / (1024 * 1024)} MiB. Selection stays across pages and views
+            until you leave Scans. Only checked scans are included. Exports expire after two
+            minutes; use smaller batches on slow connections.
+          </p>
+          {selected.length > 0 && (
+            <details className={styles.selection}>
+              <summary>Review selected scans ({selected.length})</summary>
+              <ul>
+                {selected.map((scan) => (
+                  <li key={scan.id}>
+                    <span>
+                      {scan.title}
+                      <small>
+                        {new Date(scan.createdAt).toLocaleString()} · {scan.id.slice(-8)}
+                      </small>
+                    </span>
+                    <button
+                      className={s.iconButton}
+                      disabled={busy}
+                      aria-label={`Remove selection: ${scan.title}`}
+                      onClick={() => remove(scan.id)}
+                    >
+                      <X size={16} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
-        </div>
-        <p className={s.small}>
-          Select up to {MAX_SCAN_EXPORT_DOCUMENTS} saved PDFs, totaling at most{' '}
-          {MAX_SCAN_EXPORT_BYTES / (1024 * 1024)} MiB. Selection stays across pages and views until
-          you leave Scans. Only checked scans are included. Exports expire after two minutes; use
-          smaller batches on slow connections.
-        </p>
-        {selected.length > 0 && (
-          <details className={styles.selection}>
-            <summary>Review selected scans ({selected.length})</summary>
-            <ul>
-              {selected.map((scan) => (
-                <li key={scan.id}>
-                  <span>
-                    {scan.title}
-                    <small>
-                      {new Date(scan.createdAt).toLocaleString()} · {scan.id.slice(-8)}
-                    </small>
-                  </span>
-                  <button
-                    className={s.iconButton}
-                    disabled={busy}
-                    aria-label={`Remove selection: ${scan.title}`}
-                    onClick={() => remove(scan.id)}
-                  >
-                    <X size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </details>
-        )}
-        {busy && (
-          <p className={s.small}>Preparing the selected PDFs. You can cancel this export.</p>
-        )}
-        {error && (
-          <p role="alert" className={s.error}>
-            {error}
-          </p>
-        )}
-        {message && (
-          <p role="status" className={s.small}>
-            {message}
-          </p>
-        )}
-      </section>
+          {busy && (
+            <p className={s.small}>Preparing the selected PDFs. You can cancel this export.</p>
+          )}
+          {error && (
+            <p role="alert" className={s.error}>
+              {error}
+            </p>
+          )}
+          {message && (
+            <p role="status" className={s.small}>
+              {message}
+            </p>
+          )}
+        </section>
+      )}
       {children(select)}
     </>
   );
