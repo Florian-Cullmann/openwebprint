@@ -87,7 +87,7 @@ Inside this directory:
 - `logs/server.log`: server startup and request logs. Stop the app before rotating or deleting this log.
 - `openwebprint`: local management command.
 
-Files are created with private permissions. External scan folders selected in the browser are outside `data/` and need their own backup. The application deliberately remains on loopback; use the [self-hosting instructions](../README.md#self-hosting) for a separately managed LAN/HTTPS deployment.
+Files are created with private permissions. External scan folders selected in the browser are outside `data/` and need their own backup. The application deliberately remains on loopback; use the [self-hosting instructions](self-hosting.md) for a separately managed LAN/HTTPS deployment.
 
 For example, manage the default installation locally with:
 

@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { test as base, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
@@ -65,7 +66,11 @@ for (const append of [false, true])
       await expect(
         page.getByRole('heading', { name: 'Scan incomplete', exact: true }),
       ).toBeVisible();
-      await expect(page.getByRole('alert')).toHaveText('Paper jam (controlled provider).');
+      // Unknown provider diagnostics never reach the browser, including persisted jobs.
+      await expect(page.getByRole('alert')).toHaveText(
+        'The operation failed. Check the server logs.',
+      );
+      await expect(page.getByText('Paper jam (controlled provider).')).toHaveCount(0);
       await expect(
         page.getByRole('button', { name: 'Scan multiple pages', exact: true }),
       ).toHaveCount(0);
@@ -98,10 +103,17 @@ for (const append of [false, true])
         ).toEqual([]);
         // The browser keeps the decision available after a rejected request.
         await page.route('**/api/scans/*/recovery', (route) =>
-          route.fulfill({ status: 422, json: { error: 'Could not rebuild the document.' } }),
+          route.fulfill({
+            status: 422,
+            json: publicErrorBody(
+              'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+            ),
+          }),
         );
         await page.getByRole('button', { name: 'Keep 2 pages', exact: true }).click();
-        await expect(page.getByRole('alert')).toHaveText('Could not rebuild the document.');
+        await expect(page.getByRole('alert')).toHaveText(
+          'The scanned pages could not be converted to PDF. Check scan storage and try again.',
+        );
         await expect(recovery).toBeVisible();
         await page.unroute('**/api/scans/*/recovery');
         await page.getByRole('button', { name: 'Keep 2 pages', exact: true }).click();

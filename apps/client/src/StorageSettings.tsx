@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { useEffect, useState, type FormEvent } from 'react';
 import { FolderOpen } from 'lucide-react';
 import { api } from './api';
@@ -35,16 +36,18 @@ export function StorageSettings({ demo }: { demo: boolean }) {
     <section className={s.settingsCard}>
       <div className={s.settingsTitle}>
         <FolderOpen size={20} />
-        <h2>Scan storage</h2>
+        <h2>{t('Scan storage')}</h2>
       </div>
       <p>
         {demo
-          ? 'This folder is used for hardware scans. Demo scans stay in application storage and are removed with the demo data.'
-          : 'New scans are saved here. Changing the folder does not move existing scans.'}
+          ? t(
+              'This folder is used for hardware scans. Demo scans stay in application storage and are removed with the demo data.',
+            )
+          : t('New scans are saved here. Changing the folder does not move existing scans.')}
       </p>
       <form onSubmit={submit} className={`${s.form} ${s.userForm}`}>
         <label>
-          Scan storage folder
+          {t('Scan storage folder')}
           <input
             value={path}
             required
@@ -57,20 +60,21 @@ export function StorageSettings({ demo }: { demo: boolean }) {
           />
         </label>
         <p className={s.small}>
-          Use an absolute, writable server path. In Docker, this must be a mounted folder.
+          {t('Use an absolute, writable server path. In Docker, this must be a mounted folder.')}
         </p>
         {error && (
           <p role="alert" className={s.error}>
-            {error}
+            {t(error)}
           </p>
         )}
         {saved && (
           <p role="status" className={s.small}>
-            Scan storage updated.
+            {t('Scan storage updated.')}
           </p>
         )}
         <button className={s.secondary} disabled={busy || !path}>
-          {busy ? <Spinner /> : <FolderOpen size={16} />} Save folder
+          {busy ? <Spinner /> : <FolderOpen size={16} />}
+          {t('Save folder')}
         </button>
       </form>
     </section>

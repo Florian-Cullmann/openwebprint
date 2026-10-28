@@ -504,6 +504,15 @@
   border-radius: 10px;
   overflow: hidden;
 }
+.scanThumbWrap {
+  position: relative;
+}
+.scanSelection {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1;
+}
 .scanThumb {
   width: 100%;
   height: 240px;
@@ -1875,6 +1884,31 @@
   cursor: grab;
   user-select: none;
 }
+.historyToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+.historySearchControls {
+  display: flex;
+  flex: 1 1 260px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 550px;
+  margin-right: auto;
+}
+.historySearchControls .search {
+  flex: 1;
+  min-width: 0;
+  max-width: none;
+}
+.historySearchControls button {
+  flex-shrink: 0;
+}
 .pagination {
   display: flex;
   align-items: center;
@@ -1941,4 +1975,46 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font-size: 0.85rem;
+}
+.diagnosticChecks {
+  padding-left: 22px;
+}
+.diagnosticChecks li + li {
+  margin-top: 10px;
+}
+.diagnosticChecks p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.languagePicker {
+  width: auto;
+  min-width: 34px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.setupHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.authCard > .languagePicker {
+  display: flex;
+  margin-left: auto;
+  margin-bottom: 20px;
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .headerInner {
+    flex-wrap: wrap;
+  }
+  .navigation {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
 }

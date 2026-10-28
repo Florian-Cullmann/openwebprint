@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -170,7 +171,7 @@ export class Workspace {
         } catch (error) {
           errors.push({
             address: input.address,
-            error: error instanceof Error ? error.message : 'Unable to add device.',
+            ...publicErrorBody(error instanceof Error ? error.message : 'Unable to add device.'),
           });
         }
       }
@@ -238,6 +239,8 @@ export class Workspace {
         'This shorter policy makes existing documents eligible for deletion. Review the impact and confirm the change.',
       );
     this.store.set('retention', JSON.stringify(policy));
+    this.demo.scanExports.retentionChanged();
+    this.hardware.scanExports.retentionChanged();
     return policy;
   }
   async expireFiles() {

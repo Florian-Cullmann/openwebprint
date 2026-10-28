@@ -172,6 +172,12 @@ it('exports a small 1200 dpi original and preserves it when unexpected A4 output
   expect(failed.status).toBe('failed');
   expect(failed.hasFile).toBe(false);
   expect(failed.error).toBe(SCAN_SIZE_ERROR);
+  const publicJob = await f.app.inject(`/api/jobs/${failed.id}`);
+  expect(publicJob.statusCode).toBe(200);
+  expect(publicJob.json()).toMatchObject({
+    error: SCAN_SIZE_ERROR,
+    errorMessages: [{ code: 'scan_size_exceeded', params: {} }],
+  });
 });
 
 it('applies the same budget to legacy rendering before a crop can hide an oversized original', async () => {

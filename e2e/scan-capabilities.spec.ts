@@ -1,3 +1,4 @@
+import { publicErrorBody } from '@openwebprint/shared';
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import type { ScanSources, Snapshot } from '@openwebprint/shared';
@@ -70,7 +71,10 @@ const slider = (page: Page) => page.getByRole('slider', { name: 'Resolution', ex
 const colorSelect = (page: Page) => page.getByRole('combobox', { name: 'Color mode', exact: true });
 const colorGroup = (page: Page) => page.getByRole('group', { name: 'Color mode', exact: true });
 async function dpi(page: Page, value: number) {
-  await expect(slider(page)).toHaveAttribute('aria-valuetext', `${value} dpi`);
+  await expect(slider(page)).toHaveAttribute(
+    'aria-valuetext',
+    `${new Intl.NumberFormat('en-GB').format(value)} dpi`,
+  );
 }
 async function accessibility(page: Page) {
   const result = await new AxeBuilder({ page }).analyze();
@@ -106,7 +110,7 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
   if (info.project.name === 'mobile')
     await page.touchscreen.tap(track.x + track.width * 0.45, track.y + track.height / 2);
   else await page.mouse.click(track.x + track.width * 0.45, track.y + track.height / 2);
-  expect(['75 dpi', '200 dpi', '300 dpi', '1200 dpi']).toContain(
+  expect(['75 dpi', '200 dpi', '300 dpi', '1,200 dpi']).toContain(
     await slider(page).getAttribute('aria-valuetext'),
   );
   await slider(page).press('End');
@@ -143,11 +147,13 @@ test('snaps irregular resolutions, reconciles sources and scanners, and submits 
     submitted = route.request().postDataJSON();
     return route.fulfill({
       status: 409,
-      json: { error: 'Submission captured by browser fixture.' },
+      json: publicErrorBody('The scanner does not support the selected source.'),
     });
   });
   await submit.click();
-  await expect(page.getByRole('alert')).toHaveText('Submission captured by browser fixture.');
+  await expect(page.getByRole('alert')).toHaveText(
+    'The scanner does not support the selected source.',
+  );
   expect(submitted).toMatchObject({
     deviceId: first,
     options: { resolution: 200, color: 'Lineart', batch: false },
@@ -221,12 +227,19 @@ test('distinguishes unsupported settings, unknown fallback options and discovery
   await scanner.selectOption(first);
   await expect(submit).toBeEnabled();
   await page.route(`**/devices/${second}/scan-sources*`, (route) =>
-    route.fulfill({ status: 502, json: { error: 'Scanner is unreachable.' } }),
+    route.fulfill({
+      status: 502,
+      json: publicErrorBody(
+        'Scanner paper sources are unavailable. Retry discovery or use the device default.',
+      ),
+    }),
   );
   await scanner.selectOption(second);
   await expect(
     page.getByText('Some scanner capabilities are unknown.', { exact: false }),
-  ).toContainText('Scanner is unreachable.');
+  ).toContainText(
+    'Scanner paper sources are unavailable. Retry discovery or use the device default.',
+  );
   await dpi(page, 300);
   await expect(page.getByRole('radio', { name: 'Color', exact: true })).toBeChecked();
   await expect(submit).toBeEnabled();
@@ -383,4 +396,28 @@ test('blocks oversized known areas, keeps small high-resolution scans and explai
   );
   await dpi(page, 1200);
   await expect(submit).toBeEnabled();
+
+  // Keep the pixel budget and locale formatting after switching languages.
+  capabilities = { ...discrete, acquisitionArea: { widthMm: 210, heightMm: 297 } };
+  await page.evaluate(() => localStorage.setItem('owp-language', 'de'));
+  await page.reload();
+  await page.getByRole('button', { name: 'Scannen', exact: true }).first().click();
+  await expect(page.getByText('Scanbereich: 210 × 297 mm', { exact: false })).toBeVisible();
+  await expect(page.getByRole('slider')).toBeEnabled();
+  await page.getByRole('slider').press('End');
+  await expect(page.getByText('Scanbereich: 210 × 297 mm', { exact: false })).toContainText(
+    '139,2 Megapixel bei 1.200 dpi',
+  );
+  await expect(page.getByRole('alert')).toContainText('Grenze von 80 Megapixeln');
+  await expect(page.getByRole('button', { name: 'Demoscan starten', exact: true })).toBeDisabled();
+  await accessibility(page);
+  await page.getByRole('dialog').screenshot({
+    path: `test-results/${info.project.name}-60-scan-pixel-budget-de.png`,
+  });
+  capabilities = { ...discrete };
+  await page.getByRole('button', { name: 'Scaneinstellungen aktualisieren' }).click();
+  await expect(page.getByText('Der Scanbereich ist unbekannt.', { exact: false })).toContainText(
+    '80 Megapixel pro Seite vor dem Zuschneiden',
+  );
+  await expect(page.getByRole('button', { name: 'Demoscan starten', exact: true })).toBeEnabled();
 });
