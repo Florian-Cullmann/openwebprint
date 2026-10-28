@@ -45,6 +45,14 @@ const text = {
     export: 'Export selected scans',
     downloadZip: 'Download ZIP',
     notifications: 'Job notifications',
+    rename: 'Rename scan',
+    title: 'Scan title',
+    saveTitle: 'Save title',
+    titleSaved: 'Title saved.',
+    filters: 'Filter history',
+    device: 'Device',
+    status: 'Status',
+    clearFilters: 'Clear filters',
   },
   de: {
     welcome: 'Willkommen bei openwebprint',
@@ -87,6 +95,14 @@ const text = {
     export: 'Ausgewählte Scans exportieren',
     downloadZip: 'ZIP herunterladen',
     notifications: 'Auftragsbenachrichtigungen',
+    rename: 'Scan umbenennen',
+    title: 'Scantitel',
+    saveTitle: 'Titel speichern',
+    titleSaved: 'Titel gespeichert.',
+    filters: 'Verlauf filtern',
+    device: 'Gerät',
+    status: 'Status',
+    clearFilters: 'Filter zurücksetzen',
   },
 };
 async function verifyLayout(page: Page) {
@@ -161,6 +177,27 @@ for (const language of ['en', 'de'] as const) {
       await verifyLayout(page);
       // Preserve the newly merged search and ZIP export journey in both languages.
       await nav.getByRole('link', { name: labels.scans, exact: true }).click();
+      await page.getByText(labels.filters, { exact: true }).click();
+      await page
+        .getByRole('combobox', { name: labels.status, exact: true })
+        .selectOption('completed');
+      await expect(page.getByRole('combobox', { name: labels.device, exact: true })).toBeVisible();
+      await verifyLayout(page);
+      await page.getByRole('button', { name: labels.clearFilters, exact: true }).click();
+      await page
+        .getByRole('article')
+        .getByRole('button', { name: /^(Open scan preview:|Scanvorschau öffnen:)/ })
+        .first()
+        .click();
+      await page.getByRole('button', { name: labels.rename, exact: true }).click();
+      await page
+        .getByRole('textbox', { name: labels.title, exact: true })
+        .fill('Meine Rechnung 2026');
+      await page.getByRole('button', { name: labels.saveTitle, exact: true }).click();
+      await expect(page.getByText(labels.titleSaved, { exact: true })).toBeVisible();
+      await verifyLayout(page);
+      await page.getByRole('button', { name: labels.close, exact: true }).click();
+
       await page
         .getByRole('searchbox', { name: labels.search, exact: true })
         .fill('no-match-localization');

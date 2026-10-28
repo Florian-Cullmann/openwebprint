@@ -11,7 +11,7 @@ import type {
   ScanPage,
   Snapshot,
 } from '@openwebprint/shared';
-import { MAX_SCAN_PAGES } from '@openwebprint/shared';
+import { MAX_SCAN_PAGES, renameScanSchema } from '@openwebprint/shared';
 import { AppError, missingDevice } from './errors.js';
 import {
   Store,
@@ -314,6 +314,10 @@ export class Service {
                 kind: options.kind,
                 filter: options.filter ?? 'all',
                 search: options.search ?? '',
+                deviceId: options.deviceId,
+                status: options.status,
+                from: options.from,
+                until: options.until,
               }),
             ).toString('base64url'),
           }
@@ -712,6 +716,24 @@ export class Service {
       .finally(() => this.tasks.delete(tracked));
     this.tasks.add(tracked);
     return task;
+  }
+  renameScan(id: string, input: { title: string; previousTitle: string }) {
+    const { title, previousTitle } = renameScanSchema.parse(input);
+    const job = this.job(id);
+    if (job.kind !== 'scan') throw new AppError(400, 'Only scans can be renamed.');
+    if (this.activeJobs.has(id) || !terminal.has(job.status))
+      throw new AppError(409, 'Wait for the scan operation to finish before renaming.');
+    if (job.title !== previousTitle)
+      throw new AppError(409, 'This scan title changed. Reopen it before renaming.');
+    if (job.title !== title) {
+      // Legacy page revisions use updatedAt. Metadata edits must not invalidate them.
+      if (job.hasFile) job.scanRevision ??= job.updatedAt;
+      job.title = title;
+      job.customTitle = true;
+      job.updatedAt = new Date().toISOString();
+      this.store.putJob(job);
+    }
+    return this.publicJob(job);
   }
   editScan(id: string, revision: string, pages: ScanPage[]) {
     const job = this.job(id);

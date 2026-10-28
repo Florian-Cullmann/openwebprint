@@ -569,32 +569,38 @@ export function App() {
             )}
             {view === 'jobs' && (
               <>
-                <div className={s.toolbar}>
-                  <div className={s.tabs}>
-                    {[
-                      ['all', t('All jobs')],
-                      ['active', t('Active')],
-                      ['completed', t('Completed')],
-                    ].map(([id, label]) => (
-                      <button
-                        key={id}
-                        className={jobFilter === id ? s.activeTab : ''}
-                        onClick={() => setJobFilter(id as JobFilter)}
-                      >
-                        {t(label)}
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    className={s.secondary}
-                    disabled={busy}
-                    onClick={() => void action(refresh, 'Status updated.', false)}
-                  >
-                    <RefreshCw size={16} />
-                    {t('Refresh')}
-                  </button>
-                </div>
-                <JobHistory key={jobFilter} filter={jobFilter} revision={historyRevision}>
+                <JobHistory
+                  key={jobFilter}
+                  filter={jobFilter}
+                  revision={historyRevision}
+                  leadingControls={
+                    <div className={s.tabs}>
+                      {[
+                        ['all', t('All jobs')],
+                        ['active', t('Active')],
+                        ['completed', t('Completed')],
+                      ].map(([id, label]) => (
+                        <button
+                          key={id}
+                          className={jobFilter === id ? s.activeTab : ''}
+                          onClick={() => setJobFilter(id as JobFilter)}
+                        >
+                          {t(label)}
+                        </button>
+                      ))}
+                    </div>
+                  }
+                  viewControls={
+                    <button
+                      className={s.secondary}
+                      disabled={busy}
+                      onClick={() => void action(refresh, 'Status updated.', false)}
+                    >
+                      <RefreshCw size={16} />
+                      {t('Refresh')}
+                    </button>
+                  }
+                >
                   {(history) => (
                     <JobList
                       jobs={history}
@@ -622,7 +628,11 @@ export function App() {
                       kind="scan"
                       revision={historyRevision}
                       viewControls={
-                        <div className={s.tabs} role="group" aria-label={t('Scan view')}>
+                        <div
+                          className={`${s.tabs} ${s.scanViewToggle}`}
+                          role="group"
+                          aria-label={t('Scan view')}
+                        >
                           {(
                             [
                               ['grid', t('Grid view'), LayoutGrid],
@@ -631,11 +641,13 @@ export function App() {
                           ).map(([layout, label, Icon]) => (
                             <button
                               key={layout}
+                              aria-label={label}
+                              title={label}
                               aria-pressed={scanLayout === layout}
                               className={scanLayout === layout ? s.activeTab : ''}
                               onClick={() => setScanLayout(layout)}
                             >
-                              <Icon size={16} /> {label}
+                              <Icon size={16} aria-hidden="true" />
                             </button>
                           ))}
                         </div>
