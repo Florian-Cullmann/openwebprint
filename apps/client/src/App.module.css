@@ -1875,6 +1875,22 @@
   cursor: grab;
   user-select: none;
 }
+.historySearch {
+  margin-bottom: 24px;
+}
+.historySearchControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.historySearchControls .search {
+  max-width: 440px;
+}
+.historySearch p {
+  margin: 8px 0 0;
+}
 .pagination {
   display: flex;
   align-items: center;
