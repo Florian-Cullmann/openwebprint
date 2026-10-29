@@ -1,4 +1,5 @@
 {
+  "The scan submission could not be confirmed. Scanning may already have started. Close this dialog and check Jobs and the scanner before scanning again; another submission could scan or append pages twice.": "Der Scanauftrag konnte nicht bestätigt werden. Der Scan könnte bereits gestartet sein. Schließe diesen Dialog und prüfe die Aufträge und den Scanner, bevor du erneut scannst; ein weiterer Auftrag könnte Seiten doppelt scannen oder anhängen.",
   "The server took too long to respond. Check your connection.": "Die Antwort des Servers dauert zu lange. Prüfe deine Verbindung.",
   "Reconnect": "Erneut verbinden",
   "Print and scan documents.": "Dokumente drucken und scannen.",
