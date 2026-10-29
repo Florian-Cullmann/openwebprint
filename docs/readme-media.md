@@ -55,9 +55,10 @@ Do not commit WebM intermediates or private application data.
 GIF is used as an ordinary Markdown image, so the demo is visible inline in the
 README without a video player or a third-party host. Each clip **plays once**;
 open it and reload to replay. It does not automatically repeat while someone reads
-the rest of the page. GIF does not provide pause controls or automatically respect
-reduced-motion preferences, so every clip has a descriptive text sequence and a
-linked still. There are no flashes or decorative transitions.
+the rest of the page. The GIF file itself has no pause controls or reduced-motion behavior. In our
+GitHub review, the rendered README added its own play/pause and open-image
+controls. Other Markdown viewers may not, so every clip also has a descriptive
+text sequence and a linked still. There are no flashes or decorative transitions.
 
 MP4/WebM offers better compression and playback controls, but a repository video
 link does not replace an inline Markdown image. GitHub-hosted video attachments
@@ -100,3 +101,24 @@ the installed build (LGPL/GPL); inspect `ffmpeg -L` for that build's terms.
    caption explains the workflow; open the original image for small UI labels.
 5. Include screenshots of that actual GitHub rendering and direct links to both
    animations in the PR's **Proof of Done**. Record remaining limitations honestly.
+
+## Recorded asset and rendering review
+
+The initial recordings for #101 (29 October 2026) measure:
+
+| Clip  | Dimensions  | Duration | Bytes     | Size     |
+| ----- | ----------- | -------- | --------- | -------- |
+| Print | 1200 × 1000 | 23.51 s  | 3,829,583 | 3.65 MiB |
+| Scan  | 1200 × 1000 | 18.63 s  | 2,776,400 | 2.65 MiB |
+
+Together: **6.30 MiB** of animated media. The print clip retains the real demo job
+transition through queued/processing to completed rather than cutting out that
+workflow. Consult `demo-metadata.json` for current values after regeneration.
+
+The actual GitHub branch README was reviewed at 1440 px and 390 px in light and
+dark themes. Both animations loaded at the correct aspect ratio; the logo and
+badges loaded, and neither viewport had horizontal page overflow. GitHub supplied
+play/pause and open-image controls for the GIFs. UI labels are small in a mobile
+inline image: captions convey the sequence, and full-size links/stills allow
+closer inspection. Screenshots in `images/readme-review/` record this review;
+they are PR evidence, not part of the README's media download weight.
