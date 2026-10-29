@@ -28,8 +28,13 @@ removed on normal completion or an error. A forcibly terminated process may leav
 an `openwebprint-screenshots-*` directory in the OS temporary directory; remove it
 once its process has stopped.
 
-The two English/light-theme recordings use a **1200 × 1000 CSS-pixel viewport**
-and device scale 1. Playwright records at the same dimensions. Actions use semantic
+Each English/light-theme journey is recorded twice: **1200 × 1000 CSS pixels**
+for desktop and **360 × 720 CSS pixels** for mobile, both at device scale 1.
+The README uses `<picture>` with a `(max-width: 600px)` source to select the
+mobile GIF. This records the actual responsive layout; it does not shrink the
+desktop UI or enlarge its pixels. At a 390 px GitHub viewport, the 324 px content
+column retains 90% of the recorded mobile UI size (rather than 27% of desktop).
+Controls are scrolled into view before their reading pause and interaction. Playwright records at the same dimensions. Actions use semantic
 labels, real uploads/downloads, and deliberate reading pauses. Hover/focus shows
 the interaction target; no artificial cursor, mock UI, or replacement server
 responses are added. Slow operations finish before the next action, so duration
@@ -43,6 +48,8 @@ Final assets live in `docs/images/`:
 - `demo-scan.gif`: scan, append, rotate, reorder, download a multipage PDF.
 - `demo-print-still.png` and `demo-scan-still.png`: static alternatives from the
   same journeys, linked alongside each animation.
+- `demo-print-mobile.gif` and `demo-scan-mobile.gif`: the same journeys in the
+  responsive mobile UI, with matching `-mobile-still.png` alternatives.
 - `demo-metadata.json`: measured dimensions, frame count, duration, and exact bytes,
   regenerated with the clips.
 
@@ -52,7 +59,7 @@ Do not commit WebM intermediates or private application data.
 
 ## Format and optimization
 
-GIF is used as an ordinary Markdown image, so the demo is visible inline in the
+GIF is embedded in an HTML `<picture>` with an `<img>` desktop fallback, so the demo is visible inline in the
 README without a video player or a third-party host. Each clip **plays once**;
 open it and reload to replay. It does not automatically repeat while someone reads
 the rest of the page. The GIF file itself has no pause controls or reduced-motion behavior. In our
@@ -78,9 +85,9 @@ ffprobe -v error -show_entries format=duration:stream=width,height,nb_frames \
 ```
 
 Eight frames per second, a 128-color palette, and rectangle differencing reduce
-weight while retaining readable UI text. Native dimensions allow opening the
-image for details on a small screen. Aim for roughly 10–20 seconds per clip;
-allow a little more time for a real job to finish. Keep the two GIFs together below
+weight while retaining readable UI text. Separate mobile recordings preserve
+readable controls directly in the narrow README column. Aim for roughly 10–20 seconds per clip;
+allow a little more time for a real job to finish. Keep each selected pair of GIFs below
 8 MiB; review the generated metadata before committing. No new npm dependency is
 required. Playwright is already a development dependency (Apache-2.0); FFmpeg is
 an optional local tool, not redistributed by this change. Its license depends on
@@ -98,27 +105,28 @@ the installed build (LGPL/GPL); inspect `ffmpeg -L` for that build's terms.
    (1440 px) and mobile (390 px), in light and dark color schemes. Verify both GIFs
    load at their native aspect ratio, the logo remains visible, captions wrap
    without horizontal overflow, and static/full-size links work. On mobile the
-   caption explains the workflow; open the original image for small UI labels.
+   selected image must be the 360 px recording: inspect `currentSrc` and
+   `naturalWidth`, then review page ranges, duplex labels, and scan editing
+   controls at inline size. Captions and full-size links supplement this check.
 5. Include screenshots of that actual GitHub rendering and direct links to both
    animations in the PR's **Proof of Done**. Record remaining limitations honestly.
 
 ## Recorded asset and rendering review
 
-The initial recordings for #101 (29 October 2026) measure:
-
-| Clip  | Dimensions  | Duration | Bytes     | Size     |
-| ----- | ----------- | -------- | --------- | -------- |
-| Print | 1200 × 1000 | 23.51 s  | 3,829,583 | 3.65 MiB |
-| Scan  | 1200 × 1000 | 18.63 s  | 2,776,400 | 2.65 MiB |
-
-Together: **6.30 MiB** of animated media. The print clip retains the real demo job
-transition through queued/processing to completed rather than cutting out that
-workflow. Consult `demo-metadata.json` for current values after regeneration.
-
-The actual GitHub branch README was reviewed at 1440 px and 390 px in light and
-dark themes. Both animations loaded at the correct aspect ratio; the logo and
-badges loaded, and neither viewport had horizontal page overflow. GitHub supplied
-play/pause and open-image controls for the GIFs. UI labels are small in a mobile
-inline image: captions convey the sequence, and full-size links/stills allow
-closer inspection. Screenshots in `images/readme-review/` record this review;
+The mobile follow-up for #101 verifies GitHub's actual source selection at 390 px
+and 1440 px, in light and dark themes. Mobile selects the 360 px recordings;
+desktop retains the 1200 px recordings. Both should load without horizontal page
+overflow. Screenshots in `images/readme-review/` record the actual GitHub review;
 they are PR evidence, not part of the README's media download weight.
+
+See `images/demo-metadata.json` for measured dimensions, durations and exact byte
+sizes of all four recordings. Timings vary with the real asynchronous demo jobs.
+
+| Clip              | Dimensions  | Duration | Bytes     |
+| ----------------- | ----------- | -------- | --------- |
+| demo-print        | 1200 × 1000 | 25.76 s  | 3,627,506 |
+| demo-scan         | 1200 × 1000 | 18.76 s  | 2,773,056 |
+| demo-print-mobile | 360 × 720   | 25.76 s  | 2,293,480 |
+| demo-scan-mobile  | 360 × 720   | 18.76 s  | 1,850,985 |
+
+The mobile pair totals **3.95 MiB**; the desktop pair totals **6.10 MiB**.

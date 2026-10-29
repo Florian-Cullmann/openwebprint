@@ -32,19 +32,25 @@ quiet. Open a clip and reload to replay, or follow the static alternatives below
 
 ### Print with confidence
 
-![Demo printing: upload a three-page sample PDF, preview page two, select pages 1–2 and two-sided printing, then follow the simulated job to completion.](docs/images/demo-print.gif)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/images/demo-print-mobile.gif" />
+  <img src="docs/images/demo-print.gif" alt="Demo printing: upload a three-page sample PDF, preview page two, select pages 1–2 and two-sided printing, then follow the simulated job to completion." />
+</picture>
 
 Upload → preview → choose pages and sides → follow the job.
 Accepts PDF, PNG, or JPEG files up to 25 MiB; available options depend on the printer.
-[Static print view](docs/images/demo-print-still.png) · [Open animation](docs/images/demo-print.gif) · [Printing guide](docs/usage.md)
+[Static print view](docs/images/demo-print-still.png) · [Mobile still](docs/images/demo-print-mobile-still.png) · [Open animation](docs/images/demo-print.gif) · [Printing guide](docs/usage.md)
 
 ### Turn paper into a useful PDF
 
-![Demo scanning: scan a sample page, append a second page, rotate and reorder the pages, then download the two-page PDF.](docs/images/demo-scan.gif)
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/images/demo-scan-mobile.gif" />
+  <img src="docs/images/demo-scan.gif" alt="Demo scanning: scan a sample page, append a second page, rotate and reorder the pages, then download the two-page PDF." />
+</picture>
 
 Scan → add a page → rotate and reorder → download one PDF.
 Collect up to 100 pages, with cropping and flatbed/feeder options where supported.
-[Static scan view](docs/images/demo-scan-still.png) · [Open animation](docs/images/demo-scan.gif) · [Scan editing and export](docs/usage.md)
+[Static scan view](docs/images/demo-scan-still.png) · [Mobile still](docs/images/demo-scan-mobile-still.png) · [Open animation](docs/images/demo-scan.gif) · [Scan editing and export](docs/usage.md)
 
 ### Keep your documents within reach
 
