@@ -266,13 +266,14 @@ test('ignores a stale response and disables controls while loading settings (bro
   await expect(slider(page)).toBeDisabled();
   await expect(colorSelect(page)).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Start demo scan', exact: true })).toBeDisabled();
-  await page.getByRole('combobox', { name: 'Scanner', exact: true }).selectOption(second);
-  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
-  const staleResponse = page.waitForResponse((response) =>
-    response.url().includes(`${first}/scan-sources?source=ADF`),
+  // Switching scanners now aborts the obsolete read; it must not emit a response.
+  const cancelled = page.waitForEvent('requestfailed', (request) =>
+    request.url().includes(`${first}/scan-sources?source=ADF`),
   );
+  await page.getByRole('combobox', { name: 'Scanner', exact: true }).selectOption(second);
+  await cancelled;
+  await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');
   release();
-  await staleResponse;
   await dpi(page, 200);
   await expect(slider(page)).toHaveAttribute('max', '1');
   await expect(colorGroup(page)).toHaveText('Color modeBlack and white (1-bit)');

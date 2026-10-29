@@ -77,8 +77,14 @@ for (const target of ['snapshot', 'history', 'scan'] as const) {
       await page.clock.runFor(1500);
       await expect.poll(() => calls).toBe(2);
     } else {
-      await page.clock.runFor(1);
-      await expect.poll(() => calls).toBe(1);
+      // React can mount history after navigation completes. Advance its initial
+      // zero-delay load only once the effect has had a chance to register it.
+      await expect
+        .poll(async () => {
+          await page.clock.runFor(1);
+          return calls;
+        })
+        .toBe(1);
     }
     await page.clock.runFor(30_001);
     const message = german
