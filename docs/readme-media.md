@@ -62,10 +62,10 @@ Do not commit WebM intermediates or private application data.
 GIF is embedded in an HTML `<picture>` with an `<img>` desktop fallback, so the demo is visible inline in the
 README without a video player or a third-party host. Each clip **plays once**;
 open it and reload to replay. It does not automatically repeat while someone reads
-the rest of the page. The GIF file itself has no pause controls or reduced-motion behavior. In our
-GitHub review, the rendered README added its own play/pause and open-image
-controls. Other Markdown viewers may not, so every clip also has a descriptive
-text sequence and a linked still. There are no flashes or decorative transitions.
+the rest of the page. The GIF file itself has no pause controls or reduced-motion
+behavior. In the reviewed GitHub rendering, responsive `<picture>` images do not
+receive the animated-image player used for plain Markdown images. Every clip
+therefore also has a descriptive text sequence and linked desktop/mobile stills. There are no flashes or decorative transitions.
 
 MP4/WebM offers better compression and playback controls, but a repository video
 link does not replace an inline Markdown image. GitHub-hosted video attachments
@@ -115,8 +115,9 @@ the installed build (LGPL/GPL); inspect `ffmpeg -L` for that build's terms.
 
 The mobile follow-up for #101 verifies GitHub's actual source selection at 390 px
 and 1440 px, in light and dark themes. Mobile selects the 360 px recordings;
-desktop retains the 1200 px recordings. Both should load without horizontal page
-overflow. Screenshots in `images/readme-review/` record the actual GitHub review;
+desktop retains the 1200 px recordings. Both load without horizontal page
+overflow. The `390-*-print.png` and `390-*-scan.png` screenshots show the
+options/editing frames directly at inline size. Screenshots in `images/readme-review/` record the actual GitHub review;
 they are PR evidence, not part of the README's media download weight.
 
 See `images/demo-metadata.json` for measured dimensions, durations and exact byte
