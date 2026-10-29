@@ -7,9 +7,39 @@ export class ApiError extends Error {
     super(message);
   }
 }
+export const STATUS_REQUEST_TIMEOUT_MS = 30_000;
+
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const response = await request(path, init);
-  return (await response.json()) as T;
+  const read = async (options: RequestInit) => {
+    const response = await request(path, options);
+    return (await response.json()) as T;
+  };
+  // Bound JSON reads through body consumption; submissions and file transfers
+  // retain their existing semantics and are never automatically retried.
+  if ((init.method ?? 'GET').toUpperCase() !== 'GET') return read(init);
+  init.signal?.throwIfAborted();
+  const controller = new AbortController();
+  const cancel = () => controller.abort(init.signal?.reason);
+  let rejectAbort: () => void = () => {};
+  const aborted = new Promise<never>((_, reject) => {
+    rejectAbort = () => reject(controller.signal.reason);
+    controller.signal.addEventListener('abort', rejectAbort, { once: true });
+  });
+  init.signal?.addEventListener('abort', cancel, { once: true });
+  const timer = setTimeout(() => {
+    controller.abort(
+      new ApiError(0, 'The server took too long to respond. Check your connection.'),
+    );
+  }, STATUS_REQUEST_TIMEOUT_MS);
+  try {
+    if (init.signal?.aborted) cancel();
+    controller.signal.throwIfAborted();
+    return await Promise.race([read({ ...init, signal: controller.signal }), aborted]);
+  } finally {
+    clearTimeout(timer);
+    init.signal?.removeEventListener('abort', cancel);
+    controller.signal.removeEventListener('abort', rejectAbort);
+  }
 }
 export async function documentData(path: string, init: RequestInit = {}): Promise<Uint8Array> {
   const response = await request(path, init);

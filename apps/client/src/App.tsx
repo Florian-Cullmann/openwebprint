@@ -104,7 +104,7 @@ export function App() {
       theme === 'dark' ||
       (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches),
   );
-  const refreshing = useRef(false);
+  const refreshing = useRef<AbortController | undefined>(undefined);
   useEffect(() => {
     writePreference('owp-scan-layout', scanLayout);
   }, [scanLayout]);
@@ -174,15 +174,18 @@ export function App() {
   }, [theme]);
   const refresh = useCallback(async (updateHistory = true) => {
     if (refreshing.current) return;
-    refreshing.current = true;
+    const controller = new AbortController();
+    refreshing.current = controller;
     try {
-      setSnapshot(await api<Snapshot>('/snapshot'));
+      const next = await api<Snapshot>('/snapshot', { signal: controller.signal });
+      if (controller.signal.aborted) return;
+      setSnapshot(next);
       if (updateHistory) setHistoryRevision((value) => value + 1);
       setError('');
     } catch (e) {
-      setError((e as Error).message);
+      if (!controller.signal.aborted) setError((e as Error).message);
     } finally {
-      refreshing.current = false;
+      if (refreshing.current === controller) refreshing.current = undefined;
     }
   }, []);
   useEffect(() => {
@@ -191,7 +194,11 @@ export function App() {
     const timer = setInterval(() => {
       if (!document.hidden) void refresh(false);
     }, 5000);
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      refreshing.current?.abort();
+      refreshing.current = undefined;
+    };
   }, [canAccess, refresh]);
   useEffect(() => {
     if (!toast) return;
