@@ -81,6 +81,7 @@ export function ScanDialog({
     }
   }, [editingTitle]);
   const [error, setError] = useState('');
+  const [pollError, setPollError] = useState('');
   const [busy, setBusy] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const cancelRequest = useRef(false);
@@ -123,6 +124,7 @@ export function ScanDialog({
   }, [deviceId, scanners[0]?.id]);
   useEffect(() => {
     let alive = true;
+    const controller = new AbortController();
     setSourceError('');
     setLoadingSources(false);
     if (running || !deviceId || !scanners.some((d) => d.id === deviceId)) return;
@@ -131,7 +133,9 @@ export function ScanDialog({
     if (source) query.set('source', source);
     if (refreshRequested.current) query.set('refresh', 'true');
     refreshRequested.current = false;
-    api<ScanSources>(`/devices/${deviceId}/scan-sources${query.size ? `?${query}` : ''}`)
+    api<ScanSources>(`/devices/${deviceId}/scan-sources${query.size ? `?${query}` : ''}`, {
+      signal: controller.signal,
+    })
       .then((data) => {
         if (alive) {
           setSources(data);
@@ -180,17 +184,21 @@ export function ScanDialog({
       });
     return () => {
       alive = false;
+      controller.abort();
     };
   }, [deviceId, source, refreshSettings, running]);
   useEffect(() => {
+    setPollError('');
     if (!running || !job) return;
     let alive = true;
+    const controller = new AbortController();
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       try {
         const version = pollVersion.current;
-        const updated = await api<Job>(`/jobs/${job.id}`);
+        const updated = await api<Job>(`/jobs/${job.id}`, { signal: controller.signal });
         if (alive && !cancelRequest.current && version === pollVersion.current) {
+          setPollError('');
           setJob(updated);
           if (['completed', 'failed', 'canceled'].includes(updated.status)) {
             changedRef.current();
@@ -198,13 +206,14 @@ export function ScanDialog({
           }
         }
       } catch (e) {
-        if (alive) setError((e as Error).message);
+        if (alive) setPollError((e as Error).message);
       }
       if (alive) timer = setTimeout(poll, 2000);
     };
     timer = setTimeout(poll, 1500);
     return () => {
       alive = false;
+      controller.abort();
       clearTimeout(timer);
     };
   }, [running, job?.id]);
@@ -376,6 +385,11 @@ export function ScanDialog({
         )
       }
     >
+      {pollError && (
+        <p role="alert" className={s.error}>
+          {t(pollError)}
+        </p>
+      )}
       {cropIndex >= 0 ? (
         <>
           <ScanCropEditor

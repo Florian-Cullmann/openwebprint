@@ -14,6 +14,10 @@ Setup searches for compatible printers and scanners, lets you choose which to co
 
 To leave the demo, click **Remove demo data** in the banner. This deletes demo devices, jobs, and scan files, waits for running demo operations to finish, and opens real device discovery. Accounts and any existing hardware records are preserved. Existing configured installations keep their current mode when upgrading.
 
+## Connection interruptions
+
+Status reads stop waiting after 30 seconds, including when a response starts but never finishes. Overview, job history, and active scan polling show a connection message and resume automatically when a later read succeeds. Print and scan submissions are never automatically repeated.
+
 ## Printing
 
 Review a PDF or image before printing, browse its pages, zoom in to inspect small text, and set printer, color, sides, paper size, and copies. Drag with a mouse, swipe, scroll or focus the preview and use arrow keys to move around an enlarged page. **Fit page** restores the full page; changing pages or documents resets zoom and position. Preview zoom does not change print settings. Open the retained document again from Jobs after submission. See the zoomed preview on [desktop](images/preview-zoom.png) and [mobile](images/preview-zoom-mobile.png).

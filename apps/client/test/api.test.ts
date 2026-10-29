@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { publicErrorBody } from '@openwebprint/shared';
-import { api, ApiError, documentData, post } from '../src/api.js';
+import { api, ApiError, documentData, post, STATUS_REQUEST_TIMEOUT_MS } from '../src/api.js';
 
 const fetchMock = vi.fn<typeof fetch>();
 let unauthorized: ReturnType<typeof vi.fn>;
@@ -103,5 +103,61 @@ describe('API response errors', () => {
     await expect(documentData('/jobs/example/document')).resolves.toEqual(
       new Uint8Array([1, 2, 3]),
     );
+  });
+});
+
+describe('bounded status reads (stubbed transport)', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it.each(['headers', 'body', 'error body'])(
+    'times out stalled %s and permits the next read',
+    async (stage) => {
+      fetchMock.mockImplementationOnce(async () => {
+        if (stage === 'headers') return new Promise<Response>(() => {});
+        return new Response(new ReadableStream(), { status: stage === 'error body' ? 502 : 200 });
+      });
+      const pending = api('/snapshot');
+      const failed = expect(pending).rejects.toMatchObject({
+        status: 0,
+        message: 'The server took too long to respond. Check your connection.',
+      });
+      await vi.advanceTimersByTimeAsync(STATUS_REQUEST_TIMEOUT_MS);
+      await failed;
+      expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+      fetchMock.mockResolvedValueOnce(Response.json({ recovered: true }));
+      await expect(api('/snapshot')).resolves.toEqual({ recovered: true });
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
+
+  it('preserves caller cancellation while consuming a stalled body and removes its listener', async () => {
+    const controller = new AbortController();
+    const remove = vi.spyOn(controller.signal, 'removeEventListener');
+    fetchMock.mockResolvedValueOnce(new Response(new ReadableStream()));
+    const pending = api('/snapshot', { signal: controller.signal });
+    const failed = expect(pending).rejects.toBeInstanceOf(DOMException);
+    await vi.advanceTimersByTimeAsync(1);
+    controller.abort();
+    await failed;
+    expect(fetchMock.mock.calls[0][1]?.signal?.aborted).toBe(true);
+    expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(['/print', '/scans'])('does not time out or retry submission %s', async (path) => {
+    let complete!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(
+      () =>
+        new Promise<Response>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    const pending = post(path, {});
+    await vi.advanceTimersByTimeAsync(STATUS_REQUEST_TIMEOUT_MS * 2);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(vi.getTimerCount()).toBe(0);
+    complete(Response.json({ accepted: true }));
+    await expect(pending).resolves.toEqual({ accepted: true });
   });
 });
