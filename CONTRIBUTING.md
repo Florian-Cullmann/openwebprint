@@ -41,6 +41,12 @@ After `npm run build`, run `npm run package:release` and `npm run test:install` 
 
 Run `npx playwright install chromium` once, then `npm run screenshots` to rebuild the app and capture the three README images in `docs/images/`. The script starts a disposable instance on a random loopback port, explicitly chooses demo mode, captures the actual UI at 1440 × 1000, and removes its temporary data afterward. It never uses your running instance, accounts, or hardware. Review all three images before committing them alongside any caption changes.
 
+Animated print/scan walkthroughs use the same disposable runner. Install FFmpeg
+(with `ffprobe`), then run `npm run demos`. See [README media maintenance](docs/readme-media.md)
+for sample content, recording/conversion settings, review steps, and format tradeoffs.
+Only final GIFs, static alternatives, and size metadata are committed; temporary
+recordings and application data are removed automatically.
+
 ## Design and architecture
 
 ```mermaid

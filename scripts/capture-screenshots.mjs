@@ -7,6 +7,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PDFDocument } from 'pdf-lib';
+import { captureDemos } from './capture-demos.mjs';
 
 const listener = createServer();
 listener.listen(0, '127.0.0.1');
@@ -61,53 +62,57 @@ try {
   await expect(
     page.getByRole('heading', { name: 'Brother MFC-L2750DW', exact: true }),
   ).toBeVisible();
-  await capture('overview');
+  if (process.argv.includes('--animations')) {
+    await captureDemos(browser, origin, directory);
+  } else {
+    await capture('overview');
 
-  const navigation = page.getByRole('navigation', { name: 'Main navigation' });
-  await navigation.getByRole('link', { name: 'Devices', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Devices', exact: true })).toBeVisible();
-  await page
-    .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Brother MFC-L2750DW', exact: true }) })
-    .getByRole('button', { name: 'Print', exact: true })
-    .click();
-  await expect(page.getByRole('dialog', { name: 'Print document' })).toBeVisible();
-  const document = await PDFDocument.create();
-  const first = document.addPage([595, 842]);
-  first.drawText('openwebprint', { x: 48, y: 778, size: 13 });
-  first.drawText('Your next print, ready.', { x: 48, y: 700, size: 26 });
-  first.drawText('Choose your printer. Review every page. Print.', { x: 48, y: 666, size: 12 });
-  first.drawText('This is a sample document in demo mode.', { x: 48, y: 570, size: 11 });
-  first.drawText('Your files stay on your server.', { x: 48, y: 100, size: 11 });
-  document
-    .addPage([595, 842])
-    .drawText('A second page, just one click away.', { x: 48, y: 700, size: 22 });
-  await page.getByLabel('Select document', { exact: true }).setInputFiles({
-    name: 'sample-document.pdf',
-    mimeType: 'application/pdf',
-    buffer: Buffer.from(await document.save()),
-  });
-  await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
-    'aria-busy',
-    'false',
-    { timeout: 20000 },
-  );
-  await capture('printing');
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    const navigation = page.getByRole('navigation', { name: 'Main navigation' });
+    await navigation.getByRole('link', { name: 'Devices', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Devices', exact: true })).toBeVisible();
+    await page
+      .getByRole('article')
+      .filter({ has: page.getByRole('heading', { name: 'Brother MFC-L2750DW', exact: true }) })
+      .getByRole('button', { name: 'Print', exact: true })
+      .click();
+    await expect(page.getByRole('dialog', { name: 'Print document' })).toBeVisible();
+    const document = await PDFDocument.create();
+    const first = document.addPage([595, 842]);
+    first.drawText('openwebprint', { x: 48, y: 778, size: 13 });
+    first.drawText('Your next print, ready.', { x: 48, y: 700, size: 26 });
+    first.drawText('Choose your printer. Review every page. Print.', { x: 48, y: 666, size: 12 });
+    first.drawText('This is a sample document in demo mode.', { x: 48, y: 570, size: 11 });
+    first.drawText('Your files stay on your server.', { x: 48, y: 100, size: 11 });
+    document
+      .addPage([595, 842])
+      .drawText('A second page, just one click away.', { x: 48, y: 700, size: 22 });
+    await page.getByLabel('Select document', { exact: true }).setInputFiles({
+      name: 'sample-document.pdf',
+      mimeType: 'application/pdf',
+      buffer: Buffer.from(await document.save()),
+    });
+    await expect(page.getByRole('img', { name: 'Document page 1', exact: true })).toHaveAttribute(
+      'aria-busy',
+      'false',
+      { timeout: 20000 },
+    );
+    await capture('printing');
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click();
 
-  await navigation.getByRole('link', { name: 'Scans', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Scans', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'New scan', exact: true }).click();
-  await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
-    timeout: 15_000,
-  });
-  const scannedPage = page.getByAltText('Scanned page 1', { exact: true });
-  await expect(scannedPage).toBeVisible();
-  await scannedPage.evaluate((image) => image.decode());
-  await capture('scanning');
+    await navigation.getByRole('link', { name: 'Scans', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Scans', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'New scan', exact: true }).click();
+    await page.getByRole('button', { name: 'Start demo scan', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Scan complete', exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    const scannedPage = page.getByAltText('Scanned page 1', { exact: true });
+    await expect(scannedPage).toBeVisible();
+    await scannedPage.evaluate((image) => image.decode());
+    await capture('scanning');
+  }
   expect(errors).toEqual([]);
-  console.log('Captured overview.png, printing.png and scanning.png from an isolated demo.');
+  console.log('Captured README media from an isolated demo.');
 } finally {
   await browser?.close();
   server.kill('SIGTERM');

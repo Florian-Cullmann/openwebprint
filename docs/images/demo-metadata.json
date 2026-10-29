@@ -1,0 +1,22 @@
+[
+  {
+    "file": "docs/images/demo-print.gif",
+    "width": 1200,
+    "height": 1000,
+    "nb_frames": "188",
+    "seconds": 23.51,
+    "bytes": 3829583,
+    "framesPerSecond": 8,
+    "plays": 1
+  },
+  {
+    "file": "docs/images/demo-scan.gif",
+    "width": 1200,
+    "height": 1000,
+    "nb_frames": "149",
+    "seconds": 18.63,
+    "bytes": 2776400,
+    "framesPerSecond": 8,
+    "plays": 1
+  }
+]
