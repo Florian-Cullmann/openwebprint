@@ -1,0 +1,42 @@
+[
+  {
+    "file": "docs/images/demo-print.gif",
+    "width": 1200,
+    "height": 1000,
+    "nb_frames": "206",
+    "seconds": 25.76,
+    "bytes": 3627506,
+    "framesPerSecond": 8,
+    "plays": 1
+  },
+  {
+    "file": "docs/images/demo-scan.gif",
+    "width": 1200,
+    "height": 1000,
+    "nb_frames": "150",
+    "seconds": 18.76,
+    "bytes": 2773056,
+    "framesPerSecond": 8,
+    "plays": 1
+  },
+  {
+    "file": "docs/images/demo-print-mobile.gif",
+    "width": 360,
+    "height": 720,
+    "nb_frames": "206",
+    "seconds": 25.76,
+    "bytes": 2293480,
+    "framesPerSecond": 8,
+    "plays": 1
+  },
+  {
+    "file": "docs/images/demo-scan-mobile.gif",
+    "width": 360,
+    "height": 720,
+    "nb_frames": "150",
+    "seconds": 18.76,
+    "bytes": 1850985,
+    "framesPerSecond": 8,
+    "plays": 1
+  }
+]

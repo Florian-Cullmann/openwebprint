@@ -16,19 +16,51 @@ Open source, self-hosted, and built around open standards.
 [![MIT](https://img.shields.io/badge/license-MIT-24252a.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/Node.js-24%20%7C%2026-24252a.svg)](https://nodejs.org/)
 
-[Get started](#quick-start) · [Screenshots](#screenshots) · [Self-hosting](#self-hosting) · [Hardware compatibility](docs/hardware.md#supported-protocols) · [Contribute](CONTRIBUTING.md)
+[Get started](#quick-start) · [See it in action](#see-it-in-action) · [Self-hosting](#self-hosting) · [Hardware compatibility](docs/hardware.md#supported-protocols) · [Contribute](CONTRIBUTING.md)
 
 </div>
 
-## A calmer way to work with paper
+## See it in action
 
-openwebprint puts your printers, scanners, and documents in one browser workspace. It is self-hosted, with no cloud account, telemetry, subscription, or vendor SDK. The interface supports **English and German**, desktop and mobile layouts, and light/dark themes.
+One browser workspace for your printers, scanners, and documents. **Self-hosted,
+with no cloud account, telemetry, or subscription.** Available in English and
+German, with desktop/mobile layouts and light/dark themes.
 
-- **Connect devices:** discover IPP/IPPS printers, import local CUPS queues, find SANE scanners, or add devices manually. Check hardware prerequisites and run diagnostics from setup or Settings.
-- **Print:** upload PDF, PNG, or JPEG files up to 25 MiB, preview and zoom, select page ranges or odd/even pages, and choose supported color, duplex binding, paper size, and copies. Print saved scans and retained documents directly.
-- **Scan:** use supported resolution, color, flatbed, or feeder options; collect up to 100 pages in a PDF; crop, rotate, reorder, remove, or append pages. Recover complete pages from a failed batch when available.
-- **Manage documents:** search scan titles, browse grid/list history, download PDFs or selected scans as a ZIP, and follow jobs with optional browser notifications. Scan and print files expire after **seven days by default**, configurable in Settings.
-- **Try without hardware:** clearly labeled demo devices generate sample output. **Hardware mode never falls back to simulation.**
+These recordings show the **actual application in demo mode**. Printing and scanning
+are simulated; no physical hardware was used. Clips play once to keep this page
+quiet. Open a clip and reload to replay, or follow the static alternatives below.
+
+### Print with confidence
+
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/images/demo-print-mobile.gif" />
+  <img src="docs/images/demo-print.gif" alt="Demo printing: upload a three-page sample PDF, preview page two, select pages 1–2 and two-sided printing, then follow the simulated job to completion." />
+</picture>
+
+Upload → preview → choose pages and sides → follow the job.
+Accepts PDF, PNG, or JPEG files up to 25 MiB; available options depend on the printer.
+[Static print view](docs/images/demo-print-still.png) · [Mobile still](docs/images/demo-print-mobile-still.png) · [Open animation](docs/images/demo-print.gif) · [Printing guide](docs/usage.md)
+
+### Turn paper into a useful PDF
+
+<picture>
+  <source media="(max-width: 600px)" srcset="docs/images/demo-scan-mobile.gif" />
+  <img src="docs/images/demo-scan.gif" alt="Demo scanning: scan a sample page, append a second page, rotate and reorder the pages, then download the two-page PDF." />
+</picture>
+
+Scan → add a page → rotate and reorder → download one PDF.
+Collect up to 100 pages, with cropping and flatbed/feeder options where supported.
+[Static scan view](docs/images/demo-scan-still.png) · [Mobile still](docs/images/demo-scan-mobile-still.png) · [Open animation](docs/images/demo-scan.gif) · [Scan editing and export](docs/usage.md)
+
+### Keep your documents within reach
+
+Search saved scan titles, preview documents, download PDFs or a ZIP of selected
+scans, and print retained documents again. Files expire after **seven days by
+default**, configurable in Settings. [Explore the workspace](docs/images/overview.png)
+or read the [usage guide](docs/usage.md).
+
+Ready to try it? [Get started below](#quick-start) and choose **Try demo**; no
+printer or scanner is needed. **Hardware mode never falls back to simulation.**
 
 This README describes the current `main` branch. The latest packaged release is **[v0.1.0-beta.3](docs/releases/v0.1.0-beta.3.md)**. Hardware compatibility depends on device protocols and host drivers; see the [hardware guide](docs/hardware.md).
 
@@ -73,25 +105,11 @@ Open **http://localhost:3001** and choose a setup method. The `demo` profile use
 
 ## Screenshots
 
-Captured from the current application with sample documents and devices in **demo mode**. Printing and scanning are simulated.
-
-### Your workspace at a glance
-
-![Overview showing demo devices, their status, and recent jobs](docs/images/overview.png)
-
-Check devices and recent jobs from one page.
-
-### Print from your browser
-
-![Document preview beside printer selection, page selection, and print options](docs/images/printing.png)
-
-Review a PDF or image, select pages, and choose the options supported by your printer.
-
-### Preview and download a scan
-
-![Completed demo scan with document preview, editing tools, and PDF download](docs/images/scanning.png)
-
-Review and edit scanned pages, download or print the PDF, or append another page.
+Prefer still images? Browse the [workspace overview](docs/images/overview.png),
+[print preview](docs/images/demo-print-still.png), and
+[scan editor](docs/images/demo-scan-still.png). All use synthetic demo content.
+See [README media maintenance](docs/readme-media.md) for recording instructions,
+format choices, and asset sizes.
 
 ## Self-hosting
 
@@ -118,7 +136,10 @@ Use the [self-hosting guide](docs/self-hosting.md) for production source deploym
 | [Providers](docs/providers.md)       | Integration contracts and verification boundaries                      |
 | [Security](SECURITY.md)              | Trust model and private vulnerability reporting                        |
 
-Small, focused contributions and real-device reports are welcome. Follow the [contribution workflow](CONTRIBUTING.md#required-workflow): use a dedicated branch and pull request, with an issue for features and larger changes. This project is not affiliated with printer or scanner manufacturers.
+You do not need to write code to help. Documentation improvements, translations,
+bug reports, and hardware compatibility reports are welcome alongside code.
+Tell us what you tried and what happened; for device reports, include the model,
+host OS, and whether you tested discovery, printing, or scanning. Follow the [contribution workflow](CONTRIBUTING.md#required-workflow): use a dedicated branch and pull request, with an issue for features and larger changes. This project is not affiliated with printer or scanner manufacturers.
 
 ## License
 
