@@ -29,7 +29,7 @@ import {
   type ScanPage,
   type ScanSources,
 } from '@openwebprint/shared';
-import { api, post } from './api';
+import { ApiError, api, post } from './api';
 import { Modal, Spinner } from './ui';
 import { DeviceDialog } from './DeviceDialog';
 import { useScanPageDrag } from './useScanPageDrag';
@@ -83,6 +83,7 @@ export function ScanDialog({
   const [error, setError] = useState('');
   const [pollError, setPollError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [uncertain, setUncertain] = useState(false);
   const [canceling, setCanceling] = useState(false);
   const cancelRequest = useRef(false);
   const pollVersion = useRef(0);
@@ -99,7 +100,7 @@ export function ScanDialog({
   const pages = job?.pages ?? [];
   const cropIndex = pages.findIndex((page) => page.id === cropping);
   const recovery = job?.recovery;
-  const locked = busy || running || !!recovery;
+  const locked = busy || running || !!recovery || uncertain;
   const feeder = sources.sources.find((s) => s.name === source)?.feeder;
   const settingsKey = JSON.stringify([deviceId, source, refreshSettings]);
   const settingsLoading = !running && (loadingSources || loadedSettings !== settingsKey);
@@ -218,7 +219,7 @@ export function ScanDialog({
     };
   }, [running, job?.id]);
   async function start(batch: boolean) {
-    if (requestActive.current || running || recovery || settingsLoading || invalidSettings) return;
+    if (requestActive.current || locked || settingsLoading || invalidSettings) return;
     requestActive.current = true;
     setError('');
     setBusy(true);
@@ -238,7 +239,14 @@ export function ScanDialog({
       started(next);
       changed();
     } catch (e) {
-      setError((e as Error).message);
+      const unknown = !(e instanceof ApiError) || e.status === 0 || e.status >= 500;
+      setUncertain(unknown);
+      setError(
+        unknown
+          ? 'The scan submission could not be confirmed. Scanning may already have started. Close this dialog and check Jobs and the scanner before scanning again; another submission could scan or append pages twice.'
+          : (e as Error).message,
+      );
+      if (unknown) changed();
     } finally {
       setBusy(false);
       requestActive.current = false;
@@ -309,7 +317,7 @@ export function ScanDialog({
     }
   }
   async function edit(updated: ScanPage[], focusPage?: string) {
-    if (!job || requestActive.current || running || recovery) return;
+    if (!job || requestActive.current || locked) return;
     requestActive.current = true;
     setBusy(true);
     setError('');
@@ -357,11 +365,13 @@ export function ScanDialog({
   return (
     <Modal
       title={
-        recovery
-          ? t('Scan incomplete')
-          : complete && !running
-            ? t('Scan complete')
-            : t('Scan document')
+        uncertain
+          ? t('Submission unconfirmed')
+          : recovery
+            ? t('Scan incomplete')
+            : complete && !running
+              ? t('Scan complete')
+              : t('Scan document')
       }
       subtitle={
         demo ? t('Demo mode: the scan sample is simulated.') : t('Collect pages in one PDF.')
