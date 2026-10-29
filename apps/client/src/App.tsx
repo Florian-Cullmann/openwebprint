@@ -1,5 +1,6 @@
 import { t, displayJobTitle, jobError, useLanguage, getLocale, formatNumber, plural } from './i18n';
 import { LanguagePicker } from './LanguagePicker';
+import { readPreference, writePreference } from './preferences';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownToLine,
@@ -94,10 +95,10 @@ export function App() {
   const [jobFilter, setJobFilter] = useState<JobFilter>('all');
   const [historyRevision, setHistoryRevision] = useState(0);
   const [scanLayout, setScanLayout] = useState<'grid' | 'list'>(() =>
-    localStorage.getItem('owp-scan-layout') === 'list' ? 'list' : 'grid',
+    readPreference('owp-scan-layout') === 'list' ? 'list' : 'grid',
   );
   const [deleting, setDeleting] = useState<{ device?: Device; job?: Job }>();
-  const [theme, setTheme] = useState(() => localStorage.getItem('owp-theme') ?? 'system');
+  const [theme, setTheme] = useState(() => readPreference('owp-theme') ?? 'system');
   const [dark, setDark] = useState(
     () =>
       theme === 'dark' ||
@@ -105,7 +106,7 @@ export function App() {
   );
   const refreshing = useRef<AbortController | undefined>(undefined);
   useEffect(() => {
-    localStorage.setItem('owp-scan-layout', scanLayout);
+    writePreference('owp-scan-layout', scanLayout);
   }, [scanLayout]);
   useEffect(() => {
     setDialog(undefined);
@@ -167,7 +168,7 @@ export function App() {
       setDark(document.documentElement.dataset.theme === 'dark');
     };
     apply();
-    localStorage.setItem('owp-theme', theme);
+    writePreference('owp-theme', theme);
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
   }, [theme]);
