@@ -757,3 +757,72 @@ it('locks a crop while exporting and discards staged output if publication fails
     await pending;
   }
 });
+
+it('exports edited individual pages losslessly as PNG or as JPEG, enforcing access and availability (stubbed scanner)', async () => {
+  f = await fixture({ provider: new RemovalScanner() });
+  const original = await start(undefined, { source: 'ADF', batch: true });
+  const source = storedScanPages(f.service.job(original.id))[0];
+  const pixels = Buffer.alloc(101 * 200 * 4);
+  pixels.set([255, 0, 0, 255], (20 * 101 + 10) * 4);
+  await sharp(pixels, { raw: { width: 101, height: 200, channels: 4 } })
+    .png()
+    .toFile(source.path);
+  const originalImage = await readFile(source.path);
+  const edited = await edit(original, [
+    { ...original.pages![0], rotation: 90, crop: { x: 2, y: 3, width: 70, height: 120 } },
+    ...original.pages!.slice(1),
+  ]);
+  expect(edited.statusCode).toBe(200);
+  const before = await download(original);
+  const url = `/api/scans/${original.id}/pages/${source.id}/export`;
+  const png = await f.app.inject({ url: `${url}?format=png`, headers: f.headers });
+  expect(png.statusCode).toBe(200);
+  expect(png.headers['content-disposition']).toContain('page-1.png');
+  expect(await sharp(png.rawPayload).metadata()).toMatchObject({
+    width: 120,
+    height: 70,
+    format: 'png',
+    hasAlpha: true,
+  });
+  const expected = Buffer.alloc(120 * 70 * 4);
+  // Original (10, 20) becomes crop-relative (8, 17), then (102, 8) after 90° rotation.
+  expected.set([255, 0, 0, 255], (8 * 120 + 102) * 4);
+  expect(await sharp(png.rawPayload).raw().toBuffer()).toEqual(expected);
+  const jpeg = await f.app.inject({ url: `${url}?format=jpeg&quality=75`, headers: f.headers });
+  expect(jpeg.statusCode).toBe(200);
+  expect(jpeg.headers['content-type']).toContain('image/jpeg');
+  expect(jpeg.headers['content-disposition']).toContain('page-1.jpg');
+  expect(await sharp(jpeg.rawPayload).metadata()).toMatchObject({
+    width: 120,
+    height: 70,
+    format: 'jpeg',
+    hasAlpha: false,
+  });
+  expect([...(await sharp(jpeg.rawPayload).raw().toBuffer()).subarray(0, 3)]).toEqual([
+    255, 255, 255,
+  ]);
+  expect(await download(original)).toEqual(before);
+  expect(await readFile(source.path)).toEqual(originalImage);
+  expect((await f.app.inject({ url: `${url}?format=png` })).statusCode).toBe(401);
+  for (const query of [
+    'format=gif',
+    'format=jpeg&quality=101',
+    'format=jpeg&quality=0',
+    'format=jpeg&quality=1.5',
+  ])
+    expect((await f.app.inject({ url: `${url}?${query}`, headers: f.headers })).statusCode).toBe(
+      400,
+    );
+  expect(
+    (
+      await f.app.inject({
+        url: `/api/scans/${original.id}/pages/${randomUUID()}/export?format=png`,
+        headers: f.headers,
+      })
+    ).statusCode,
+  ).toBe(404);
+  await f.app.inject({ method: 'DELETE', url: `/api/jobs/${original.id}`, headers: f.headers });
+  expect(
+    (await f.app.inject({ url: `${url}?format=png`, headers: f.headers })).statusCode,
+  ).not.toBe(200);
+});

@@ -185,6 +185,7 @@ export async function captureDemos(browser, origin, directory) {
       await pause(page, 1000);
       await page.screenshot({ path: `docs/images/demo-scan${suffix}-still.png` });
       const downloaded = page.waitForEvent('download');
+      await click(page, page.getByRole('button', { name: 'Download', exact: true }));
       await click(page, page.getByRole('link', { name: 'Download PDF', exact: true }));
       const download = await downloaded;
       const exported = await PDFDocument.load(await readFile(await download.path()));

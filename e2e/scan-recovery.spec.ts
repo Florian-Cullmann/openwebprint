@@ -82,10 +82,9 @@ for (const append of [false, true])
       await recovery.getByText('Recovery details', { exact: true }).click();
       if (append) {
         await expect(cards).toHaveCount(1);
-        await expect(page.getByRole('link', { name: 'Download PDF', exact: true })).toHaveAttribute(
-          'href',
-          /\/pdf$/,
-        );
+        await expect(
+          page.getByRole('link', { name: 'Download PDF', exact: true, includeHidden: true }),
+        ).toHaveAttribute('href', /\/pdf$/);
       }
       await page.getByRole('button', { name: 'Decide later', exact: true }).click();
       await page.reload();
@@ -123,6 +122,12 @@ for (const append of [false, true])
           'Acquisition incomplete. Kept 2 recovered pages.',
         );
         const event = page.waitForEvent('download');
+        if (
+          (await page
+            .getByRole('button', { name: 'Download', exact: true })
+            .getAttribute('aria-expanded')) === 'false'
+        )
+          await page.getByRole('button', { name: 'Download', exact: true }).click();
         await page.getByRole('link', { name: 'Download PDF', exact: true }).click();
         const pdf = await PDFDocument.load(await readFile((await (await event).path())!));
         expect(pdf.getPageCount()).toBe(append ? 3 : 2);

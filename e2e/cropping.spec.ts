@@ -103,6 +103,12 @@ test('crop a rotated scan with pointer and numeric controls, reopen, download, a
   await expect(page.getByRole('button', { name: 'Crop page 1', exact: true })).toBeFocused();
   expect((await latest()).pages![0].crop).toEqual({ x: 100, y: 200, width: 600, height: 900 });
   const downloadEvent = page.waitForEvent('download');
+  if (
+    (await page
+      .getByRole('button', { name: 'Download', exact: true })
+      .getAttribute('aria-expanded')) === 'false'
+  )
+    await page.getByRole('button', { name: 'Download', exact: true }).click();
   await page.getByRole('link', { name: 'Download PDF', exact: true }).click();
   const pdf = await PDFDocument.load(await readFile((await (await downloadEvent).path())!));
   const pdfPage = pdf.getPage(0);

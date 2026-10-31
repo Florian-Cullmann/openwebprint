@@ -134,6 +134,8 @@ it('requires confirmation before a shorter policy affects existing documents and
     `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}`,
     `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}?rendered=1`,
     `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}?thumbnail=1`,
+    `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}/export?format=png`,
+    `/api/scans/${scan.id}/pages/${scan.scanPages![0].id}/export?format=jpeg`,
   ])
     expect((await f.app.inject(url)).statusCode).toBe(410);
   await f.workspace.expireFiles();

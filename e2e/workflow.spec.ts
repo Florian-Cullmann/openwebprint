@@ -185,6 +185,12 @@ test('open access → routes → print → scans → users → login → setting
     if (index === 0) {
       await accessible(page);
       const downloadEvent = page.waitForEvent('download');
+      if (
+        (await page
+          .getByRole('button', { name: 'Download', exact: true })
+          .getAttribute('aria-expanded')) === 'false'
+      )
+        await page.getByRole('button', { name: 'Download', exact: true }).click();
       await page.getByRole('link', { name: 'Download PDF' }).click();
       const download = await downloadEvent;
       expect(
@@ -308,6 +314,12 @@ test('open access → routes → print → scans → users → login → setting
         'false',
       );
       const editedDownload = page.waitForEvent('download');
+      if (
+        (await page
+          .getByRole('button', { name: 'Download', exact: true })
+          .getAttribute('aria-expanded')) === 'false'
+      )
+        await page.getByRole('button', { name: 'Download', exact: true }).click();
       await page.getByRole('link', { name: 'Download PDF' }).click();
       const edited = await PDFDocument.load(await readFile((await (await editedDownload).path())!));
       expect(edited.getPageCount()).toBe(6);

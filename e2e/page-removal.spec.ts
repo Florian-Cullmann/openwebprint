@@ -66,10 +66,7 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
     await expect(list).toHaveAttribute('aria-busy', 'true');
     await expect(page.getByRole('button', { name: 'Remove page 1', exact: true })).toBeDisabled();
     await expect(page.getByRole('button', { name: /Scan another page$/ })).toBeDisabled();
-    await expect(page.locator('a').filter({ hasText: 'Download PDF' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeDisabled();
   } finally {
     release();
   }
@@ -84,6 +81,12 @@ test('remove pages, recover from a failed edit, reopen, and download the remaini
   await expect(page.getByRole('alert')).toHaveCount(0);
   const download = async () => {
     const event = page.waitForEvent('download');
+    if (
+      (await page
+        .getByRole('button', { name: 'Download', exact: true })
+        .getAttribute('aria-expanded')) === 'false'
+    )
+      await page.getByRole('button', { name: 'Download', exact: true }).click();
     await page.getByRole('link', { name: 'Download PDF', exact: true }).click();
     return PDFDocument.load(await readFile((await (await event).path())!));
   };

@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { z } from 'zod';
+import sharp from 'sharp';
 import {
   deviceInputSchema,
   printOptionsSchema,
@@ -404,6 +405,32 @@ export async function createApp(
     return workspace.run((service) =>
       service.resolveRecovery(idParam.parse(req.params).id, input.revision, input.action),
     );
+  });
+  app.get('/api/scans/:id/pages/:pageId/export', async (req, reply) => {
+    const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
+    const { format, quality } = z
+      .object({
+        format: z.enum(['png', 'jpeg']),
+        quality: z.coerce.number().int().min(1).max(100).default(90),
+      })
+      .parse(req.query);
+    const job = workspace.service.availableJob(id);
+    if (job.kind !== 'scan' || !job.hasFile) throw new AppError(404, 'Page unavailable.');
+    const pages = storedScanPages(job);
+    const index = pages.findIndex((page) => page.id === pageId);
+    if (index < 0) throw new AppError(404, 'Page unavailable.');
+    const { image } = await renderScanPage(pages[index]);
+    const data =
+      format === 'png'
+        ? image
+        : await sharp(image).flatten({ background: '#ffffff' }).jpeg({ quality }).toBuffer();
+    return reply
+      .type(`image/${format}`)
+      .header(
+        'Content-Disposition',
+        `attachment; filename="scan-${id}-page-${index + 1}.${format === 'jpeg' ? 'jpg' : 'png'}"`,
+      )
+      .send(data);
   });
   app.get('/api/scans/:id/pages/:pageId', async (req, reply) => {
     const { id, pageId } = idParam.extend({ pageId: z.uuid() }).parse(req.params);
