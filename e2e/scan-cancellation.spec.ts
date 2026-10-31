@@ -145,7 +145,7 @@ for (const saved of [false, true]) {
       await expect(cancel).toBeEnabled();
       if (saved) {
         await expect(page.getByRole('img', { name: 'Scanned page 1', exact: true })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Download PDF', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Download', exact: true })).toBeVisible();
       }
       await cancel.scrollIntoViewIfNeeded();
       await page.getByRole('dialog').screenshot({
@@ -179,10 +179,9 @@ for (const saved of [false, true]) {
       expect(busyCapabilityReads).toBe(0);
       if (saved) {
         await expect(page.getByRole('img', { name: 'Scanned page 1', exact: true })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'Download PDF', exact: true })).toHaveAttribute(
-          'href',
-          `/api/jobs/${job.id}/pdf`,
-        );
+        await expect(
+          page.getByRole('link', { name: 'Download PDF', exact: true, includeHidden: true }),
+        ).toHaveAttribute('href', `/api/jobs/${job.id}/pdf`);
       }
       await page.getByRole('dialog').screenshot({
         path: `test-results/${info.project.name}-21-${saved ? 'append' : 'first'}-canceled.png`,

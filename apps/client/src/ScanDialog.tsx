@@ -1,7 +1,6 @@
 import { t, plural, getLocale, jobError, displayJobTitle } from './i18n';
 import { useEffect, useRef, useState } from 'react';
 import {
-  Download,
   Printer,
   ScanLine,
   FileCheck2,
@@ -35,6 +34,7 @@ import { DeviceDialog } from './DeviceDialog';
 import { useScanPageDrag } from './useScanPageDrag';
 import { ScanCropEditor } from './ScanCropEditor';
 import { ColorModeControl, ResolutionControl } from './CapabilityControls';
+import { ScanDownload } from './ScanDownload';
 import { DocumentExpiry } from './DocumentExpiry';
 import s from './App.module.css';
 export function ScanDialog({
@@ -636,15 +636,7 @@ export function ScanDialog({
                   <span className={`${s.badge} ${s.positive}`}>
                     <FileCheck2 size={14} /> {plural('{count} page', '{count} pages', pages.length)}
                   </span>
-                  <a
-                    className={s.primary}
-                    href={busy ? undefined : `/api/jobs/${job!.id}/pdf`}
-                    aria-disabled={busy}
-                    download
-                  >
-                    <Download size={17} />
-                    {t('Download PDF')}
-                  </a>
+                  <ScanDownload job={job!} disabled={busy} />
                 </div>
                 {!recovery && (
                   <>
