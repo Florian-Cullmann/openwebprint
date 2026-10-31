@@ -32,7 +32,6 @@ test('download dropdown exports a selected page or the full PDF (demo scanner)',
   await expect(page.getByRole('dialog')).toBeVisible();
   await button.click();
   await page.getByLabel('Page for image download').selectOption({ label: 'Page 2' });
-  await page.getByLabel('JPEG quality').selectOption('75');
   await page.screenshot({ path: `test-results/${info.project.name}-scan-download.png` });
   const axe = await new AxeBuilder({ page }).analyze();
   expect(axe.violations.filter((v) => ['serious', 'critical'].includes(v.impact ?? ''))).toEqual(

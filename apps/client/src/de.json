@@ -690,9 +690,5 @@
   "Page for image download": "Seite für Bilddownload",
   "Page {number}": "Seite {number}",
   "Download PNG": "PNG herunterladen",
-  "Download JPEG": "JPEG herunterladen",
-  "JPEG quality": "JPEG-Qualität",
-  "High (90%)": "Hoch (90 %)",
-  "Smaller file (75%)": "Kleinere Datei (75 %)",
-  "Maximum (100%)": "Maximum (100 %)"
+  "Download JPEG": "JPEG herunterladen"
 }

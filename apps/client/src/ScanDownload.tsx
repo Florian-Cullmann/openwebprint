@@ -7,7 +7,6 @@ import s from './App.module.css';
 export function ScanDownload({ job, disabled }: { job: Job; disabled: boolean }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('');
-  const [quality, setQuality] = useState('90');
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
@@ -73,23 +72,14 @@ export function ScanDownload({ job, disabled }: { job: Job; disabled: boolean })
             <a
               className={s.secondary}
               href={
-                disabled
-                  ? undefined
-                  : `/api/scans/${job.id}/pages/${pageId}/export?format=jpeg&quality=${quality}`
+                disabled ? undefined : `/api/scans/${job.id}/pages/${pageId}/export?format=jpeg`
               }
               download
               aria-label={t('Download JPEG')}
             >
               JPEG
             </a>
-            <label>
-              {t('JPEG quality')}
-              <select value={quality} onChange={(event) => setQuality(event.target.value)}>
-                <option value="90">{t('High (90%)')}</option>
-                <option value="75">{t('Smaller file (75%)')}</option>
-                <option value="100">{t('Maximum (100%)')}</option>
-              </select>
-            </label>
+            <hr className={s.scanDownloadDivider} />
           </>
         )}
         <a
