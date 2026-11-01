@@ -8,11 +8,11 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@fastify/cookie": "^11.0.2",
+    "@fastify/cookie": "^11.1.5",
     "@fastify/helmet": "^13.0.2",
     "@fastify/multipart": "^10.1.6",
-    "@fastify/rate-limit": "^10.3.0",
-    "@fastify/static": "^10.1.7",
+    "@fastify/rate-limit": "^11.2.1",
+    "@fastify/static": "^10.1.8",
     "@openwebprint/shared": "*",
     "@sealsystems/ipp": "^2.11.0",
     "bonjour-service": "^1.4.4",
